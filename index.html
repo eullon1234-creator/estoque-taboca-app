@@ -275,18 +275,6 @@
                 </div>
             </div>
         </header>
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                </button>
-                <div id="auth-status" class="text-right flex items-center gap-3">
-                    <div id="user-info">
-                        <p class="text-sm text-slate-500">Conectando...</p>
-                    </div>
-                    <button id="logout-btn" class="hidden px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition text-sm font-medium">
-                        Sair
-                    </button>
-                </div>
-            </div>
-        </header>
         
         <div class="flex flex-col lg:flex-row gap-5">
             <!-- Sidebar: só aparece em desktop (lg+) -->
@@ -691,6 +679,14 @@
                                  Analisar Consumo
                             </button>
                         </div>
+                                                <div class="bg-slate-50 p-6 rounded-lg border border-slate-200">
+                                                        <h3 class="text-lg font-bold mb-2">Planilha de KPIs</h3>
+                                                        <p class="text-slate-600 mb-4">Baixe os principais indicadores do painel, incluindo estoque baixo e itens com maior saída em 3 e 7 dias.</p>
+                                                        <button id="generate-kpi-report-btn" class="bg-indigo-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-indigo-700 transition flex items-center gap-2 shadow-sm">
+                                                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 1.343-3 3h6c0-1.657-1.343-3-3-3z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h14a2 2 0 012 2v5a2 2 0 01-2 2h-4l-3 3-3-3H5a2 2 0 01-2-2V7z"></path></svg>
+                                                                 Baixar KPIs (CSV)
+                                                        </button>
+                                                </div>
                          <div class="bg-slate-50 p-6 rounded-lg border border-slate-200 md:col-span-2">
                             <h3 class="text-lg font-bold mb-2">Backup e Restauração</h3>
                             <p class="text-slate-600 mb-4">Salve todos os dados do aplicativo ou restaure a partir de um arquivo de backup.</p>
@@ -855,6 +851,7 @@
         const printSelectedReqsBtn = document.getElementById('print-selected-reqs-btn');
         const generateExitReportBtn = document.getElementById('generate-exit-report-btn');
         const generateConsumptionReportBtn = document.getElementById('generate-consumption-report-btn');
+        const generateKpiReportBtn = document.getElementById('generate-kpi-report-btn');
         const addLocationForm = document.getElementById('add-location-form');
         const loginUsernameInput = document.getElementById('login-username');
         const loginPasswordInput = document.getElementById('login-password');
@@ -1345,6 +1342,56 @@
             const lowStockItems = products.filter(p => p.quantity <= p.minQuantity).length;
             const pendingReqs = requisitions.filter(r => r.status === 'Pendente' || r.status === 'pending').length;
 
+            const timestampToMillis = (entry) => {
+                if (!entry?.date) return 0;
+                if (typeof entry.date.seconds === 'number') return entry.date.seconds * 1000;
+                if (typeof entry.date.toMillis === 'function') return entry.date.toMillis();
+                return 0;
+            };
+
+            const getTopExitedItems = (days) => {
+                const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+                const map = new Map();
+
+                history
+                    .filter(h => (h.type === 'Saída' || h.type === 'Saída por Requisição') && timestampToMillis(h) >= cutoff)
+                    .forEach(h => {
+                        const key = h.productId || h.productCode || h.productCodeRM || h.productName;
+                        const previous = map.get(key) || {
+                            productName: h.productName || 'Produto sem nome',
+                            productCode: h.productCodeRM || h.productCode || 'N/A',
+                            totalQty: 0
+                        };
+                        previous.totalQty += Math.abs(Number(h.quantity) || 0);
+                        map.set(key, previous);
+                    });
+
+                return [...map.values()].sort((a, b) => b.totalQty - a.totalQty).slice(0, 5);
+            };
+
+            const top3Days = getTopExitedItems(3);
+            const top7Days = getTopExitedItems(7);
+
+            const renderTopList = (items) => {
+                if (items.length === 0) {
+                    return `<p class="text-xs" style="color:#727785;">Sem saídas registradas no período.</p>`;
+                }
+
+                return `
+                    <div class="space-y-2">
+                        ${items.map((item, index) => `
+                            <div class="flex items-center justify-between gap-3 p-2 rounded-lg" style="background:#f8f9fa;">
+                                <div class="min-w-0">
+                                    <p class="text-sm font-semibold truncate" style="color:#191c1d;">${index + 1}. ${item.productName}</p>
+                                    <p class="text-xs truncate" style="color:#727785;">${item.productCode}</p>
+                                </div>
+                                <span class="text-sm font-extrabold" style="color:#ba1a1a;">${item.totalQty}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            };
+
             // Atualizar badges de requisições (sidebar + bottom nav)
             [document.getElementById('nav-req-badge'), document.getElementById('bottom-req-badge')].forEach(badge => {
                 if (!badge) return;
@@ -1383,7 +1430,7 @@
                         <span class="material-symbols-outlined" style="font-size:22px; color:#795900; font-variation-settings:'FILL' 0,'wght' 400;">warning</span>
                     </div>
                     <p class="text-3xl font-bold tracking-tight" style="color:#191c1d;">${lowStockItems}</p>
-                    <p class="text-xs font-semibold tracking-tight mt-0.5" style="color:#727785;">Estoque Baixo</p>
+                    <p class="text-xs font-semibold tracking-tight mt-0.5" style="color:#727785;">Itens com Estoque Baixo</p>
                 </div>
                 <!-- KPI: Requisições Pendentes -->
                 <div class="bg-surface-container-lowest p-5 rounded-2xl tonal-elevation">
@@ -1392,6 +1439,22 @@
                     </div>
                     <p class="text-3xl font-bold tracking-tight" style="color:#191c1d;">${pendingReqs}</p>
                     <p class="text-xs font-semibold tracking-tight mt-0.5" style="color:#727785;">Req. Pendentes</p>
+                </div>
+                <!-- Ranking: Mais Saíram (3 dias) -->
+                <div class="bg-surface-container-lowest p-5 rounded-2xl tonal-elevation">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="text-sm font-bold uppercase tracking-wide" style="color:#191c1d;">Top Saídas (3 dias)</h4>
+                        <span class="material-symbols-outlined" style="font-size:20px; color:#ba1a1a;">trending_down</span>
+                    </div>
+                    ${renderTopList(top3Days)}
+                </div>
+                <!-- Ranking: Mais Saíram (7 dias) -->
+                <div class="bg-surface-container-lowest p-5 rounded-2xl tonal-elevation">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="text-sm font-bold uppercase tracking-wide" style="color:#191c1d;">Top Saídas (7 dias)</h4>
+                        <span class="material-symbols-outlined" style="font-size:20px; color:#795900;">calendar_month</span>
+                    </div>
+                    ${renderTopList(top7Days)}
                 </div>`;
 
             // Ajustar grid do container de stats para bento
@@ -2037,6 +2100,7 @@
                         <div><label class="block text-sm font-medium text-slate-600">Localização</label><input type="text" id="edit-product-location" class="w-full mt-1 p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" value="${p.location}" required></div>
                         <div><label class="block text-sm font-medium text-slate-600">Grupo</label><select id="edit-product-group" class="w-full mt-1 p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500">${groupOptions}</select></div>
                         <div><label class="block text-sm font-medium text-slate-600">Unidade</label><select id="edit-product-unit" class="w-full mt-1 p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500">${unitOptions}</select></div>
+                        <div><label class="block text-sm font-medium text-slate-600">Quantidade Atual</label><input type="number" id="edit-product-quantity" class="w-full mt-1 p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" value="${p.quantity}" required min="0"></div>
                         <div><label class="block text-sm font-medium text-slate-600">Qtd. Mínima</label><input type="number" id="edit-product-min-quantity" class="w-full mt-1 p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" value="${p.minQuantity}" required min="0"></div>
                     </div>
                     <div>
@@ -2572,7 +2636,7 @@
                 observation: '',
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
-                createdBy: auth.currentUser?.email || 'Anônimo'
+                createdBy: currentUser?.displayName || currentUser?.uid || 'Anônimo'
             };
 
             // 🔒 VALIDAÇÕES CRÍTICAS
@@ -2799,21 +2863,23 @@
                 e.preventDefault();
                 const id = document.getElementById('edit-product-id').value;
                 const productRef = doc(productsCollectionRef, id);
+                const newQuantity = parseInt(document.getElementById('edit-product-quantity').value);
                 const updatedData = {
                     codeRM: document.getElementById('edit-product-code-rm').value.trim(),
                     name: document.getElementById('edit-product-name').value.trim(),
                     unit: document.getElementById('edit-product-unit').value,
                     group: document.getElementById('edit-product-group').value,
+                    quantity: newQuantity,
                     minQuantity: parseInt(document.getElementById('edit-product-min-quantity').value),
                     location: document.getElementById('edit-product-location').value.trim(),
                     observation: document.getElementById('edit-product-observation').value.trim(),
                     updatedAt: serverTimestamp(), // 🔍 Auditoria: timestamp de atualização
-                    updatedBy: auth.currentUser?.email || 'Anônimo' // 🔍 Auditoria: quem atualizou
+                    updatedBy: currentUser?.displayName || currentUser?.uid || 'Anônimo' // 🔍 Auditoria: quem atualizou
                 };
                 try {
                     await updateDoc(productRef, updatedData);
                     const product = products.find(p => p.id === id);
-                    await addHistoryEntry(id, 'Edição', 0, product.quantity, { details: 'Dados do produto alterados.' }, product);
+                    await addHistoryEntry(id, 'Edição', 0, newQuantity, { details: 'Dados do produto alterados.' }, { ...product, ...updatedData });
                     showToast("Produto atualizado com sucesso!");
                     closeModal('generic-modal');
                 } catch (error) {
@@ -3297,6 +3363,86 @@
                 link.click();
                 document.body.removeChild(link);
             });
+        });
+
+        generateKpiReportBtn.addEventListener('click', () => {
+            const totalProducts = products.length;
+            const totalUnits = products.reduce((sum, p) => sum + (p.quantity || 0), 0);
+            const lowStockItems = products.filter(p => p.quantity <= p.minQuantity).length;
+            const pendingReqs = requisitions.filter(r => r.status === 'Pendente' || r.status === 'pending').length;
+
+            const timestampToMillis = (entry) => {
+                if (!entry?.date) return 0;
+                if (typeof entry.date.seconds === 'number') return entry.date.seconds * 1000;
+                if (typeof entry.date.toMillis === 'function') return entry.date.toMillis();
+                return 0;
+            };
+
+            const getTopExitedItems = (days) => {
+                const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+                const grouped = new Map();
+
+                history
+                    .filter(h => (h.type === 'Saída' || h.type === 'Saída por Requisição') && timestampToMillis(h) >= cutoff)
+                    .forEach(h => {
+                        const key = h.productId || h.productCode || h.productCodeRM || h.productName;
+                        const previous = grouped.get(key) || {
+                            name: h.productName || 'Produto sem nome',
+                            code: h.productCodeRM || h.productCode || 'N/A',
+                            qty: 0
+                        };
+                        previous.qty += Math.abs(Number(h.quantity) || 0);
+                        grouped.set(key, previous);
+                    });
+
+                return [...grouped.values()].sort((a, b) => b.qty - a.qty).slice(0, 5);
+            };
+
+            const top3Days = getTopExitedItems(3);
+            const top7Days = getTopExitedItems(7);
+
+            let csvContent = "Indicador;Valor\n";
+            csvContent += `Data de Geração;${new Date().toLocaleString('pt-BR')}\n`;
+            csvContent += `Total de Produtos (SKUs);${totalProducts}\n`;
+            csvContent += `Total de Unidades em Estoque;${totalUnits}\n`;
+            csvContent += `Itens com Estoque Baixo;${lowStockItems}\n`;
+            csvContent += `Requisições Pendentes;${pendingReqs}\n`;
+            csvContent += "\n";
+
+            csvContent += "Top Saídas - Últimos 3 Dias;;;;\n";
+            csvContent += "Posição;Produto;Código;Quantidade Total;Período\n";
+            if (top3Days.length === 0) {
+                csvContent += `1;Sem registros;N/A;0;3 dias\n`;
+            } else {
+                top3Days.forEach((item, index) => {
+                    const row = [index + 1, item.name, item.code, item.qty, '3 dias']
+                        .map(field => `"${String(field).replace(/"/g, '""')}"`).join(';');
+                    csvContent += row + '\n';
+                });
+            }
+            csvContent += "\n";
+
+            csvContent += "Top Saídas - Últimos 7 Dias;;;;\n";
+            csvContent += "Posição;Produto;Código;Quantidade Total;Período\n";
+            if (top7Days.length === 0) {
+                csvContent += `1;Sem registros;N/A;0;7 dias\n`;
+            } else {
+                top7Days.forEach((item, index) => {
+                    const row = [index + 1, item.name, item.code, item.qty, '7 dias']
+                        .map(field => `"${String(field).replace(/"/g, '""')}"`).join(';');
+                    csvContent += row + '\n';
+                });
+            }
+
+            const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", "kpis_estoque.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast("Planilha de KPIs gerada com sucesso!");
         });
 
         aiDescribeBtn.addEventListener('click', async () => {
