@@ -223,35 +223,27 @@
     </div>
 
     <!-- 🔐 Tela de Login -->
-    <div id="login-screen" class="fixed inset-0 bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center z-50">
-        <div class="bg-white rounded-2xl shadow-2xl p-8 md:p-12 max-w-md w-full mx-4">
+    <div id="login-screen" class="fixed inset-0 flex items-center justify-center z-50" style="background: linear-gradient(135deg, #005bbf 0%, #003d8a 100%);">
+        <div class="bg-white rounded-3xl p-8 max-w-sm w-full mx-4" style="box-shadow:0 24px 80px rgba(0,61,138,0.3);">
             <div class="text-center mb-8">
-                <div class="inline-flex items-center justify-center w-20 h-20 bg-indigo-100 rounded-full mb-4">
-                    <svg class="w-10 h-10 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-                    </svg>
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4" style="background:rgba(0,91,191,0.1);">
+                    <span class="material-symbols-outlined" style="font-size:36px; color:#005bbf; font-variation-settings:'FILL' 1,'wght' 400;">inventory_2</span>
                 </div>
-                <h1 class="text-3xl font-bold text-slate-800 mb-2">Controle de Estoque</h1>
-                <p class="text-slate-600">Faça login para acessar o sistema</p>
+                <h1 class="text-2xl font-extrabold tracking-tight" style="color:#191c1d;">Controle de Estoque</h1>
+                <p class="text-sm mt-1" style="color:#727785;">UHE Taboca — Faça login para continuar</p>
             </div>
-
-            <button id="google-login-btn" class="w-full bg-white border-2 border-slate-300 text-slate-700 font-semibold px-6 py-3 rounded-lg hover:bg-slate-50 hover:border-slate-400 transition-all duration-200 flex items-center justify-center gap-3 shadow-sm">
-                <svg class="w-6 h-6" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                </svg>
-                Entrar com Google
-            </button>
-
-            <button id="clear-session-btn" class="w-full text-slate-500 hover:text-slate-700 text-sm font-medium py-2 transition-colors mt-2">
-                🔄 Limpar sessão anterior
-            </button>
-
-            <p class="text-xs text-slate-500 text-center mt-6">
-                Ao fazer login, você concorda com os termos de uso do sistema
-            </p>
+            <div id="login-error" class="hidden mb-4 p-3 rounded-xl text-sm text-center font-medium" style="background:rgba(186,26,26,0.1); color:#ba1a1a;"></div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider mb-1.5" style="color:#414754;">Nome de usuário</label>
+                    <input id="login-username" type="text" autocomplete="username" placeholder="Digite seu nome" class="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all" style="background:#f3f4f5; color:#191c1d; border:2px solid transparent;" onfocus="this.style.borderColor='#005bbf';this.style.background='#fff'" onblur="this.style.borderColor='transparent';this.style.background='#f3f4f5'">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider mb-1.5" style="color:#414754;">Senha</label>
+                    <input id="login-password" type="password" autocomplete="current-password" placeholder="••••••" class="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all" style="background:#f3f4f5; color:#191c1d; border:2px solid transparent;" onfocus="this.style.borderColor='#005bbf';this.style.background='#fff'" onblur="this.style.borderColor='transparent';this.style.background='#f3f4f5'">
+                </div>
+                <button id="login-btn" class="w-full py-3.5 rounded-xl text-sm font-bold tracking-wide text-white transition-all active:scale-95 hover:opacity-90" style="background:#005bbf;">Entrar</button>
+            </div>
         </div>
     </div>
 
@@ -789,7 +781,7 @@
     <script type="module">
         // Importações do Firebase SDK
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, addDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp, runTransaction, writeBatch, Timestamp, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Configuração do Firebase ---
@@ -831,7 +823,6 @@
         let currentUser = null;
         let userRole = null; // 'admin', 'operador', 'visualizador'
         let isAuthInitialized = false; // Flag para controlar inicialização
-        const googleProvider = new GoogleAuthProvider();
         
         // 🚀 Paginação para Performance
         let currentPage = 1;
@@ -866,8 +857,10 @@
         const generateExitReportBtn = document.getElementById('generate-exit-report-btn');
         const generateConsumptionReportBtn = document.getElementById('generate-consumption-report-btn');
         const addLocationForm = document.getElementById('add-location-form');
-        const googleLoginBtn = document.getElementById('google-login-btn');
-        const clearSessionBtn = document.getElementById('clear-session-btn');
+        const loginUsernameInput = document.getElementById('login-username');
+        const loginPasswordInput = document.getElementById('login-password');
+        const loginBtn = document.getElementById('login-btn');
+        const loginError = document.getElementById('login-error');
         const logoutBtn = document.getElementById('logout-btn');
         const loginScreen = document.getElementById('login-screen');
         const appContainer = document.getElementById('app-container');
@@ -1173,74 +1166,99 @@
             }
         };
 
+        // --- Utilitários de Autenticação ---
+        const hashPassword = async (password) => {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(password);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+        };
+
+        const normalizeUserId = (username) =>
+            username.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+
+        // Seed do usuário inicial (executado na primeira inicialização do app)
+        const seedInitialUser = async () => {
+            try {
+                const usersRef = collection(db, `/artifacts/${appId}/public/data/users`);
+                const seedRef = doc(usersRef, 'uhe_estrela');
+                const seedDoc = await getDoc(seedRef);
+                if (!seedDoc.exists()) {
+                    const passwordHash = await hashPassword('60218');
+                    await setDoc(seedRef, {
+                        username: 'UHE ESTRELA',
+                        displayName: 'UHE ESTRELA',
+                        passwordHash,
+                        role: 'admin',
+                        createdAt: serverTimestamp()
+                    });
+                }
+            } catch (e) { /* silent – Firestore rules podem bloquear antes do login */ }
+        };
+
+        const initializeAppSession = (customUser) => {
+            currentUser = customUser;
+            userRole = customUser.role;
+
+            // Configurar referências do Firestore
+            productsCollectionRef = collection(db, `/artifacts/${appId}/public/data/products`);
+            historyCollectionRef = collection(db, `/artifacts/${appId}/public/data/history`);
+            requisitionsCollectionRef = collection(db, `/artifacts/${appId}/public/data/requisitions`);
+            locationsCollectionRef = collection(db, `/artifacts/${appId}/public/data/locations`);
+            settingsDocRef = doc(db, `/artifacts/${appId}/public/data/app_settings/main`);
+            usersCollectionRef = collection(db, `/artifacts/${appId}/public/data/users`);
+
+            // Avatar com iniciais
+            const initials = customUser.displayName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+            const roleLabels = {
+                admin: { text: 'Administrador', color: '#6600cc' },
+                operador: { text: 'Operador', color: '#005bbf' },
+                visualizador: { text: 'Visualizador', color: '#414754' }
+            };
+            const roleInfo = roleLabels[userRole] || roleLabels.operador;
+
+            if (userInfoDiv) userInfoDiv.innerHTML = `
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style="background:#005bbf;">${initials}</div>
+                    <div class="text-left hidden md:block">
+                        <p class="text-sm font-semibold" style="color:#191c1d;">${customUser.displayName}</p>
+                        <p class="text-xs font-bold px-2 py-0.5 rounded-full inline-block" style="background:rgba(0,91,191,0.08); color:${roleInfo.color};">${roleInfo.text}</p>
+                    </div>
+                </div>`;
+
+            // Sidebar footer
+            const sidebarName = document.getElementById('sidebar-user-name');
+            const sidebarRole = document.getElementById('sidebar-user-role');
+            const sidebarAvatar = document.getElementById('sidebar-avatar');
+            if (sidebarName) sidebarName.textContent = customUser.displayName.split(' ')[0];
+            if (sidebarRole) sidebarRole.textContent = roleInfo.text;
+            if (sidebarAvatar) {
+                sidebarAvatar.innerHTML = `<div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background:#005bbf;">${initials}</div>`;
+                sidebarAvatar.className = 'flex-shrink-0';
+            }
+
+            loginScreen.classList.add('hidden');
+            appContainer.classList.remove('hidden');
+            if (logoutBtn) logoutBtn.classList.remove('hidden');
+
+            updateUIBasedOnPermissions();
+            setupListeners();
+        };
+
         // --- Lógica de Autenticação e Inicialização ---
         onAuthStateChanged(auth, async (user) => {
-            if (user && !isAuthInitialized) {
-                // Fazer logout automático se não tiver sessão válida
-                const hasValidSession = sessionStorage.getItem('userLoggedIn');
-                if (!hasValidSession) {
+            if (user) {
+                const savedData = localStorage.getItem('appUser');
+                if (!savedData) {
                     await signOut(auth);
                     loginScreen.classList.remove('hidden');
                     appContainer.classList.add('hidden');
                     showLoader(false);
                     return;
                 }
-            }
-            
-            if (user) {
-                currentUser = user;
-                
-                // Configurar referências do Firestore
-                productsCollectionRef = collection(db, `/artifacts/${appId}/public/data/products`);
-                historyCollectionRef = collection(db, `/artifacts/${appId}/public/data/history`);
-                requisitionsCollectionRef = collection(db, `/artifacts/${appId}/public/data/requisitions`);
-                locationsCollectionRef = collection(db, `/artifacts/${appId}/public/data/locations`);
-                settingsDocRef = doc(db, `/artifacts/${appId}/public/data/app_settings/main`);
-                usersCollectionRef = collection(db, `/artifacts/${appId}/public/data/users`);
-                
-                // Buscar role do usuário
-                userRole = await getUserRole(user.uid);
-                
-                // Atualizar UI
-                const roleLabels = {
-                    admin: { text: 'Administrador', color: 'text-purple-600', bg: 'bg-purple-50' },
-                    operador: { text: 'Operador', color: 'text-blue-600', bg: 'bg-blue-50' },
-                    visualizador: { text: 'Visualizador', color: 'text-slate-600', bg: 'bg-slate-50' }
-                };
-                const roleInfo = roleLabels[userRole] || roleLabels.visualizador;
-                
-                userInfoDiv.innerHTML = `
-                    <div class="flex items-center gap-2">
-                        <img src="${user.photoURL}" alt="Avatar" class="w-8 h-8 rounded-full border-2 border-slate-200">
-                        <div class="text-left">
-                            <p class="text-sm font-semibold text-slate-800">${user.displayName || user.email}</p>
-                            <p class="text-xs ${roleInfo.color} font-medium px-2 py-0.5 ${roleInfo.bg} rounded-full inline-block">${roleInfo.text}</p>
-                        </div>
-                    </div>
-                `;
-
-                // Atualizar rodapé da sidebar
-                const sidebarName = document.getElementById('sidebar-user-name');
-                const sidebarRole = document.getElementById('sidebar-user-role');
-                const sidebarAvatar = document.getElementById('sidebar-avatar');
-                if (sidebarName) sidebarName.textContent = user.displayName ? user.displayName.split(' ')[0] : (user.email || 'Usuário');
-                if (sidebarRole) sidebarRole.textContent = roleInfo.text;
-                if (sidebarAvatar && user.photoURL) {
-                    sidebarAvatar.innerHTML = `<img src="${user.photoURL}" alt="Avatar" class="w-8 h-8 rounded-full object-cover">`;
-                    sidebarAvatar.className = 'w-8 h-8 rounded-full flex-shrink-0 overflow-hidden';
-                }
-                
-                // Mostrar app e ocultar tela de login
-                loginScreen.classList.add('hidden');
-                appContainer.classList.remove('hidden');
-                logoutBtn.classList.remove('hidden');
-                
-                // Aplicar permissões
-                updateUIBasedOnPermissions();
-                
-                setupListeners();
+                const customUser = JSON.parse(savedData);
+                initializeAppSession(customUser);
             } else {
-                // Mostrar tela de login
                 loginScreen.classList.remove('hidden');
                 appContainer.classList.add('hidden');
                 showLoader(false);
@@ -2344,56 +2362,74 @@
         // --- Event Listeners ---
 
         // 🔐 Event Listeners de Autenticação
-        googleLoginBtn.addEventListener('click', async () => {
+        const doLogin = async () => {
+            const username = loginUsernameInput.value.trim().toUpperCase();
+            const password = loginPasswordInput.value;
+            loginError.classList.add('hidden');
+
+            if (!username || !password) {
+                loginError.textContent = 'Preencha o nome de usuário e a senha.';
+                loginError.classList.remove('hidden');
+                return;
+            }
+
             try {
                 showLoader(true);
-                sessionStorage.setItem('userLoggedIn', 'true'); // 🔐 Marcar sessão válida
-                isAuthInitialized = true;
-                
-                // Tentar popup primeiro
-                try {
-                    await signInWithPopup(auth, googleProvider);
-                    showToast('✅ Login realizado com sucesso!');
-                } catch (popupError) {
-                    // Se popup falhar, usar redirect
-                    if (popupError.code === 'auth/popup-blocked' || popupError.code === 'auth/cancelled-popup-request') {
-                        await signInWithRedirect(auth, googleProvider);
-                    } else {
-                        throw popupError;
+                loginBtn.disabled = true;
+
+                const userId = normalizeUserId(username);
+                const hash = await hashPassword(password);
+
+                // Verificar no Firestore
+                const usersRef = collection(db, `/artifacts/${appId}/public/data/users`);
+                const userRef = doc(usersRef, userId);
+                const userDoc = await getDoc(userRef);
+
+                let appUser = null;
+
+                if (userDoc.exists()) {
+                    const data = userDoc.data();
+                    if (data.passwordHash === hash) {
+                        appUser = { uid: userId, username: data.username, displayName: data.displayName || data.username, role: data.role || 'operador' };
+                    }
+                } else {
+                    // Fallback: seed interno para UHE ESTRELA caso Firestore ainda não tenha o documento
+                    if (username === 'UHE ESTRELA' && password === '60218') {
+                        appUser = { uid: 'uhe_estrela', username: 'UHE ESTRELA', displayName: 'UHE ESTRELA', role: 'admin' };
+                        // Tentar persistir no Firestore em background
+                        hashPassword('60218').then(h => setDoc(userRef, { username: 'UHE ESTRELA', displayName: 'UHE ESTRELA', passwordHash: h, role: 'admin', createdAt: serverTimestamp() }).catch(() => {})).catch(() => {});
                     }
                 }
+
+                if (!appUser) {
+                    loginError.textContent = userDoc.exists() ? 'Senha incorreta.' : 'Usuário não encontrado.';
+                    loginError.classList.remove('hidden');
+                    showLoader(false);
+                    loginBtn.disabled = false;
+                    return;
+                }
+
+                // Salvar sessão e autenticar anonimamente no Firebase
+                localStorage.setItem('appUser', JSON.stringify(appUser));
+                await signInAnonymously(auth);
+                // onAuthStateChanged irá inicializar o app
+
             } catch (error) {
                 console.error('Erro no login:', error);
-                let errorMessage = '❌ Erro ao fazer login. Tente novamente.';
-                
-                if (error.code === 'auth/popup-closed-by-user') {
-                    errorMessage = 'Login cancelado.';
-                } else if (error.code === 'auth/unauthorized-domain') {
-                    errorMessage = '🔒 Domínio não autorizado. Configure no Firebase Console.';
-                }
-                
-                showToast(errorMessage, true);
+                loginError.textContent = 'Erro ao conectar. Verifique sua conexão.';
+                loginError.classList.remove('hidden');
                 showLoader(false);
+                loginBtn.disabled = false;
             }
-        });
+        };
 
-        clearSessionBtn.addEventListener('click', async () => {
-            try {
-                showLoader(true);
-                sessionStorage.removeItem('userLoggedIn'); // 🔐 Limpar sessão
-                await signOut(auth);
-                showToast('Sessão limpa! Faça login novamente.');
-                showLoader(false);
-            } catch (error) {
-                console.error('Erro ao limpar sessão:', error);
-                showToast('Erro ao limpar sessão', true);
-                showLoader(false);
-            }
-        });
+        loginBtn.addEventListener('click', doLogin);
+        loginPasswordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+        loginUsernameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loginPasswordInput.focus(); });
 
         logoutBtn.addEventListener('click', async () => {
             try {
-                sessionStorage.removeItem('userLoggedIn'); // 🔐 Limpar sessão
+                localStorage.removeItem('appUser');
                 await signOut(auth);
                 currentUser = null;
                 userRole = null;
@@ -3572,25 +3608,10 @@
         // 🎨 Mostrar skeleton ao carregar página
         showProductsSkeleton(true, 8);
 
-        // 🔐 Verificar resultado do redirect (se houver)
-        getRedirectResult(auth)
-            .then((result) => {
-                if (result) {
-                    sessionStorage.setItem('userLoggedIn', 'true');
-                    isAuthInitialized = true;
-                    showToast('✅ Login realizado com sucesso!');
-                }
-            })
-            .catch((error) => {
-                console.error('Erro no redirect:', error);
-                showToast('Erro ao processar login', true);
-            });
+        // 🌱 Seed do usuário inicial (cria UHE ESTRELA se não existir)
+        seedInitialUser();
 
-        // 🔐 Garantir que comece na tela de login
-        // Limpar sessão ao recarregar página (força novo login)
-        if (!sessionStorage.getItem('userLoggedIn')) {
-            sessionStorage.removeItem('userLoggedIn');
-        }
+        // Mostrar tela de login por padrão (onAuthStateChanged assume o controle)
         loginScreen.classList.remove('hidden');
         appContainer.classList.add('hidden');
         showLoader(false);
