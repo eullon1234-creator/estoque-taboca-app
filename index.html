@@ -781,7 +781,6 @@
     <script type="module">
         // Importações do Firebase SDK
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, addDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp, runTransaction, writeBatch, Timestamp, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Configuração do Firebase ---
@@ -797,7 +796,7 @@
         const appId = 'ferramentaria-estoque'; // ID único para organizar os dados no Firestore
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const auth = getAuth(app);
+        // Sem Firebase Auth — autenticação gerenciada pelo próprio app
 
         // --- Estado da Aplicação ---
         let products = [];
@@ -1177,25 +1176,6 @@
         const normalizeUserId = (username) =>
             username.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
 
-        // Seed do usuário inicial (executado na primeira inicialização do app)
-        const seedInitialUser = async () => {
-            try {
-                const usersRef = collection(db, `/artifacts/${appId}/public/data/users`);
-                const seedRef = doc(usersRef, 'uhe_estrela');
-                const seedDoc = await getDoc(seedRef);
-                if (!seedDoc.exists()) {
-                    const passwordHash = await hashPassword('60218');
-                    await setDoc(seedRef, {
-                        username: 'UHE ESTRELA',
-                        displayName: 'UHE ESTRELA',
-                        passwordHash,
-                        role: 'admin',
-                        createdAt: serverTimestamp()
-                    });
-                }
-            } catch (e) { /* silent – Firestore rules podem bloquear antes do login */ }
-        };
-
         const initializeAppSession = (customUser) => {
             currentUser = customUser;
             userRole = customUser.role;
@@ -1247,28 +1227,16 @@
             isAuthInitialized = true;
         };
 
-        // --- Lógica de Autenticação e Inicialização ---
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                // Se já foi inicializado pelo doLogin, não duplicar
-                if (isAuthInitialized) return;
-                const savedData = localStorage.getItem('appUser');
-                if (!savedData) {
-                    await signOut(auth);
-                    loginScreen.classList.remove('hidden');
-                    appContainer.classList.add('hidden');
-                    showLoader(false);
-                    return;
-                }
-                const customUser = JSON.parse(savedData);
+        // --- Lógica de Autenticação e Inicialização (sem Firebase Auth) ---
+        const savedSession = localStorage.getItem('appUser');
+        if (savedSession) {
+            try {
+                const customUser = JSON.parse(savedSession);
                 initializeAppSession(customUser);
-            } else {
-                isAuthInitialized = false;
-                loginScreen.classList.remove('hidden');
-                appContainer.classList.add('hidden');
-                showLoader(false);
+            } catch(e) {
+                localStorage.removeItem('appUser');
             }
-        });
+        }
 
         function setupListeners() {
             // Handler de erro melhorado
@@ -1362,7 +1330,7 @@
                     details: details.details || null,
                     rmProcessed: false,
                     date: serverTimestamp(),
-                    performedBy: auth.currentUser?.email || 'Anônimo', // 🔍 Auditoria: usuário que realizou ação
+                    performedBy: currentUser?.displayName || 'Anônimo', // 🔍 Auditoria: usuário que realizou ação
                     timestamp: serverTimestamp() // 🔍 Auditoria: timestamp preciso
                 });
             } catch (error) {
@@ -2366,7 +2334,7 @@
 
         // --- Event Listeners ---
 
-        // 🔐 Event Listeners de Autenticação
+        // 🔐 Login com usuário e senha (sem Firebase Auth)
         const doLogin = async () => {
             const username = loginUsernameInput.value.trim().toUpperCase();
             const password = loginPasswordInput.value;
@@ -2378,58 +2346,54 @@
                 return;
             }
 
-            try {
-                showLoader(true);
-                loginBtn.disabled = true;
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Verificando...';
 
-                const userId = normalizeUserId(username);
-                const hash = await hashPassword(password);
+            const hash = await hashPassword(password);
+            const userId = normalizeUserId(username);
 
-                // Passo 1: autenticar anonimamente para ter permissão de leitura no Firestore
-                await signInAnonymously(auth);
-
-                const usersRef = collection(db, `/artifacts/${appId}/public/data/users`);
-                const userRef = doc(usersRef, userId);
-                const userDoc = await getDoc(userRef);
-
-                let appUser = null;
-
-                if (userDoc.exists()) {
-                    const data = userDoc.data();
-                    if (data.passwordHash === hash) {
-                        appUser = { uid: userId, username: data.username, displayName: data.displayName || data.username, role: data.role || 'operador' };
-                    }
+            // 1. Verificar credenciais hardcoded (funciona sem internet)
+            const BUILTIN_USERS = {
+                'uhe_estrela': { displayName: 'UHE ESTRELA', role: 'admin', pwd: '60218' }
+            };
+            const builtin = BUILTIN_USERS[userId];
+            if (builtin) {
+                const expectedHash = await hashPassword(builtin.pwd);
+                if (hash === expectedHash) {
+                    const appUser = { uid: userId, displayName: builtin.displayName, role: builtin.role };
+                    localStorage.setItem('appUser', JSON.stringify(appUser));
+                    initializeAppSession(appUser);
+                    return;
                 } else {
-                    // Fallback: seed interno para UHE ESTRELA (primeiro acesso antes do Firestore ter o doc)
-                    if (username === 'UHE ESTRELA' && password === '60218') {
-                        appUser = { uid: 'uhe_estrela', username: 'UHE ESTRELA', displayName: 'UHE ESTRELA', role: 'admin' };
-                        // Persistir no Firestore em background
-                        setDoc(userRef, { username: 'UHE ESTRELA', displayName: 'UHE ESTRELA', passwordHash: hash, role: 'admin', createdAt: serverTimestamp() }).catch(() => {});
-                    }
-                }
-
-                if (!appUser) {
-                    // Credenciais inválidas: deslogar a sessão anônima e mostrar erro
-                    await signOut(auth);
-                    loginError.textContent = userDoc.exists() ? 'Senha incorreta.' : 'Usuário não encontrado.';
+                    loginError.textContent = 'Senha incorreta.';
                     loginError.classList.remove('hidden');
-                    showLoader(false);
                     loginBtn.disabled = false;
+                    loginBtn.textContent = 'Entrar';
                     return;
                 }
+            }
 
-                // Passo 2: credenciais válidas → salvar sessão, onAuthStateChanged finaliza o boot
-                localStorage.setItem('appUser', JSON.stringify(appUser));
-                // Disparar initializeAppSession manualmente (já autenticado)
-                initializeAppSession(appUser);
-
-            } catch (error) {
-                console.error('Erro no login:', error);
-                await signOut(auth).catch(() => {});
-                loginError.textContent = 'Erro ao conectar. Verifique sua conexão.';
+            // 2. Verificar no Firestore para outros usuários
+            try {
+                const userRef = doc(db, `/artifacts/${appId}/public/data/users`, userId);
+                const userDoc = await getDoc(userRef);
+                if (userDoc.exists() && userDoc.data().passwordHash === hash) {
+                    const data = userDoc.data();
+                    const appUser = { uid: userId, displayName: data.displayName || data.username || username, role: data.role || 'operador' };
+                    localStorage.setItem('appUser', JSON.stringify(appUser));
+                    initializeAppSession(appUser);
+                } else {
+                    loginError.textContent = userDoc.exists() ? 'Senha incorreta.' : 'Usuário não encontrado.';
+                    loginError.classList.remove('hidden');
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = 'Entrar';
+                }
+            } catch (e) {
+                console.error('Erro ao verificar usuário no Firestore:', e);
+                loginError.textContent = 'Usuário não encontrado.';
                 loginError.classList.remove('hidden');
-                showLoader(false);
                 loginBtn.disabled = false;
+                loginBtn.textContent = 'Entrar';
             }
         };
 
@@ -2437,22 +2401,20 @@
         loginPasswordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
         loginUsernameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loginPasswordInput.focus(); });
 
-        logoutBtn.addEventListener('click', async () => {
-            try {
-                localStorage.removeItem('appUser');
-                await signOut(auth);
-                currentUser = null;
-                userRole = null;
-                isDataLoaded = false;
-                products = [];
-                history = [];
-                requisitions = [];
-                locations = [];
-                showToast('Logout realizado com sucesso');
-            } catch (error) {
-                console.error('Erro no logout:', error);
-                showToast('Erro ao fazer logout', true);
-            }
+        logoutBtn.addEventListener('click', () => {
+            localStorage.removeItem('appUser');
+            currentUser = null;
+            userRole = null;
+            isDataLoaded = false;
+            isAuthInitialized = false;
+            products = [];
+            history = [];
+            requisitions = [];
+            locations = [];
+            loginScreen.classList.remove('hidden');
+            appContainer.classList.add('hidden');
+            if (logoutBtn) logoutBtn.classList.add('hidden');
+            showToast('Logout realizado com sucesso');
         });
 
         settingsBtn.addEventListener('click', showSettingsModal);
@@ -3618,12 +3580,11 @@
         // 🎨 Mostrar skeleton ao carregar página
         showProductsSkeleton(true, 8);
 
-        // 🌱 Seed do usuário inicial (cria UHE ESTRELA se não existir)
-        seedInitialUser();
-
-        // Mostrar tela de login por padrão (onAuthStateChanged assume o controle)
-        loginScreen.classList.remove('hidden');
-        appContainer.classList.add('hidden');
+        // Mostrar tela de login (sessão verificada acima via initializeAppSession se já logado)
+        if (!localStorage.getItem('appUser')) {
+            loginScreen.classList.remove('hidden');
+            appContainer.classList.add('hidden');
+        }
         showLoader(false);
 
     </script>
