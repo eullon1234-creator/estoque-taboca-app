@@ -9,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
     <script>
       tailwind.config = {
         theme: {
@@ -306,6 +307,10 @@
                         <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">add_circle</span></span>
                         <span>Cadastrar</span>
                     </button>
+                    <button data-view="entry-view" type="button" class="tab-btn">
+                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">input</span></span>
+                        <span>Registrar Entrada</span>
+                    </button>
                     <button data-view="exit-view" type="button" class="tab-btn">
                         <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">output</span></span>
                         <span>Registrar Saída</span>
@@ -408,7 +413,6 @@
                                         <th class="p-4">Estoque Atual</th>
                                         <th class="p-4">Estoque Mínimo</th>
                                         <th class="p-4">Localização</th>
-                                        <th class="p-4 text-center">Ajuste</th>
                                         <th class="p-4 text-center rounded-r-lg">Ações</th>
                                     </tr>
                                 </thead>
@@ -480,7 +484,44 @@
                             </div>
                         </form>
                 </div>
-                
+
+                <div id="entry-view" class="view-content hidden">
+                    <h2 class="text-2xl font-semibold text-slate-800 mb-6">Registrar Entrada de Material</h2>
+                    <div class="max-w-2xl mx-auto">
+                        <div class="mb-4">
+                            <label for="entry-product-select" class="block text-sm font-medium text-slate-700 mb-1">1. Selecione o Produto</label>
+                            <select id="entry-product-select" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500/50 focus:border-green-500"></select>
+                        </div>
+        
+                        <form id="entry-form" class="space-y-4">
+                            <h3 class="text-sm font-medium text-slate-700">2. Preencha os detalhes da entrada</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="md:col-span-1">
+                                    <label class="block text-sm font-medium text-slate-600">Quantidade a Receber</label>
+                                    <input type="number" id="entry-quantity" class="mt-1 w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500/50 focus:border-green-500" required min="1">
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-medium text-slate-600">Nº da Nota Fiscal</label>
+                                    <input type="text" id="entry-nf" class="mt-1 w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500/50 focus:border-green-500" placeholder="Ex: 123456" required>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-600">Recebido por (Responsável)</label>
+                                    <input type="text" id="entry-received-by" class="mt-1 w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500/50 focus:border-green-500" required>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-600">Fornecedor/Procedência</label>
+                                    <input type="text" id="entry-supplier" class="mt-1 w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500/50 focus:border-green-500" placeholder="Fornecedor ou origem do material">
+                                </div>
+                            </div>
+                            <div class="pt-4 flex justify-end">
+                                <button type="submit" class="w-full md:w-auto px-8 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition shadow-sm hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600">Confirmar Entrada</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
                 <div id="exit-view" class="view-content hidden">
                     <h2 class="text-2xl font-semibold text-slate-800 mb-6">Registrar Saída de Material</h2>
                     <div class="max-w-2xl mx-auto">
@@ -841,6 +882,8 @@
         const importBtn = document.getElementById('import-btn');
         const exportBtn = document.getElementById('export-btn');
         const csvFileInput = document.getElementById('csv-file-input');
+        const entryForm = document.getElementById('entry-form');
+        const entryProductSelect = document.getElementById('entry-product-select');
         const loaderOverlay = document.getElementById('loader-overlay');
         const settingsBtn = document.getElementById('settings-btn');
         const createRequisitionBtn = document.getElementById('create-requisition-btn');
@@ -893,7 +936,12 @@
             'gl': 'Galão',
             'sc': 'Saco'
         };
-        
+
+        const normalizeUnit = (rawUnit) => {
+            const unit = (rawUnit || '').toLowerCase().trim();
+            return unitMap[unit] || rawUnit || 'Unidade';
+        };
+
         // --- Gemini API ---
         const callGeminiAPI = async (prompt, model, config = {}) => {
             const apiKey = "";
@@ -1269,6 +1317,7 @@
                 if(isDataLoaded) { 
                     renderProducts(); 
                     updateDashboard(); 
+                    renderEntryView();
                     renderExitView(); 
                 }
             }, (error) => handleFirestoreError(error, 'produtos'));
@@ -1573,9 +1622,6 @@
                     <td class="p-4 align-top"><div class="flex items-center gap-2"><p class="text-lg font-bold text-slate-800">${p.quantity}</p>${isLowStock ? '<span class="px-2 py-0.5 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">Baixo</span>' : ''}</div></td>
                     <td class="p-4 align-top text-slate-600">${p.minQuantity}</td>
                     <td class="p-4 align-top text-slate-600">${p.location}</td>
-                    <td class="p-4 align-top text-center">
-                        <button data-id="${p.id}" class="adjust-btn bg-indigo-100 text-indigo-800 font-bold px-4 py-2 rounded-lg hover:bg-indigo-200 transition text-sm" title="Ajustar Estoque">Ajustar</button>
-                    </td>
                     <td class="p-4 align-top text-center"><div class="flex justify-center items-center gap-1"><button data-id="${p.id}" class="history-btn text-slate-500 hover:text-purple-600 p-2 rounded-full hover:bg-purple-100 transition" title="Histórico"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></button><button data-id="${p.id}" class="edit-btn text-slate-500 hover:text-blue-600 p-2 rounded-full hover:bg-blue-100 transition" title="Editar"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button><button data-id="${p.id}" class="delete-btn text-slate-500 hover:text-red-600 p-2 rounded-full hover:bg-red-100 transition" title="Excluir"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button></div></td>`;
                 productList.appendChild(tr);
             });
@@ -1823,13 +1869,13 @@
                             <label class="block text-sm font-medium">Obra</label>
                             <select id="req-obra" class="w-full mt-1 p-2 border border-slate-200 rounded focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" required>
                                 <option value="TABOCA">TABOCA</option>
-                                <option value="ESTRELA">ESTRELA</option>
+                                <option value="ESTRELA" selected>ESTRELA</option>
                             </select>
                         </div>
                     </div>
                     <h3 class="font-semibold mt-6 mb-2">Itens</h3>
                     <div class="mb-2">
-                        <input type="text" id="req-item-search" class="w-full p-2 border border-slate-200 rounded" placeholder="Pesquisar item por nome ou código...">
+                        <input type="text" id="req-item-search" class="w-full p-2 border border-slate-200 rounded" placeholder="Pesquisar item (nome, código, local, grupo)...">
                     </div>
                     <div id="req-items-container" class="space-y-2 max-h-60 overflow-y-auto p-2 bg-slate-50 border rounded-md"></div>
                     <button type="button" id="add-req-item-btn" class="mt-2 text-sm text-indigo-600 font-semibold hover:text-indigo-800">+ Adicionar Item</button>
@@ -1903,15 +1949,50 @@
                     reqLocationResults.classList.add('hidden');
                 }, 150);
             });
+
+            const normalizeSearchText = (value = '') => {
+                return String(value)
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .toLowerCase()
+                    .trim();
+            };
+
+            const buildProductSearchText = (p) => {
+                return [p.name, p.codeRM, p.code, p.location, p.group, p.unit].filter(Boolean).join(' ');
+            };
+
+            const getFilteredProducts = (rawSearchTerm = '') => {
+                const normalizedTerm = normalizeSearchText(rawSearchTerm);
+                if (!normalizedTerm) return sortedProducts;
+
+                const tokens = normalizedTerm.split(/\s+/).filter(Boolean);
+
+                return sortedProducts
+                    .map((p) => {
+                        const haystack = normalizeSearchText(buildProductSearchText(p));
+                        if (!tokens.every(token => haystack.includes(token))) return null;
+
+                        const normalizedName = normalizeSearchText(p.name || '');
+                        const normalizedCodeRm = normalizeSearchText(p.codeRM || '');
+                        const normalizedCode = normalizeSearchText(p.code || '');
+
+                        let score = 0;
+                        tokens.forEach(token => {
+                            if (normalizedName.startsWith(token)) score += 8;
+                            else if (normalizedName.includes(token)) score += 5;
+                            if (normalizedCodeRm.startsWith(token) || normalizedCode.startsWith(token)) score += 4;
+                        });
+
+                        return { p, score };
+                    })
+                    .filter(Boolean)
+                    .sort((a, b) => b.score - a.score || (a.p.name || '').localeCompare(b.p.name || ''))
+                    .map(entry => entry.p);
+            };
             
             reqItemSearch.addEventListener('input', () => {
-                const searchTerm = reqItemSearch.value.toLowerCase();
-                const filteredProducts = sortedProducts.filter(p =>
-                    p.name.toLowerCase().includes(searchTerm) ||
-                    (p.codeRM && p.codeRM.toLowerCase().includes(searchTerm)) ||
-                    (p.code && p.code.toLowerCase().includes(searchTerm)) ||
-                    (p.location && p.location.toLowerCase().includes(searchTerm))
-                );
+                const filteredProducts = getFilteredProducts(reqItemSearch.value);
 
                 reqItemsContainer.querySelectorAll('.req-item-product').forEach(select => {
                     const currentVal = select.value;
@@ -1924,6 +2005,10 @@
                             newOptionsHTML = currentOption + newOptionsHTML;
                         }
                     }
+
+                    if (!newOptionsHTML) {
+                        newOptionsHTML = '<option value="">Nenhum item encontrado para esta busca</option>';
+                    }
                     
                     select.innerHTML = newOptionsHTML;
                     select.value = currentVal;
@@ -1933,8 +2018,12 @@
             const addReqItem = (productIdToSelect = null) => {
                 const itemRow = document.createElement('div');
                 itemRow.className = 'flex items-center gap-2';
+                const filteredProducts = getFilteredProducts(reqItemSearch.value);
+                const optionsHTML = (filteredProducts.length > 0 ? filteredProducts : sortedProducts)
+                    .map(p => `<option value="${p.id}">${p.name} (${p.codeRM || p.code}) - Estoque: ${p.quantity} - Local: ${p.location || 'N/A'}</option>`)
+                    .join('');
                 itemRow.innerHTML = `
-                    <select class="req-item-product w-full p-2 border border-slate-200 rounded focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500">${productOptionsHTML}</select>
+                    <select class="req-item-product w-full p-2 border border-slate-200 rounded focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500">${optionsHTML}</select>
                     <input type="number" class="req-item-quantity w-24 p-2 border border-slate-200 rounded focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" placeholder="Qtd." min="1" required>
                     <button type="button" class="remove-req-item-btn text-red-500 hover:text-red-700 font-bold p-1 text-2xl">&times;</button>
                 `;
@@ -2229,6 +2318,18 @@
             openModal('generic-modal');
         };
 
+        const renderEntryView = () => {
+            const productSelect = document.getElementById('entry-product-select');
+            const sortedProducts = [...products].sort((a, b) => a.name.localeCompare(b.name));
+            productSelect.innerHTML = '<option value="">Selecione um produto...</option>';
+            sortedProducts.forEach(p => {
+                const option = document.createElement('option');
+                option.value = p.id;
+                option.textContent = `${p.name} (${p.codeRM || p.code}) - Estoque: ${p.quantity}`;
+                productSelect.appendChild(option);
+            });
+        };
+
         const renderExitView = () => {
             const productSelect = document.getElementById('exit-product-select');
             const locationDatalist = document.getElementById('location-datalist');
@@ -2270,6 +2371,7 @@
             if (viewId === 'add-product-view') {
                 document.getElementById('product-code').value = generateNextProductCode();
             }
+            if (viewId === 'entry-view') renderEntryView();
             if (viewId === 'exit-log-view') renderExitLog(exitsSearchInput.value);
             if (viewId === 'rm-view') renderRMView(rmSearchInput.value); 
             if (viewId === 'dashboard-view') updateDashboard();
@@ -2513,16 +2615,8 @@
             const button = e.target.closest('button');
             if (button) {
                 currentProductId = button.dataset.id;
-                
+
                 // 🔐 Verificar permissões para operações
-                if (button.classList.contains('adjust-btn')) {
-                    if (!hasPermission('update')) {
-                        showToast('🔒 Você não tem permissão para ajustar estoque', true);
-                        return;
-                    }
-                    showAdjustModal();
-                }
-                
                 if (button.classList.contains('edit-btn')) {
                     if (!hasPermission('update')) {
                         showToast('🔒 Você não tem permissão para editar produtos', true);
@@ -2945,6 +3039,66 @@
                 } catch (error) {
                     console.error("Erro ao editar local: ", error);
                     showToast("Falha ao editar local.", true);
+                }
+            }
+            if (e.target.id === 'entry-form') {
+                e.preventDefault();
+                const productId = document.getElementById('entry-product-select').value;
+                const quantity = parseInt(document.getElementById('entry-quantity').value);
+                const nfNumber = document.getElementById('entry-nf').value.trim();
+                const receivedBy = document.getElementById('entry-received-by').value.trim();
+                const supplier = document.getElementById('entry-supplier').value.trim();
+
+                if (!productId || !receivedBy || !nfNumber || isNaN(quantity) || quantity <= 0) {
+                    showToast("Por favor, preencha todos os campos obrigatórios corretamente.", true);
+                    return;
+                }
+                
+                const button = e.target.querySelector('button[type="submit"]');
+                button.disabled = true;
+                button.innerHTML = `<div class="spinner-small"></div>`;
+
+                const productRef = doc(productsCollectionRef, productId);
+                try {
+                    let productDataForHistory = null;
+                    await runTransaction(db, async (transaction) => {
+                        const productDoc = await transaction.get(productRef);
+                        if (!productDoc.exists()) {
+                            throw new Error("Produto não encontrado.");
+                        }
+                        productDataForHistory = productDoc.data();
+                        const currentQuantity = productDataForHistory.quantity;
+                        const newQuantity = currentQuantity + quantity;
+                        transaction.update(productRef, { quantity: newQuantity });
+                        
+                        const historyRef = doc(historyCollectionRef);
+                        transaction.set(historyRef, {
+                            productId,
+                            productCode: productDataForHistory.code,
+                            productCodeRM: productDataForHistory.codeRM,
+                            productName: productDataForHistory.name,
+                            type: 'Entrada por NF',
+                            quantity: quantity,
+                            newTotal: newQuantity,
+                            receivedBy,
+                            supplier,
+                            nfNumber,
+                            details: `Entrada da NF ${nfNumber}`,
+                            rmProcessed: false,
+                            date: serverTimestamp()
+                        });
+                    });
+
+                    showToast(`Entrada de ${quantity} unidade(s) de ${productDataForHistory.name} registrada com sucesso! Novo estoque: ${productDataForHistory.quantity + quantity}.`);
+                    e.target.reset();
+                    document.getElementById('entry-product-select').value = '';
+
+                } catch (error) {
+                    console.error("Erro ao registrar entrada: ", error);
+                    showToast(`Falha ao registrar entrada: ${error.message}`, true);
+                } finally {
+                    button.disabled = false;
+                    button.textContent = 'Confirmar Entrada';
                 }
             }
             if (e.target.id === 'exit-form') {
