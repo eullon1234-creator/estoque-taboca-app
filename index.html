@@ -1199,6 +1199,7 @@
         const initializeAppSession = (customUser) => {
             currentUser = customUser;
             userRole = customUser.role;
+            if (loginBtn) loginBtn.disabled = false;
 
             // Configurar referências do Firestore
             productsCollectionRef = collection(db, `/artifacts/${appId}/public/data/products`);
@@ -1243,11 +1244,14 @@
 
             updateUIBasedOnPermissions();
             setupListeners();
+            isAuthInitialized = true;
         };
 
         // --- Lógica de Autenticação e Inicialização ---
         onAuthStateChanged(auth, async (user) => {
             if (user) {
+                // Se já foi inicializado pelo doLogin, não duplicar
+                if (isAuthInitialized) return;
                 const savedData = localStorage.getItem('appUser');
                 if (!savedData) {
                     await signOut(auth);
@@ -1259,6 +1263,7 @@
                 const customUser = JSON.parse(savedData);
                 initializeAppSession(customUser);
             } else {
+                isAuthInitialized = false;
                 loginScreen.classList.remove('hidden');
                 appContainer.classList.add('hidden');
                 showLoader(false);
@@ -2380,7 +2385,9 @@
                 const userId = normalizeUserId(username);
                 const hash = await hashPassword(password);
 
-                // Verificar no Firestore
+                // Passo 1: autenticar anonimamente para ter permissão de leitura no Firestore
+                await signInAnonymously(auth);
+
                 const usersRef = collection(db, `/artifacts/${appId}/public/data/users`);
                 const userRef = doc(usersRef, userId);
                 const userDoc = await getDoc(userRef);
@@ -2393,15 +2400,17 @@
                         appUser = { uid: userId, username: data.username, displayName: data.displayName || data.username, role: data.role || 'operador' };
                     }
                 } else {
-                    // Fallback: seed interno para UHE ESTRELA caso Firestore ainda não tenha o documento
+                    // Fallback: seed interno para UHE ESTRELA (primeiro acesso antes do Firestore ter o doc)
                     if (username === 'UHE ESTRELA' && password === '60218') {
                         appUser = { uid: 'uhe_estrela', username: 'UHE ESTRELA', displayName: 'UHE ESTRELA', role: 'admin' };
-                        // Tentar persistir no Firestore em background
-                        hashPassword('60218').then(h => setDoc(userRef, { username: 'UHE ESTRELA', displayName: 'UHE ESTRELA', passwordHash: h, role: 'admin', createdAt: serverTimestamp() }).catch(() => {})).catch(() => {});
+                        // Persistir no Firestore em background
+                        setDoc(userRef, { username: 'UHE ESTRELA', displayName: 'UHE ESTRELA', passwordHash: hash, role: 'admin', createdAt: serverTimestamp() }).catch(() => {});
                     }
                 }
 
                 if (!appUser) {
+                    // Credenciais inválidas: deslogar a sessão anônima e mostrar erro
+                    await signOut(auth);
                     loginError.textContent = userDoc.exists() ? 'Senha incorreta.' : 'Usuário não encontrado.';
                     loginError.classList.remove('hidden');
                     showLoader(false);
@@ -2409,13 +2418,14 @@
                     return;
                 }
 
-                // Salvar sessão e autenticar anonimamente no Firebase
+                // Passo 2: credenciais válidas → salvar sessão, onAuthStateChanged finaliza o boot
                 localStorage.setItem('appUser', JSON.stringify(appUser));
-                await signInAnonymously(auth);
-                // onAuthStateChanged irá inicializar o app
+                // Disparar initializeAppSession manualmente (já autenticado)
+                initializeAppSession(appUser);
 
             } catch (error) {
                 console.error('Erro no login:', error);
+                await signOut(auth).catch(() => {});
                 loginError.textContent = 'Erro ao conectar. Verifique sua conexão.';
                 loginError.classList.remove('hidden');
                 showLoader(false);
