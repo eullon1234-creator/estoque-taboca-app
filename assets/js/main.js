@@ -49,6 +49,8 @@
         let isAutoFillingMissingGroups = false;
         let dashboardTopItemsChart = null;
         let dashboardTrendChart = null;
+        let lastComprasFilteredItems = [];
+        let lastComprasPeriodDays = 15;
 
         // --- Seletores ---
         const productList = document.getElementById('product-list');
@@ -1893,7 +1895,7 @@
             });
         };
 
-        const renderComprasView = (periodDays = 30) => {
+        const renderComprasView = (periodDays = 15) => {
             const now = Date.now();
             const periodMs = periodDays * 24 * 60 * 60 * 1000;
             const cutoff = now - periodMs;
@@ -1971,6 +1973,8 @@
 
             // Filtrar por status selecionado
             const filtered = activeFilter === 'all' ? items : items.filter(i => i.status === activeFilter);
+            lastComprasFilteredItems = filtered;
+            lastComprasPeriodDays = periodDays;
 
             const tbody = document.getElementById('compras-list');
             const noMsg = document.getElementById('no-compras-message');
@@ -2047,7 +2051,7 @@
             if (viewId === 'exit-view') renderExitView();
             if (viewId === 'compras-view') {
                 const sel = document.getElementById('compras-period-select');
-                renderComprasView(sel ? parseInt(sel.value) : 30);
+                renderComprasView(sel ? parseInt(sel.value) : 15);
             }
         };
 
@@ -3284,7 +3288,62 @@
                 e.target.style.background = '#191c1d';
                 e.target.style.color = '#fff';
                 const sel = document.getElementById('compras-period-select');
-                renderComprasView(sel ? parseInt(sel.value) : 30);
+                renderComprasView(sel ? parseInt(sel.value) : 15);
+            }
+
+            // Exportar itens sugeridos para Excel (formato CSV compatível)
+            if (e.target.id === 'compras-excel-btn' || e.target.closest('#compras-excel-btn')) {
+                const periodLabel = (() => {
+                    const sel = document.getElementById('compras-period-select');
+                    return sel ? sel.options[sel.selectedIndex].text : `Últimos ${lastComprasPeriodDays} dias`;
+                })();
+
+                const toBuy = (lastComprasFilteredItems || []).filter(i => i.suggestedQty > 0);
+
+                if (!toBuy.length) {
+                    showToast('Nenhum item com compra sugerida para exportar.', true);
+                    return;
+                }
+
+                const escapeCsv = (value) => {
+                    const text = String(value ?? '');
+                    return `"${text.replace(/"/g, '""')}"`;
+                };
+
+                let csv = '\uFEFF';
+                csv += 'Relatório de Compras (Itens Sugeridos)\r\n';
+                csv += `Período,${escapeCsv(periodLabel)}\r\n`;
+                csv += `Gerado em,${escapeCsv(new Date().toLocaleString('pt-BR'))}\r\n\r\n`;
+                csv += 'Urgência,Material,Código RM,Grupo,Unidade,Local,Estoque Atual,Estoque Mínimo,Consumo/Dia,Dias Restantes,Qtd Sugerida\r\n';
+
+                toBuy.forEach(({ p, dailyRate, daysRemaining, suggestedQty, status }) => {
+                    const urgency = status === 'critico' ? 'CRÍTICO' : status === 'atencao' ? 'ATENÇÃO' : 'MONITORAR';
+                    csv += [
+                        escapeCsv(urgency),
+                        escapeCsv(p.name),
+                        escapeCsv(p.codeRM || p.code || 'N/A'),
+                        escapeCsv(p.group || 'N/A'),
+                        escapeCsv(p.unit || 'Unidade'),
+                        escapeCsv(p.location || 'N/A'),
+                        escapeCsv(p.quantity ?? 0),
+                        escapeCsv(p.minQuantity ?? 0),
+                        escapeCsv(dailyRate > 0 ? dailyRate.toFixed(2) : 0),
+                        escapeCsv(daysRemaining ?? '-'),
+                        escapeCsv(suggestedQty)
+                    ].join(',') + '\r\n';
+                });
+
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const timestamp = new Date().toISOString().slice(0, 10);
+                a.href = url;
+                a.download = `itens_compra_${lastComprasPeriodDays}dias_${timestamp}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast('Planilha de compra exportada com sucesso.');
             }
 
             // Imprimir
@@ -3295,7 +3354,7 @@
                 if (!table) return;
 
                 const sel = document.getElementById('compras-period-select');
-                const periodo = sel ? sel.options[sel.selectedIndex].text : 'Últimos 30 dias';
+                const periodo = sel ? sel.options[sel.selectedIndex].text : `Últimos ${lastComprasPeriodDays} dias`;
 
                 printArea.innerHTML = `
                     <style>
