@@ -27,6 +27,48 @@
         .modal.show { transform: translate(-50%, -50%) scale(1); }
         .modal.show, .modal-backdrop.show { display: block; opacity: 1; }
         
+        /* Estrutura flexível para modal com scroll apenas no conteúdo */
+        .modal {
+            display: flex;
+            flex-direction: column;
+            opacity: 0;
+            max-height: 90vh;
+            overflow: hidden;
+        }
+        
+        .modal > h2:first-of-type {
+            flex: 0 0 auto;
+        }
+        
+        .modal > form,
+        .modal > div:nth-of-type(1) {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 0.25rem;
+        }
+        
+        .modal > form::-webkit-scrollbar,
+        .modal > div:nth-of-type(1)::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .modal > form::-webkit-scrollbar-track,
+        .modal > div:nth-of-type(1)::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .modal > form::-webkit-scrollbar-thumb,
+        .modal > div:nth-of-type(1)::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        
+        .modal > div:last-child {
+            flex: 0 0 auto;
+            margin-top: auto;
+            padding-top: 1.5rem;
+        }
+        
         /* Estilo das Abas de Navegação com @apply do Tailwind (Layout Antigo) */
         .top-tab-btn {
             @apply flex items-center gap-2 px-3 py-2 md:px-4 md:py-3 text-base font-medium text-slate-500 border-b-2 border-transparent hover:bg-slate-100 hover:text-slate-800 transition-all duration-200 whitespace-nowrap mr-2 rounded-t-lg;
