@@ -45,6 +45,8 @@
         // 🚀 Paginação para Performance
         let currentPage = 1;
         const itemsPerPage = 50; // Mostrar 50 produtos por vez 
+        let hasAutoFilledMissingGroups = false;
+        let isAutoFillingMissingGroups = false;
 
         // --- Seletores ---
         const productList = document.getElementById('product-list');
@@ -124,6 +126,105 @@
         const normalizeUnit = (rawUnit) => {
             const unit = (rawUnit || '').toLowerCase().trim();
             return unitMap[unit] || rawUnit || 'Unidade';
+        };
+
+        const VALID_PRODUCT_GROUPS = [
+            'Elétrico',
+            'Hidráulico',
+            'Consumível',
+            'Ferramentas',
+            'Ferramentas Manuais',
+            'Material de Corte e Solda',
+            'Escritório',
+            'Segurança',
+            'Outros'
+        ];
+
+        const inferProductGroup = (product) => {
+            const text = `${product?.name || ''} ${product?.codeRM || ''} ${product?.location || ''}`.toLowerCase();
+
+            if (/cabo|f[íi]o|interruptor|tomada|disjuntor|l[âa]mpada|contator|rel[eé]|el[eé]tr/i.test(text)) {
+                return 'Elétrico';
+            }
+            if (/tubo|conex[aã]o|registro|hidraul|v[áa]lvula|torneira|mangueira|joelho|luva/i.test(text)) {
+                return 'Hidráulico';
+            }
+            if (/luva|epi|capacete|bota|[óo]culos|protetor|máscara|mascara|seguran/i.test(text)) {
+                return 'Segurança';
+            }
+            if (/solda|eletrodo|ma[çc]arico|oxicorte|disco\s*de\s*corte|arame\s*de\s*solda|estanho|fluxo\s*de\s*solda/i.test(text)) {
+                return 'Material de Corte e Solda';
+            }
+            if (/chave|alicate|martelo|torqu[eê]s|trena|estilete|chave\s*de\s*fenda|chave\s*philips|ferramenta\s*manual/i.test(text)) {
+                return 'Ferramentas Manuais';
+            }
+            if (/broca|furadeira|serra\s*(copo|tico|sabre)?|esmerilhadeira|lixadeira/i.test(text)) {
+                return 'Ferramentas';
+            }
+            if (/papel|caneta|grampo|toner|escrit/i.test(text)) {
+                return 'Escritório';
+            }
+            if (/cola|fita|parafuso|porca|arruela|consum/i.test(text)) {
+                return 'Consumível';
+            }
+
+            return 'Outros';
+        };
+
+        const isMissingGroup = (group) => {
+            const normalized = (group || '').toString().trim().toLowerCase();
+            return !normalized || normalized === 'n/a' || normalized === '#n/d' || normalized === 'nd';
+        };
+
+        const needsGroupAutoFix = (group) => {
+            const normalized = (group || '').toString().trim().toLowerCase();
+            return isMissingGroup(group) || normalized === 'outros';
+        };
+
+        const autoFillMissingProductGroups = async () => {
+            if (hasAutoFilledMissingGroups || isAutoFillingMissingGroups) return;
+            if (!hasPermission('update')) return;
+
+            const candidates = products.filter(p => needsGroupAutoFix(p.group));
+            if (!candidates.length) {
+                hasAutoFilledMissingGroups = true;
+                return;
+            }
+
+            isAutoFillingMissingGroups = true;
+
+            try {
+                const batch = writeBatch(db);
+
+                let changedCount = 0;
+
+                candidates.forEach((product) => {
+                    const productRef = doc(productsCollectionRef, product.id);
+                    const inferredGroup = inferProductGroup(product);
+                    const safeGroup = VALID_PRODUCT_GROUPS.includes(inferredGroup) ? inferredGroup : 'Outros';
+                    const currentGroup = (product.group || '').toString().trim();
+
+                    if (currentGroup === safeGroup) return;
+
+                    batch.update(productRef, { group: safeGroup });
+                    changedCount++;
+                });
+
+                if (!changedCount) {
+                    hasAutoFilledMissingGroups = true;
+                    isAutoFillingMissingGroups = false;
+                    return;
+                }
+
+                await batch.commit();
+                showToast(`✅ ${changedCount} item(ns) sem grupo/"Outros" foram atualizados.`, false);
+            } catch (error) {
+                console.error('Erro ao preencher grupos faltantes:', error);
+                showToast('Não foi possível preencher os grupos automaticamente.', true);
+            } finally {
+                isAutoFillingMissingGroups = false;
+                hasAutoFilledMissingGroups = true;
+            }
         };
 
         // --- Gemini API ---
@@ -498,6 +599,11 @@
 
             onSnapshot(productsCollectionRef, (snapshot) => {
                 products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                if (!hasAutoFilledMissingGroups) {
+                    autoFillMissingProductGroups();
+                }
+
                 if(isDataLoaded) { 
                     renderProducts(); 
                     updateDashboard(); 
@@ -1371,7 +1477,7 @@
             const units = ["Unidade", "Peça", "Metros", "Litro", "Quilo", "Caixa", "Pacote", "Rolo", "Galão", "Saco"];
             const unitOptions = units.map(unit => `<option value="${unit}" ${p.unit === unit ? 'selected' : ''}>${unit}</option>`).join('');
             
-            const groups = ["Elétrico", "Hidráulico", "Consumível", "Ferramentas", "Escritório", "Segurança", "Outros"];
+            const groups = ["Elétrico", "Hidráulico", "Consumível", "Ferramentas", "Ferramentas Manuais", "Material de Corte e Solda", "Escritório", "Segurança", "Outros"];
             const groupOptions = groups.map(group => `<option value="${group}" ${p.group === group ? 'selected' : ''}>${group}</option>`).join('');
 
             const content = `
