@@ -332,6 +332,13 @@
                         <span>Baixa RM</span>
                     </button>
 
+                    <!-- SEÇÃO: ANÁLISE -->
+                    <p class="nav-section-label">Análise</p>
+                    <button data-view="compras-view" type="button" class="tab-btn">
+                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">shopping_cart</span></span>
+                        <span>Sugestão de Compras</span>
+                    </button>
+
                     <!-- SEÇÃO: SISTEMA -->
                     <p class="nav-section-label">Sistema</p>
                     <button data-view="locations-view" type="button" class="tab-btn">
@@ -699,6 +706,59 @@
                     </div>
                 </div>
         
+                <div id="compras-view" class="view-content hidden">
+                    <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+                        <div>
+                            <h2 class="text-2xl font-semibold text-slate-800">Sugestão de Compras</h2>
+                            <p class="text-sm text-slate-500 mt-0.5">Análise automática com base no consumo dos últimos 30 dias</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <select id="compras-period-select" class="p-2 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-orange-400/50 focus:border-orange-400">
+                                <option value="30">Últimos 30 dias</option>
+                                <option value="60">Últimos 60 dias</option>
+                                <option value="90">Últimos 90 dias</option>
+                            </select>
+                            <button id="compras-print-btn" class="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm text-white shadow-sm transition hover:opacity-90" style="background:#e65100;">
+                                <span class="material-symbols-outlined" style="font-size:18px;">print</span>
+                                Imprimir / Exportar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Cards de resumo -->
+                    <div id="compras-summary" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"></div>
+
+                    <!-- Filtro de status -->
+                    <div class="flex gap-2 mb-4 flex-wrap">
+                        <button data-filter="all" class="compras-filter-btn px-3 py-1.5 rounded-full text-xs font-bold transition border border-transparent" style="background:#191c1d; color:#fff;">Todos</button>
+                        <button data-filter="critico" class="compras-filter-btn px-3 py-1.5 rounded-full text-xs font-bold transition border" style="background:#fff2f0; color:#ba1a1a; border-color:#ba1a1a;">🔴 Crítico</button>
+                        <button data-filter="atencao" class="compras-filter-btn px-3 py-1.5 rounded-full text-xs font-bold transition border" style="background:#fff8e1; color:#795900; border-color:#f2bc00;">🟡 Atenção</button>
+                        <button data-filter="monitorar" class="compras-filter-btn px-3 py-1.5 rounded-full text-xs font-bold transition border" style="background:#f3f4f5; color:#414754; border-color:#c1c6d6;">🔵 Monitorar</button>
+                    </div>
+
+                    <!-- Tabela -->
+                    <div class="overflow-x-auto rounded-xl border border-slate-200">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="text-left text-xs uppercase tracking-wider" style="background:#f3f4f5; color:#727785;">
+                                    <th class="px-4 py-3 rounded-tl-xl">Urgência</th>
+                                    <th class="px-4 py-3">Material</th>
+                                    <th class="px-4 py-3 text-center">Estoque Atual</th>
+                                    <th class="px-4 py-3 text-center">Estoque Mín.</th>
+                                    <th class="px-4 py-3 text-center">Consumo/Dia</th>
+                                    <th class="px-4 py-3 text-center">Dias Restantes</th>
+                                    <th class="px-4 py-3 text-center rounded-tr-xl">Qtd. Sugerida</th>
+                                </tr>
+                            </thead>
+                            <tbody id="compras-list" class="divide-y divide-slate-100 bg-white"></tbody>
+                        </table>
+                        <div id="no-compras-message" class="text-center py-16 text-slate-500 hidden">
+                            <span class="material-symbols-outlined" style="font-size:48px; color:#c1c6d6;">check_circle</span>
+                            <p class="mt-2 font-medium">Nenhum item crítico encontrado</p>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="reports-view" class="view-content hidden">
                     <h2 class="text-2xl font-semibold text-slate-800 mb-6">Relatórios e Ferramentas</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -807,6 +867,10 @@
             <button data-view="reports-view" class="drawer-btn flex flex-col items-center justify-center gap-1.5 p-4 rounded-2xl" style="background:#fff;">
                 <span class="material-symbols-outlined" style="font-size:26px; color:#414754;">bar_chart</span>
                 <span class="text-xs font-semibold" style="color:#414754;">Relatórios</span>
+            </button>
+            <button data-view="compras-view" class="drawer-btn flex flex-col items-center justify-center gap-1.5 p-4 rounded-2xl" style="background:#fff;">
+                <span class="material-symbols-outlined" style="font-size:26px; color:#e65100;">shopping_cart</span>
+                <span class="text-xs font-semibold" style="color:#414754;">Compras</span>
             </button>
         </div>
     </div>
@@ -2446,6 +2510,132 @@
             });
         };
 
+        const renderComprasView = (periodDays = 30) => {
+            const now = Date.now();
+            const periodMs = periodDays * 24 * 60 * 60 * 1000;
+            const cutoff = now - periodMs;
+
+            // Calcular consumo por produto no período
+            const consumoMap = {};
+            history.forEach(h => {
+                if (!h.productId) return;
+                const isExit = h.type === 'Saída' || h.type === 'Saída por Requisição' || h.type === 'Ajuste Saída';
+                if (!isExit) return;
+                const ts = h.date?.seconds ? h.date.seconds * 1000 : 0;
+                if (ts < cutoff) return;
+                consumoMap[h.productId] = (consumoMap[h.productId] || 0) + (h.quantity || 0);
+            });
+
+            const activeFilter = document.querySelector('.compras-filter-btn[style*="background:#191c1d"]')?.dataset.filter || 'all';
+
+            // Montar lista com dados calculados
+            const items = products.map(p => {
+                const totalConsumed = consumoMap[p.id] || 0;
+                const dailyRate = totalConsumed / periodDays;
+                const daysRemaining = dailyRate > 0 ? Math.floor(p.quantity / dailyRate) : null;
+                const repoQty30days = Math.ceil(dailyRate * 30 * 1.2); // 30 dias + 20% margem
+                const suggestedQty = Math.max(0, repoQty30days - p.quantity);
+
+                let status;
+                if (p.quantity <= 0) status = 'critico';
+                else if (p.quantity <= p.minQuantity) status = 'critico';
+                else if (daysRemaining !== null && daysRemaining <= 15) status = 'atencao';
+                else if (p.quantity <= p.minQuantity * 1.5) status = 'atencao';
+                else if (totalConsumed > 0) status = 'monitorar';
+                else return null; // não consumido e ok → sem relevância
+
+                return { p, totalConsumed, dailyRate, daysRemaining, suggestedQty, status };
+            }).filter(Boolean);
+
+            // Ordenar: critico → atencao → monitorar, depois por dias restantes
+            const ordem = { critico: 0, atencao: 1, monitorar: 2 };
+            items.sort((a, b) => {
+                if (ordem[a.status] !== ordem[b.status]) return ordem[a.status] - ordem[b.status];
+                const dA = a.daysRemaining ?? 9999;
+                const dB = b.daysRemaining ?? 9999;
+                return dA - dB;
+            });
+
+            // Cards de resumo
+            const criticos = items.filter(i => i.status === 'critico').length;
+            const atencoes = items.filter(i => i.status === 'atencao').length;
+            const monitorar = items.filter(i => i.status === 'monitorar').length;
+            const totalSugerido = items.reduce((acc, i) => acc + i.suggestedQty, 0);
+
+            const summaryEl = document.getElementById('compras-summary');
+            summaryEl.innerHTML = `
+                <div class="rounded-2xl p-4" style="background:#fff2f0; border:1px solid #f8bdb4;">
+                    <p class="text-xs font-bold uppercase tracking-wider" style="color:#ba1a1a;">🔴 Crítico</p>
+                    <p class="text-3xl font-black mt-1" style="color:#ba1a1a;">${criticos}</p>
+                    <p class="text-xs mt-0.5" style="color:#727785;">itens no limite</p>
+                </div>
+                <div class="rounded-2xl p-4" style="background:#fff8e1; border:1px solid #f9e099;">
+                    <p class="text-xs font-bold uppercase tracking-wider" style="color:#795900;">🟡 Atenção</p>
+                    <p class="text-3xl font-black mt-1" style="color:#795900;">${atencoes}</p>
+                    <p class="text-xs mt-0.5" style="color:#727785;">comprar em breve</p>
+                </div>
+                <div class="rounded-2xl p-4" style="background:#f3f4f5; border:1px solid #c1c6d6;">
+                    <p class="text-xs font-bold uppercase tracking-wider" style="color:#414754;">🔵 Monitorar</p>
+                    <p class="text-3xl font-black mt-1" style="color:#414754;">${monitorar}</p>
+                    <p class="text-xs mt-0.5" style="color:#727785;">consumo ativo</p>
+                </div>
+                <div class="rounded-2xl p-4" style="background:#e8f5e9; border:1px solid #a5d6a7;">
+                    <p class="text-xs font-bold uppercase tracking-wider" style="color:#006e2c;">📦 Itens p/ Comprar</p>
+                    <p class="text-3xl font-black mt-1" style="color:#006e2c;">${criticos + atencoes}</p>
+                    <p class="text-xs mt-0.5" style="color:#727785;">compra sugerida: ${totalSugerido} unid.</p>
+                </div>
+            `;
+
+            // Filtrar por status selecionado
+            const filtered = activeFilter === 'all' ? items : items.filter(i => i.status === activeFilter);
+
+            const tbody = document.getElementById('compras-list');
+            const noMsg = document.getElementById('no-compras-message');
+            tbody.innerHTML = '';
+
+            if (filtered.length === 0) {
+                noMsg.classList.remove('hidden');
+                return;
+            }
+            noMsg.classList.add('hidden');
+
+            filtered.forEach(({ p, totalConsumed, dailyRate, daysRemaining, suggestedQty, status }) => {
+                let badgeBg, badgeColor, badgeLabel;
+                if (status === 'critico') { badgeBg = '#fff2f0'; badgeColor = '#ba1a1a'; badgeLabel = '🔴 CRÍTICO'; }
+                else if (status === 'atencao') { badgeBg = '#fff8e1'; badgeColor = '#795900'; badgeLabel = '🟡 ATENÇÃO'; }
+                else { badgeBg = '#f3f4f5'; badgeColor = '#414754'; badgeLabel = '🔵 MONITORAR'; }
+
+                const daysText = daysRemaining !== null
+                    ? (daysRemaining === 0 ? '<span style="color:#ba1a1a; font-weight:800;">ESGOTADO</span>'
+                        : `<span style="color:${daysRemaining <= 7 ? '#ba1a1a' : daysRemaining <= 15 ? '#795900' : '#006e2c'}; font-weight:700;">${daysRemaining}d</span>`)
+                    : '<span style="color:#c1c6d6;">—</span>';
+
+                const dailyText = dailyRate > 0 ? dailyRate.toFixed(1) : '<span style="color:#c1c6d6;">—</span>';
+
+                const tr = document.createElement('tr');
+                tr.className = 'transition-colors hover:bg-slate-50';
+                tr.innerHTML = `
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-1 rounded-full text-xs font-bold" style="background:${badgeBg}; color:${badgeColor};">${badgeLabel}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <p class="font-bold text-slate-800" style="font-size:13px;">${p.name}</p>
+                        <p class="text-xs text-slate-400">${p.codeRM || p.code} · ${p.location || 'N/A'}</p>
+                    </td>
+                    <td class="px-4 py-3 text-center font-bold" style="color:${p.quantity <= p.minQuantity ? '#ba1a1a' : '#191c1d'};">${p.quantity} <span class="text-xs font-normal text-slate-400">${p.unit || ''}</span></td>
+                    <td class="px-4 py-3 text-center text-slate-500">${p.minQuantity}</td>
+                    <td class="px-4 py-3 text-center text-slate-600">${dailyText}</td>
+                    <td class="px-4 py-3 text-center">${daysText}</td>
+                    <td class="px-4 py-3 text-center">
+                        ${suggestedQty > 0
+                            ? `<span class="px-3 py-1 rounded-full text-xs font-black" style="background:#e8f5e9; color:#006e2c;">${suggestedQty} ${p.unit || 'un'}</span>`
+                            : '<span style="color:#c1c6d6;">—</span>'}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        };
+
         const switchView = (viewId) => {
             if (viewId !== 'inventory-view' && viewId !== 'requisitions-view') {
                 selectedProductIds.clear();
@@ -2472,6 +2662,10 @@
             if (viewId === 'rm-view') renderRMView(rmSearchInput.value); 
             if (viewId === 'dashboard-view') updateDashboard();
             if (viewId === 'exit-view') renderExitView();
+            if (viewId === 'compras-view') {
+                const sel = document.getElementById('compras-period-select');
+                renderComprasView(sel ? parseInt(sel.value) : 30);
+            }
         };
 
         const updateSelectionActionButtonsState = () => {
@@ -3693,6 +3887,79 @@
             link.click();
             document.body.removeChild(link);
             showToast("Planilha de KPIs gerada com sucesso!");
+        });
+
+        // Listeners da view de Sugestão de Compras
+        document.addEventListener('click', (e) => {
+            // Filtro de status
+            if (e.target.classList.contains('compras-filter-btn')) {
+                document.querySelectorAll('.compras-filter-btn').forEach(btn => {
+                    btn.style.background = '';
+                    btn.style.color = '';
+                    btn.style.removeProperty('background');
+                });
+                e.target.style.background = '#191c1d';
+                e.target.style.color = '#fff';
+                const sel = document.getElementById('compras-period-select');
+                renderComprasView(sel ? parseInt(sel.value) : 30);
+            }
+
+            // Imprimir
+            if (e.target.id === 'compras-print-btn' || e.target.closest('#compras-print-btn')) {
+                const printArea = document.getElementById('print-area');
+                const table = document.getElementById('compras-list');
+                const summary = document.getElementById('compras-summary');
+                if (!table) return;
+
+                const sel = document.getElementById('compras-period-select');
+                const periodo = sel ? sel.options[sel.selectedIndex].text : 'Últimos 30 dias';
+
+                printArea.innerHTML = `
+                    <style>
+                        @media print { body > *:not(#print-area) { display:none !important; } #print-area { display:block !important; padding:20px; font-family:sans-serif; } }
+                        table { width:100%; border-collapse:collapse; font-size:12px; }
+                        th, td { padding:8px 10px; border:1px solid #ddd; text-align:left; }
+                        th { background:#f3f4f5; font-weight:700; }
+                        h1 { font-size:18px; margin-bottom:4px; }
+                        .sub { font-size:12px; color:#666; margin-bottom:16px; }
+                        .summary { display:flex; gap:16px; margin-bottom:16px; }
+                        .card { border:1px solid #ddd; border-radius:8px; padding:10px 16px; min-width:100px; }
+                    </style>
+                    <h1>Sugestão de Compras — Estoque ESTRELA</h1>
+                    <p class="sub">Período: ${periodo} · Gerado em: ${new Date().toLocaleString('pt-BR')}</p>
+                    ${summary.outerHTML}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Urgência</th>
+                                <th>Material</th>
+                                <th>Cód. RM</th>
+                                <th>Local</th>
+                                <th>Estoque Atual</th>
+                                <th>Estoque Mín.</th>
+                                <th>Consumo/Dia</th>
+                                <th>Dias Restantes</th>
+                                <th>Qtd. Sugerida</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${Array.from(table.querySelectorAll('tr')).map(tr => {
+                                const cells = tr.querySelectorAll('td');
+                                return `<tr>${Array.from(cells).map(td => `<td>${td.innerText}</td>`).join('')}</tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                `;
+                printArea.classList.remove('hidden');
+                window.print();
+                printArea.classList.add('hidden');
+            }
+        });
+
+        document.addEventListener('change', (e) => {
+            if (e.target.id === 'compras-period-select') {
+                renderComprasView(parseInt(e.target.value));
+            }
         });
 
         aiDescribeBtn.addEventListener('click', async () => {
