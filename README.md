@@ -2,6 +2,10 @@
 
 Aplicacao web para controle de materiais de almoxarifado, com foco em operacao rapida, rastreabilidade e reducao de faltas de estoque.
 
+## Repositorio
+
+- GitHub: [controle-de-estoque](https://github.com/eullon1234-creator/controle-de-estoque)
+
 ## Acesso ao app
 
 - Link de producao: [Abrir aplicacao](https://eullon1234-creator.github.io/controle-de-estoque/)
@@ -38,7 +42,12 @@ Este sistema foi criado para facilitar a rotina de estoque da equipe, permitindo
 
 ## Como executar localmente
 
-1. Clone este repositorio.
+1. Clone o repositorio:
+
+```bash
+git clone https://github.com/eullon1234-creator/controle-de-estoque.git
+```
+
 2. Abra a pasta no VS Code.
 3. Use uma extensao de servidor local (ex.: Live Server) para abrir o projeto.
 
