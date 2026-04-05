@@ -132,7 +132,6 @@
             'Elétrico',
             'Hidráulico',
             'Consumível',
-            'Ferramentas',
             'Ferramentas Manuais',
             'Material de Corte e Solda',
             'Escritório',
@@ -159,7 +158,7 @@
                 return 'Ferramentas Manuais';
             }
             if (/broca|furadeira|serra\s*(copo|tico|sabre)?|esmerilhadeira|lixadeira/i.test(text)) {
-                return 'Ferramentas';
+                return 'Ferramentas Manuais';
             }
             if (/papel|caneta|grampo|toner|escrit/i.test(text)) {
                 return 'Escritório';
@@ -178,7 +177,7 @@
 
         const needsGroupAutoFix = (group) => {
             const normalized = (group || '').toString().trim().toLowerCase();
-            return isMissingGroup(group) || normalized === 'outros';
+            return isMissingGroup(group) || normalized === 'outros' || normalized === 'ferramentas';
         };
 
         const autoFillMissingProductGroups = async () => {
@@ -200,9 +199,12 @@
 
                 candidates.forEach((product) => {
                     const productRef = doc(productsCollectionRef, product.id);
-                    const inferredGroup = inferProductGroup(product);
-                    const safeGroup = VALID_PRODUCT_GROUPS.includes(inferredGroup) ? inferredGroup : 'Outros';
                     const currentGroup = (product.group || '').toString().trim();
+                    const currentGroupNormalized = currentGroup.toLowerCase();
+                    const inferredGroup = currentGroupNormalized === 'ferramentas'
+                        ? 'Ferramentas Manuais'
+                        : inferProductGroup(product);
+                    const safeGroup = VALID_PRODUCT_GROUPS.includes(inferredGroup) ? inferredGroup : 'Outros';
 
                     if (currentGroup === safeGroup) return;
 
@@ -217,7 +219,7 @@
                 }
 
                 await batch.commit();
-                showToast(`✅ ${changedCount} item(ns) sem grupo/"Outros" foram atualizados.`, false);
+                showToast(`✅ ${changedCount} item(ns) sem grupo/"Outros"/"Ferramentas" foram atualizados.`, false);
             } catch (error) {
                 console.error('Erro ao preencher grupos faltantes:', error);
                 showToast('Não foi possível preencher os grupos automaticamente.', true);
@@ -1477,7 +1479,7 @@
             const units = ["Unidade", "Peça", "Metros", "Litro", "Quilo", "Caixa", "Pacote", "Rolo", "Galão", "Saco"];
             const unitOptions = units.map(unit => `<option value="${unit}" ${p.unit === unit ? 'selected' : ''}>${unit}</option>`).join('');
             
-            const groups = ["Elétrico", "Hidráulico", "Consumível", "Ferramentas", "Ferramentas Manuais", "Material de Corte e Solda", "Escritório", "Segurança", "Outros"];
+            const groups = ["Elétrico", "Hidráulico", "Consumível", "Ferramentas Manuais", "Material de Corte e Solda", "Escritório", "Segurança", "Outros"];
             const groupOptions = groups.map(group => `<option value="${group}" ${p.group === group ? 'selected' : ''}>${group}</option>`).join('');
 
             const content = `
