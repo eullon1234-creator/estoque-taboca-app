@@ -3199,7 +3199,8 @@
         generateKpiReportBtn.addEventListener('click', () => {
             const totalProducts = products.length;
             const totalUnits = products.reduce((sum, p) => sum + (p.quantity || 0), 0);
-            const lowStockItems = products.filter(p => p.quantity <= p.minQuantity).length;
+            const lowStockItems = products.filter(p => p.quantity <= p.minQuantity);
+            const lowStockCount = lowStockItems.length;
             const pendingReqs = requisitions.filter(r => r.status === 'Pendente' || r.status === 'pending').length;
 
             const timestampToMillis = (entry) => {
@@ -3226,53 +3227,235 @@
                         grouped.set(key, previous);
                     });
 
-                return [...grouped.values()].sort((a, b) => b.qty - a.qty).slice(0, 5);
+                return [...grouped.values()].sort((a, b) => b.qty - a.qty).slice(0, 10);
+            };
+
+            const getEntriesCount = (days) => {
+                const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+                return history.filter(h => (h.type === 'Entrada' || h.type === 'Ajuste Entrada') && timestampToMillis(h) >= cutoff)
+                    .reduce((s, h) => s + Math.abs(Number(h.quantity) || 0), 0);
+            };
+            const getExitsCount = (days) => {
+                const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+                return history.filter(h => (h.type === 'Saída' || h.type === 'Saída por Requisição') && timestampToMillis(h) >= cutoff)
+                    .reduce((s, h) => s + Math.abs(Number(h.quantity) || 0), 0);
             };
 
             const top3Days = getTopExitedItems(3);
             const top7Days = getTopExitedItems(7);
+            const top30Days = getTopExitedItems(30);
 
-            let csvContent = "Indicador;Valor\n";
-            csvContent += `Data de Geração;${new Date().toLocaleString('pt-BR')}\n`;
-            csvContent += `Total de Produtos (SKUs);${totalProducts}\n`;
-            csvContent += `Total de Unidades em Estoque;${totalUnits}\n`;
-            csvContent += `Itens com Estoque Baixo;${lowStockItems}\n`;
-            csvContent += `Requisições Pendentes;${pendingReqs}\n`;
-            csvContent += "\n";
+            const entries7d = getEntriesCount(7);
+            const exits7d = getExitsCount(7);
+            const entries30d = getEntriesCount(30);
+            const exits30d = getExitsCount(30);
 
-            csvContent += "Top Saídas - Últimos 3 Dias;;;;\n";
-            csvContent += "Posição;Produto;Código;Quantidade Total;Período\n";
-            if (top3Days.length === 0) {
-                csvContent += `1;Sem registros;N/A;0;3 dias\n`;
-            } else {
-                top3Days.forEach((item, index) => {
-                    const row = [index + 1, item.name, item.code, item.qty, '3 dias']
-                        .map(field => `"${String(field).replace(/"/g, '""')}"`).join(';');
-                    csvContent += row + '\n';
-                });
-            }
-            csvContent += "\n";
+            // Grupos de produtos
+            const groupMap = new Map();
+            products.forEach(p => {
+                const g = p.group || 'Sem Grupo';
+                const prev = groupMap.get(g) || { count: 0, units: 0, lowStock: 0 };
+                prev.count++;
+                prev.units += (p.quantity || 0);
+                if (p.quantity <= p.minQuantity) prev.lowStock++;
+                groupMap.set(g, prev);
+            });
+            const groupData = [...groupMap.entries()].sort((a, b) => b[1].units - a[1].units);
 
-            csvContent += "Top Saídas - Últimos 7 Dias;;;;\n";
-            csvContent += "Posição;Produto;Código;Quantidade Total;Período\n";
-            if (top7Days.length === 0) {
-                csvContent += `1;Sem registros;N/A;0;7 dias\n`;
-            } else {
-                top7Days.forEach((item, index) => {
-                    const row = [index + 1, item.name, item.code, item.qty, '7 dias']
-                        .map(field => `"${String(field).replace(/"/g, '""')}"`).join(';');
-                    csvContent += row + '\n';
-                });
-            }
+            const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            const dataGerada = new Date().toLocaleString('pt-BR');
+            const timestamp = new Date().toISOString().slice(0, 10);
 
-            const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement("a");
+            // Estilo base das células
+            const hd = 'background:#005BBF;color:#FFFFFF;font-weight:bold;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;';
+            const cd = 'border:1px solid #D0D0D0;padding:6px 8px;font-size:11px;font-family:Calibri,sans-serif;';
+            const secTitle = 'font-size:14px;font-weight:bold;color:#005BBF;padding:10px 8px 4px 8px;font-family:Calibri,sans-serif;';
+
+            const renderTopTable = (items, periodLabel) => {
+                if (!items.length) return `<tr><td colspan="4" style="${cd}color:#999;">Sem registros no período</td></tr>`;
+                return items.map((item, idx) => {
+                    const bg = idx % 2 === 0 ? '#FFFFFF' : '#F8F9FA';
+                    const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}º`;
+                    return `<tr>
+                        <td style="${cd}background:${bg};text-align:center;font-weight:bold;">${medal}</td>
+                        <td style="${cd}background:${bg};">${esc(item.name)}</td>
+                        <td style="${cd}background:${bg};text-align:center;">${esc(item.code)}</td>
+                        <td style="${cd}background:${bg};text-align:center;font-weight:bold;color:#B71C1C;">${item.qty}</td>
+                    </tr>`;
+                }).join('');
+            };
+
+            // Low stock items table
+            const lowStockSorted = [...lowStockItems].sort((a, b) => (a.quantity - a.minQuantity) - (b.quantity - b.minQuantity));
+            const lowStockRows = lowStockSorted.slice(0, 15).map((p, idx) => {
+                const bg = idx % 2 === 0 ? '#FFFFFF' : '#F8F9FA';
+                const deficit = (p.minQuantity || 0) - (p.quantity || 0);
+                const deficitColor = deficit > 0 ? '#B71C1C' : '#E65100';
+                return `<tr>
+                    <td style="${cd}background:${bg};">${esc(p.name)}</td>
+                    <td style="${cd}background:${bg};text-align:center;">${esc(p.codeRM || p.code || '-')}</td>
+                    <td style="${cd}background:${bg};text-align:center;">${esc(p.group || '-')}</td>
+                    <td style="${cd}background:${bg};text-align:center;">${p.quantity ?? 0}</td>
+                    <td style="${cd}background:${bg};text-align:center;">${p.minQuantity ?? 0}</td>
+                    <td style="${cd}background:${bg};text-align:center;font-weight:bold;color:${deficitColor};">${deficit > 0 ? `-${deficit}` : '0'}</td>
+                </tr>`;
+            }).join('');
+
+            // Group summary rows
+            const groupRows = groupData.map(([ g, d ], idx) => {
+                const bg = idx % 2 === 0 ? '#FFFFFF' : '#F8F9FA';
+                return `<tr>
+                    <td style="${cd}background:${bg};font-weight:bold;">${esc(g)}</td>
+                    <td style="${cd}background:${bg};text-align:center;">${d.count}</td>
+                    <td style="${cd}background:${bg};text-align:center;">${d.units.toLocaleString('pt-BR')}</td>
+                    <td style="${cd}background:${bg};text-align:center;color:${d.lowStock > 0 ? '#B71C1C' : '#333'};font-weight:${d.lowStock > 0 ? 'bold' : 'normal'};">${d.lowStock}</td>
+                </tr>`;
+            }).join('');
+
+            const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8">
+<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+<x:Name>KPIs Estoque</x:Name>
+<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+</head><body>
+<table>
+    <!-- CABEÇALHO -->
+    <tr><td colspan="6" style="font-size:20px;font-weight:bold;color:#005BBF;padding:14px 8px 2px 8px;font-family:Calibri,sans-serif;">RELATÓRIO DE KPIs — ESTOQUE UHE TABOCA</td></tr>
+    <tr><td colspan="6" style="font-size:11px;color:#555;padding:2px 8px 10px 8px;font-family:Calibri,sans-serif;">Gerado em: ${esc(dataGerada)}</td></tr>
+
+    <!-- SEÇÃO 1: INDICADORES GERAIS -->
+    <tr><td colspan="6" style="${secTitle}border-bottom:2px solid #005BBF;">INDICADORES GERAIS</td></tr>
+    <tr><td colspan="6" style="height:4px;"></td></tr>
+    <tr>
+        <td style="${hd}text-align:center;width:200px;">Indicador</td>
+        <td style="${hd}text-align:center;width:120px;">Valor</td>
+        <td style="${hd}text-align:center;width:200px;">Indicador</td>
+        <td style="${hd}text-align:center;width:120px;">Valor</td>
+        <td colspan="2" style="border:none;"></td>
+    </tr>
+    <tr>
+        <td style="${cd}background:#E3F2FD;font-weight:bold;">Total de Produtos (SKUs)</td>
+        <td style="${cd}background:#E3F2FD;text-align:center;font-size:14px;font-weight:bold;color:#005BBF;">${totalProducts}</td>
+        <td style="${cd}background:#E8F5E9;font-weight:bold;">Total de Unidades</td>
+        <td style="${cd}background:#E8F5E9;text-align:center;font-size:14px;font-weight:bold;color:#1B5E20;">${totalUnits.toLocaleString('pt-BR')}</td>
+        <td colspan="2" style="border:none;"></td>
+    </tr>
+    <tr>
+        <td style="${cd}background:#FFF8E1;font-weight:bold;">Itens com Estoque Baixo</td>
+        <td style="${cd}background:#FFF8E1;text-align:center;font-size:14px;font-weight:bold;color:#E65100;">${lowStockCount}</td>
+        <td style="${cd}background:#FCE4EC;font-weight:bold;">Requisições Pendentes</td>
+        <td style="${cd}background:#FCE4EC;text-align:center;font-size:14px;font-weight:bold;color:#B71C1C;">${pendingReqs}</td>
+        <td colspan="2" style="border:none;"></td>
+    </tr>
+    <tr><td colspan="6" style="height:6px;"></td></tr>
+
+    <!-- SEÇÃO 2: MOVIMENTAÇÃO -->
+    <tr><td colspan="6" style="${secTitle}border-bottom:2px solid #005BBF;">MOVIMENTAÇÃO DE ESTOQUE</td></tr>
+    <tr><td colspan="6" style="height:4px;"></td></tr>
+    <tr>
+        <td style="${hd}text-align:center;">Período</td>
+        <td style="${hd}text-align:center;">Entradas (Un.)</td>
+        <td style="${hd}text-align:center;">Saídas (Un.)</td>
+        <td style="${hd}text-align:center;">Saldo</td>
+        <td colspan="2" style="border:none;"></td>
+    </tr>
+    <tr>
+        <td style="${cd}font-weight:bold;">Últimos 7 dias</td>
+        <td style="${cd}text-align:center;color:#1B5E20;font-weight:bold;">+${entries7d.toLocaleString('pt-BR')}</td>
+        <td style="${cd}text-align:center;color:#B71C1C;font-weight:bold;">-${exits7d.toLocaleString('pt-BR')}</td>
+        <td style="${cd}text-align:center;font-weight:bold;color:${(entries7d - exits7d) >= 0 ? '#1B5E20' : '#B71C1C'};">${(entries7d - exits7d) >= 0 ? '+' : ''}${(entries7d - exits7d).toLocaleString('pt-BR')}</td>
+        <td colspan="2" style="border:none;"></td>
+    </tr>
+    <tr>
+        <td style="${cd}background:#F8F9FA;font-weight:bold;">Últimos 30 dias</td>
+        <td style="${cd}background:#F8F9FA;text-align:center;color:#1B5E20;font-weight:bold;">+${entries30d.toLocaleString('pt-BR')}</td>
+        <td style="${cd}background:#F8F9FA;text-align:center;color:#B71C1C;font-weight:bold;">-${exits30d.toLocaleString('pt-BR')}</td>
+        <td style="${cd}background:#F8F9FA;text-align:center;font-weight:bold;color:${(entries30d - exits30d) >= 0 ? '#1B5E20' : '#B71C1C'};">${(entries30d - exits30d) >= 0 ? '+' : ''}${(entries30d - exits30d).toLocaleString('pt-BR')}</td>
+        <td colspan="2" style="border:none;"></td>
+    </tr>
+    <tr><td colspan="6" style="height:6px;"></td></tr>
+
+    <!-- SEÇÃO 3: DISTRIBUIÇÃO POR GRUPO -->
+    <tr><td colspan="6" style="${secTitle}border-bottom:2px solid #005BBF;">DISTRIBUIÇÃO POR GRUPO</td></tr>
+    <tr><td colspan="6" style="height:4px;"></td></tr>
+    <tr>
+        <td style="${hd}text-align:left;width:200px;">Grupo</td>
+        <td style="${hd}text-align:center;">Produtos</td>
+        <td style="${hd}text-align:center;">Unidades</td>
+        <td style="${hd}text-align:center;">Est. Baixo</td>
+        <td colspan="2" style="border:none;"></td>
+    </tr>
+    ${groupRows}
+    <tr><td colspan="6" style="height:6px;"></td></tr>
+
+    <!-- SEÇÃO 4: TOP SAÍDAS 3 DIAS -->
+    <tr><td colspan="6" style="${secTitle}border-bottom:2px solid #B71C1C;">TOP SAÍDAS — ÚLTIMOS 3 DIAS</td></tr>
+    <tr><td colspan="6" style="height:4px;"></td></tr>
+    <tr>
+        <td style="${hd}text-align:center;width:60px;background:#B71C1C;border-color:#8E1515;">#</td>
+        <td style="${hd}text-align:left;background:#B71C1C;border-color:#8E1515;">Material</td>
+        <td style="${hd}text-align:center;background:#B71C1C;border-color:#8E1515;">Código</td>
+        <td style="${hd}text-align:center;background:#B71C1C;border-color:#8E1515;">Qtd Saída</td>
+        <td colspan="2" style="border:none;"></td>
+    </tr>
+    ${renderTopTable(top3Days, '3 dias')}
+    <tr><td colspan="6" style="height:6px;"></td></tr>
+
+    <!-- SEÇÃO 5: TOP SAÍDAS 7 DIAS -->
+    <tr><td colspan="6" style="${secTitle}border-bottom:2px solid #E65100;">TOP SAÍDAS — ÚLTIMOS 7 DIAS</td></tr>
+    <tr><td colspan="6" style="height:4px;"></td></tr>
+    <tr>
+        <td style="${hd}text-align:center;width:60px;background:#E65100;border-color:#BF4400;">#</td>
+        <td style="${hd}text-align:left;background:#E65100;border-color:#BF4400;">Material</td>
+        <td style="${hd}text-align:center;background:#E65100;border-color:#BF4400;">Código</td>
+        <td style="${hd}text-align:center;background:#E65100;border-color:#BF4400;">Qtd Saída</td>
+        <td colspan="2" style="border:none;"></td>
+    </tr>
+    ${renderTopTable(top7Days, '7 dias')}
+    <tr><td colspan="6" style="height:6px;"></td></tr>
+
+    <!-- SEÇÃO 6: TOP SAÍDAS 30 DIAS -->
+    <tr><td colspan="6" style="${secTitle}border-bottom:2px solid #795900;">TOP SAÍDAS — ÚLTIMOS 30 DIAS</td></tr>
+    <tr><td colspan="6" style="height:4px;"></td></tr>
+    <tr>
+        <td style="${hd}text-align:center;width:60px;background:#795900;border-color:#5C4400;">#</td>
+        <td style="${hd}text-align:left;background:#795900;border-color:#5C4400;">Material</td>
+        <td style="${hd}text-align:center;background:#795900;border-color:#5C4400;">Código</td>
+        <td style="${hd}text-align:center;background:#795900;border-color:#5C4400;">Qtd Saída</td>
+        <td colspan="2" style="border:none;"></td>
+    </tr>
+    ${renderTopTable(top30Days, '30 dias')}
+    <tr><td colspan="6" style="height:6px;"></td></tr>
+
+    <!-- SEÇÃO 7: ITENS COM ESTOQUE BAIXO -->
+    <tr><td colspan="6" style="${secTitle}border-bottom:2px solid #E65100;">ITENS COM ESTOQUE BAIXO (Top ${Math.min(lowStockCount, 15)})</td></tr>
+    <tr><td colspan="6" style="height:4px;"></td></tr>
+    <tr>
+        <td style="${hd}text-align:left;width:240px;">Material</td>
+        <td style="${hd}text-align:center;">Código RM</td>
+        <td style="${hd}text-align:center;">Grupo</td>
+        <td style="${hd}text-align:center;">Estoque</td>
+        <td style="${hd}text-align:center;">Mínimo</td>
+        <td style="${hd}text-align:center;background:#B71C1C;border-color:#8E1515;">Déficit</td>
+    </tr>
+    ${lowStockRows || `<tr><td colspan="6" style="${cd}color:#999;text-align:center;">Nenhum item com estoque baixo</td></tr>`}
+    <tr><td colspan="6" style="height:10px;"></td></tr>
+
+    <!-- RODAPÉ -->
+    <tr><td colspan="6" style="border-top:2px solid #005BBF;padding:8px;font-size:10px;color:#999;font-family:Calibri,sans-serif;">Estoque UHE Taboca — Relatório gerado automaticamente em ${esc(dataGerada)}</td></tr>
+</table>
+</body></html>`;
+
+            const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
             link.setAttribute("href", url);
-            link.setAttribute("download", "kpis_estoque.csv");
+            link.setAttribute("download", `kpis_estoque_${timestamp}.xls`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+            URL.revokeObjectURL(url);
             showToast("Planilha de KPIs gerada com sucesso!");
         });
 
