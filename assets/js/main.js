@@ -3291,7 +3291,7 @@
                 renderComprasView(sel ? parseInt(sel.value) : 15);
             }
 
-            // Exportar itens sugeridos para Excel (formato CSV compatível)
+            // Exportar itens sugeridos para Excel (formato XLS profissional)
             if (e.target.id === 'compras-excel-btn' || e.target.closest('#compras-excel-btn')) {
                 const periodLabel = (() => {
                     const sel = document.getElementById('compras-period-select');
@@ -3305,40 +3305,91 @@
                     return;
                 }
 
-                const escapeCsv = (value) => {
-                    const text = String(value ?? '');
-                    return `"${text.replace(/"/g, '""')}"`;
+                const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                const dataGerada = new Date().toLocaleString('pt-BR');
+                const timestamp = new Date().toISOString().slice(0, 10);
+
+                const urgencyColor = (s) => {
+                    if (s === 'critico') return { bg: '#FDEDED', fg: '#B71C1C', label: 'CRÍTICO' };
+                    if (s === 'atencao') return { bg: '#FFF8E1', fg: '#E65100', label: 'ATENÇÃO' };
+                    return { bg: '#E3F2FD', fg: '#0D47A1', label: 'MONITORAR' };
                 };
 
-                let csv = '\uFEFF';
-                csv += 'Relatório de Compras (Itens Sugeridos)\r\n';
-                csv += `Período,${escapeCsv(periodLabel)}\r\n`;
-                csv += `Gerado em,${escapeCsv(new Date().toLocaleString('pt-BR'))}\r\n\r\n`;
-                csv += 'Urgência,Material,Código RM,Grupo,Unidade,Local,Estoque Atual,Estoque Mínimo,Consumo/Dia,Dias Restantes,Qtd Sugerida\r\n';
-
-                toBuy.forEach(({ p, dailyRate, daysRemaining, suggestedQty, status }) => {
-                    const urgency = status === 'critico' ? 'CRÍTICO' : status === 'atencao' ? 'ATENÇÃO' : 'MONITORAR';
-                    csv += [
-                        escapeCsv(urgency),
-                        escapeCsv(p.name),
-                        escapeCsv(p.codeRM || p.code || 'N/A'),
-                        escapeCsv(p.group || 'N/A'),
-                        escapeCsv(p.unit || 'Unidade'),
-                        escapeCsv(p.location || 'N/A'),
-                        escapeCsv(p.quantity ?? 0),
-                        escapeCsv(p.minQuantity ?? 0),
-                        escapeCsv(dailyRate > 0 ? dailyRate.toFixed(2) : 0),
-                        escapeCsv(daysRemaining ?? '-'),
-                        escapeCsv(suggestedQty)
-                    ].join(',') + '\r\n';
+                let totalSugerido = 0;
+                let criticos = 0;
+                let atencao = 0;
+                toBuy.forEach(i => {
+                    totalSugerido += i.suggestedQty;
+                    if (i.status === 'critico') criticos++;
+                    else if (i.status === 'atencao') atencao++;
                 });
 
-                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                let rows = '';
+                toBuy.forEach(({ p, dailyRate, daysRemaining, suggestedQty, status }, idx) => {
+                    const u = urgencyColor(status);
+                    const rowBg = idx % 2 === 0 ? '#FFFFFF' : '#F8F9FA';
+                    rows += `<tr>
+                        <td style="background:${u.bg};color:${u.fg};font-weight:bold;text-align:center;border:1px solid #D0D0D0;padding:6px 8px;font-size:11px;">${esc(u.label)}</td>
+                        <td style="background:${rowBg};border:1px solid #D0D0D0;padding:6px 8px;font-size:11px;">${esc(p.name)}</td>
+                        <td style="background:${rowBg};border:1px solid #D0D0D0;padding:6px 8px;text-align:center;font-size:11px;">${esc(p.codeRM || p.code || '-')}</td>
+                        <td style="background:${rowBg};border:1px solid #D0D0D0;padding:6px 8px;font-size:11px;">${esc(p.group || '-')}</td>
+                        <td style="background:${rowBg};border:1px solid #D0D0D0;padding:6px 8px;text-align:center;font-size:11px;">${esc(p.unit || 'UN')}</td>
+                        <td style="background:${rowBg};border:1px solid #D0D0D0;padding:6px 8px;font-size:11px;">${esc(p.location || '-')}</td>
+                        <td style="background:${rowBg};border:1px solid #D0D0D0;padding:6px 8px;text-align:center;font-size:11px;">${p.quantity ?? 0}</td>
+                        <td style="background:${rowBg};border:1px solid #D0D0D0;padding:6px 8px;text-align:center;font-size:11px;">${p.minQuantity ?? 0}</td>
+                        <td style="background:${rowBg};border:1px solid #D0D0D0;padding:6px 8px;text-align:center;font-size:11px;">${dailyRate > 0 ? dailyRate.toFixed(2) : '0'}</td>
+                        <td style="background:${rowBg};border:1px solid #D0D0D0;padding:6px 8px;text-align:center;font-size:11px;font-weight:bold;color:${daysRemaining !== null && daysRemaining <= 7 ? '#B71C1C' : '#333'};">${daysRemaining ?? '-'}</td>
+                        <td style="background:#E8F5E9;border:1px solid #D0D0D0;padding:6px 10px;text-align:center;font-size:12px;font-weight:bold;color:#1B5E20;">${suggestedQty}</td>
+                    </tr>`;
+                });
+
+                const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8">
+<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+<x:Name>Compras</x:Name>
+<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+</head><body>
+<table>
+    <tr><td colspan="11" style="font-size:18px;font-weight:bold;color:#005BBF;padding:12px 8px 2px 8px;font-family:Calibri,sans-serif;">SUGESTÃO DE COMPRAS — ESTOQUE UHE TABOCA</td></tr>
+    <tr>
+        <td colspan="3" style="font-size:11px;color:#555;padding:2px 8px;font-family:Calibri,sans-serif;">Período: ${esc(periodLabel)}</td>
+        <td colspan="3" style="font-size:11px;color:#555;padding:2px 8px;font-family:Calibri,sans-serif;">Gerado em: ${esc(dataGerada)}</td>
+        <td colspan="5" style="font-size:11px;color:#555;padding:2px 8px;font-family:Calibri,sans-serif;">Total de itens: ${toBuy.length}</td>
+    </tr>
+    <tr>
+        <td colspan="3" style="font-size:11px;color:#B71C1C;padding:2px 8px;font-family:Calibri,sans-serif;">Críticos: ${criticos}</td>
+        <td colspan="3" style="font-size:11px;color:#E65100;padding:2px 8px;font-family:Calibri,sans-serif;">Atenção: ${atencao}</td>
+        <td colspan="5" style="font-size:11px;color:#1B5E20;padding:2px 8px;font-family:Calibri,sans-serif;">Qtd total sugerida: ${totalSugerido}</td>
+    </tr>
+    <tr><td colspan="11" style="height:10px;"></td></tr>
+    <tr>
+        <th style="background:#005BBF;color:#FFFFFF;font-weight:bold;text-align:center;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:90px;">Urgência</th>
+        <th style="background:#005BBF;color:#FFFFFF;font-weight:bold;text-align:left;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:280px;">Material</th>
+        <th style="background:#005BBF;color:#FFFFFF;font-weight:bold;text-align:center;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:100px;">Código RM</th>
+        <th style="background:#005BBF;color:#FFFFFF;font-weight:bold;text-align:left;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:140px;">Grupo</th>
+        <th style="background:#005BBF;color:#FFFFFF;font-weight:bold;text-align:center;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:60px;">Unid.</th>
+        <th style="background:#005BBF;color:#FFFFFF;font-weight:bold;text-align:left;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:120px;">Local</th>
+        <th style="background:#005BBF;color:#FFFFFF;font-weight:bold;text-align:center;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:70px;">Estoque</th>
+        <th style="background:#005BBF;color:#FFFFFF;font-weight:bold;text-align:center;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:70px;">Mínimo</th>
+        <th style="background:#005BBF;color:#FFFFFF;font-weight:bold;text-align:center;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:80px;">Cons./Dia</th>
+        <th style="background:#005BBF;color:#FFFFFF;font-weight:bold;text-align:center;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:80px;">Dias Rest.</th>
+        <th style="background:#1B5E20;color:#FFFFFF;font-weight:bold;text-align:center;border:1px solid #145218;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:90px;">Qtd Compra</th>
+    </tr>
+    ${rows}
+    <tr><td colspan="11" style="height:6px;"></td></tr>
+    <tr>
+        <td colspan="9" style="text-align:right;font-size:11px;font-weight:bold;padding:6px 8px;border-top:2px solid #005BBF;font-family:Calibri,sans-serif;color:#333;">TOTAL A COMPRAR →</td>
+        <td colspan="2" style="text-align:center;font-size:14px;font-weight:bold;padding:6px 8px;border-top:2px solid #005BBF;background:#E8F5E9;color:#1B5E20;font-family:Calibri,sans-serif;">${totalSugerido}</td>
+    </tr>
+</table>
+</body></html>`;
+
+                const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                const timestamp = new Date().toISOString().slice(0, 10);
                 a.href = url;
-                a.download = `itens_compra_${lastComprasPeriodDays}dias_${timestamp}.csv`;
+                a.download = `compras_sugeridas_${lastComprasPeriodDays}dias_${timestamp}.xls`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
