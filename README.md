@@ -4,11 +4,11 @@ Aplicacao web para controle de materiais de almoxarifado, com foco em operacao r
 
 ## Repositorio
 
-- GitHub: [controle-de-estoque](https://github.com/eullon1234-creator/controle-de-estoque)
+- GitHub: [estoque-taboca-app](https://github.com/eullon1234-creator/estoque-taboca-app)
 
 ## Acesso ao app
 
-- Link de producao: [Abrir aplicacao](https://eullon1234-creator.github.io/controle-de-estoque/)
+- Link de producao: [Abrir aplicacao](https://eullon1234-creator.github.io/estoque-taboca-app/)
 
 ## Para que serve
 
@@ -45,7 +45,7 @@ Este sistema foi criado para facilitar a rotina de estoque da equipe, permitindo
 1. Clone o repositorio:
 
 ```bash
-git clone https://github.com/eullon1234-creator/controle-de-estoque.git
+git clone https://github.com/eullon1234-creator/estoque-taboca-app.git
 ```
 
 2. Abra a pasta no VS Code.
