@@ -47,6 +47,8 @@
         const itemsPerPage = 50; // Mostrar 50 produtos por vez 
         let hasAutoFilledMissingGroups = false;
         let isAutoFillingMissingGroups = false;
+        let dashboardTopItemsChart = null;
+        let dashboardTrendChart = null;
 
         // --- Seletores ---
         const productList = document.getElementById('product-list');
@@ -690,7 +692,7 @@
                 return 0;
             };
 
-            const getTopExitedItems = (days) => {
+            const getTopExitedItems = (days, limit = 5) => {
                 const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
                 const map = new Map();
 
@@ -707,11 +709,44 @@
                         map.set(key, previous);
                     });
 
-                return [...map.values()].sort((a, b) => b.totalQty - a.totalQty).slice(0, 5);
+                return [...map.values()].sort((a, b) => b.totalQty - a.totalQty).slice(0, limit);
+            };
+
+            const getDailyExitSeries = (days = 7) => {
+                const labels = [];
+                const values = [];
+                const now = new Date();
+                const map = new Map();
+
+                for (let i = days - 1; i >= 0; i--) {
+                    const date = new Date(now);
+                    date.setHours(0, 0, 0, 0);
+                    date.setDate(now.getDate() - i);
+                    const key = date.toISOString().slice(0, 10);
+                    map.set(key, 0);
+                    labels.push(date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }));
+                }
+
+                history
+                    .filter(h => h.type === 'Saída' || h.type === 'Saída por Requisição')
+                    .forEach((h) => {
+                        const millis = timestampToMillis(h);
+                        if (!millis) return;
+                        const dt = new Date(millis);
+                        dt.setHours(0, 0, 0, 0);
+                        const key = dt.toISOString().slice(0, 10);
+                        if (!map.has(key)) return;
+                        map.set(key, map.get(key) + Math.abs(Number(h.quantity) || 0));
+                    });
+
+                map.forEach((val) => values.push(val));
+                return { labels, values };
             };
 
             const top3Days = getTopExitedItems(3);
             const top7Days = getTopExitedItems(7);
+            const top30Days = getTopExitedItems(30, 8);
+            const dailySeries = getDailyExitSeries(7);
 
             const renderTopList = (items) => {
                 if (items.length === 0) {
@@ -747,7 +782,7 @@
             // Bento Grid - Sovereign Ledger style
             dashboardStats.innerHTML = `
                 <!-- KPI Principal: Total de Unidades -->
-                <div class="col-span-2 bg-surface-container-lowest p-5 rounded-2xl tonal-elevation" style="grid-column: span 2;">
+                <div class="col-span-2 bg-surface-container-lowest p-5 rounded-2xl tonal-elevation dashboard-reveal" style="grid-column: span 2; animation-delay: 0.02s;">
                     <div class="flex justify-between items-start mb-4">
                         <div class="p-2.5 rounded-xl" style="background:rgba(0,91,191,0.1);">
                             <span class="material-symbols-outlined" style="font-size:22px; color:#005bbf; font-variation-settings:'FILL' 0,'wght' 400;">shelves</span>
@@ -758,7 +793,7 @@
                     <p class="text-sm font-medium mt-1" style="color:#727785;">Unidades em Estoque</p>
                 </div>
                 <!-- KPI: Produtos (SKUs) -->
-                <div class="bg-surface-container-lowest p-5 rounded-2xl tonal-elevation">
+                <div class="bg-surface-container-lowest p-5 rounded-2xl tonal-elevation dashboard-reveal" style="animation-delay: 0.08s;">
                     <div class="p-2.5 rounded-xl w-fit mb-3" style="background:rgba(0,110,44,0.1);">
                         <span class="material-symbols-outlined" style="font-size:22px; color:#006e2c; font-variation-settings:'FILL' 0,'wght' 400;">category</span>
                     </div>
@@ -766,7 +801,7 @@
                     <p class="text-xs font-semibold tracking-tight mt-0.5" style="color:#727785;">Produtos (SKUs)</p>
                 </div>
                 <!-- KPI: Estoque Baixo -->
-                <div class="bg-surface-container-lowest p-5 rounded-2xl tonal-elevation" style="border-bottom: 3px solid #fbbc05;">
+                <div class="bg-surface-container-lowest p-5 rounded-2xl tonal-elevation dashboard-reveal" style="border-bottom: 3px solid #fbbc05; animation-delay: 0.14s;">
                     <div class="p-2.5 rounded-xl w-fit mb-3" style="background:rgba(121,89,0,0.1);">
                         <span class="material-symbols-outlined" style="font-size:22px; color:#795900; font-variation-settings:'FILL' 0,'wght' 400;">warning</span>
                     </div>
@@ -774,7 +809,7 @@
                     <p class="text-xs font-semibold tracking-tight mt-0.5" style="color:#727785;">Itens com Estoque Baixo</p>
                 </div>
                 <!-- KPI: Requisições Pendentes -->
-                <div class="bg-surface-container-lowest p-5 rounded-2xl tonal-elevation">
+                <div class="bg-surface-container-lowest p-5 rounded-2xl tonal-elevation dashboard-reveal" style="animation-delay: 0.2s;">
                     <div class="p-2.5 rounded-xl w-fit mb-3" style="background:rgba(0,91,191,0.08);">
                         <span class="material-symbols-outlined" style="font-size:22px; color:#005bbf; font-variation-settings:'FILL' 0,'wght' 400;">assignment_late</span>
                     </div>
@@ -782,7 +817,7 @@
                     <p class="text-xs font-semibold tracking-tight mt-0.5" style="color:#727785;">Req. Pendentes</p>
                 </div>
                 <!-- Ranking: Mais Saíram (3 dias) -->
-                <div class="bg-surface-container-lowest p-5 rounded-2xl tonal-elevation">
+                <div class="bg-surface-container-lowest p-5 rounded-2xl tonal-elevation dashboard-reveal" style="animation-delay: 0.26s;">
                     <div class="flex items-center justify-between mb-3">
                         <h4 class="text-sm font-bold uppercase tracking-wide" style="color:#191c1d;">Top Saídas (3 dias)</h4>
                         <span class="material-symbols-outlined" style="font-size:20px; color:#ba1a1a;">trending_down</span>
@@ -790,7 +825,7 @@
                     ${renderTopList(top3Days)}
                 </div>
                 <!-- Ranking: Mais Saíram (7 dias) -->
-                <div class="bg-surface-container-lowest p-5 rounded-2xl tonal-elevation">
+                <div class="bg-surface-container-lowest p-5 rounded-2xl tonal-elevation dashboard-reveal" style="animation-delay: 0.32s;">
                     <div class="flex items-center justify-between mb-3">
                         <h4 class="text-sm font-bold uppercase tracking-wide" style="color:#191c1d;">Top Saídas (7 dias)</h4>
                         <span class="material-symbols-outlined" style="font-size:20px; color:#795900;">calendar_month</span>
@@ -802,6 +837,45 @@
             dashboardStats.className = 'grid grid-cols-2 gap-3 md:gap-4';
             const recentHistory = [...history].sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0)).slice(0, 5);
             let activityHTML = `
+                <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-6 mb-5">
+                    <div class="dashboard-chart-card dashboard-reveal xl:col-span-2" style="animation-delay: 0.05s;">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-sm font-bold uppercase tracking-wide" style="color:#191c1d;">Giro Diário (7 dias)</h3>
+                            <span class="dashboard-top-pill">Saídas</span>
+                        </div>
+                        <div class="h-64 md:h-72">
+                            <canvas id="dashboard-trend-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="dashboard-chart-card dashboard-reveal" style="animation-delay: 0.1s;">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-sm font-bold uppercase tracking-wide" style="color:#191c1d;">Mais Rodados (30 dias)</h3>
+                            <span class="dashboard-top-pill">Top ${top30Days.length}</span>
+                        </div>
+                        <div class="h-64 md:h-72">
+                            <canvas id="dashboard-top-items-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white border border-slate-200 rounded-2xl p-4 mb-5 dashboard-reveal" style="animation-delay: 0.14s; box-shadow: 0 10px 30px rgba(25, 28, 29, 0.04);">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-bold uppercase tracking-wide" style="color:#191c1d;">Itens com Maior Giro</h3>
+                        <button onclick="document.querySelector('[data-view=exit-log-view]').click()" class="text-xs font-bold uppercase tracking-widest" style="color:#005bbf; letter-spacing:0.08em;">Detalhar</button>
+                    </div>
+                    <div class="space-y-2">
+                        ${top30Days.length
+                            ? top30Days.slice(0, 5).map((item, index) => `
+                                <div class="flex items-center justify-between p-2.5 rounded-lg" style="background:#f8f9fa;">
+                                    <div class="min-w-0">
+                                        <p class="text-sm font-semibold truncate" style="color:#191c1d;">${index + 1}. ${item.productName}</p>
+                                        <p class="text-xs truncate" style="color:#727785;">${item.productCode}</p>
+                                    </div>
+                                    <span class="text-sm font-extrabold" style="color:#ba1a1a;">${item.totalQty}</span>
+                                </div>
+                            `).join('')
+                            : '<p class="text-sm" style="color:#727785;">Sem saídas registradas nos últimos 30 dias.</p>'}
+                    </div>
+                </div>
                 <div class="flex justify-between items-center px-1 mt-6 mb-3">
                     <h3 class="text-lg font-bold tracking-tight" style="color:#191c1d;">Atividade Recente</h3>
                     <button onclick="document.querySelector('[data-view=exit-log-view]').click()" class="text-xs font-bold uppercase tracking-widest" style="color:#005bbf; letter-spacing:0.08em;">Ver tudo</button>
@@ -845,6 +919,91 @@
             }
             activityHTML += `</div>`;
             dashboardActivity.innerHTML = activityHTML;
+
+            if (typeof Chart !== 'undefined') {
+                if (dashboardTopItemsChart) {
+                    dashboardTopItemsChart.destroy();
+                    dashboardTopItemsChart = null;
+                }
+                if (dashboardTrendChart) {
+                    dashboardTrendChart.destroy();
+                    dashboardTrendChart = null;
+                }
+
+                const trendCtx = document.getElementById('dashboard-trend-chart');
+                if (trendCtx) {
+                    dashboardTrendChart = new Chart(trendCtx, {
+                        type: 'line',
+                        data: {
+                            labels: dailySeries.labels,
+                            datasets: [{
+                                label: 'Saídas',
+                                data: dailySeries.values,
+                                fill: true,
+                                tension: 0.35,
+                                borderColor: '#005bbf',
+                                backgroundColor: 'rgba(0, 91, 191, 0.12)',
+                                pointBackgroundColor: '#005bbf',
+                                pointRadius: 3
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                x: {
+                                    grid: { display: false },
+                                    ticks: { color: '#727785' }
+                                },
+                                y: {
+                                    beginAtZero: true,
+                                    grid: { color: 'rgba(114, 119, 133, 0.12)' },
+                                    ticks: { color: '#727785' }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                const topItemsCtx = document.getElementById('dashboard-top-items-chart');
+                if (topItemsCtx) {
+                    dashboardTopItemsChart = new Chart(topItemsCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: top30Days.slice(0, 6).map(item => item.productName.length > 18 ? `${item.productName.slice(0, 18)}...` : item.productName),
+                            datasets: [{
+                                label: 'Qtd',
+                                data: top30Days.slice(0, 6).map(item => item.totalQty),
+                                backgroundColor: ['#005bbf', '#1a73e8', '#006e2c', '#fbbc05', '#e65100', '#795900'],
+                                borderRadius: 8,
+                                maxBarThickness: 24
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            indexAxis: 'y',
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                x: {
+                                    beginAtZero: true,
+                                    grid: { color: 'rgba(114, 119, 133, 0.12)' },
+                                    ticks: { color: '#727785' }
+                                },
+                                y: {
+                                    grid: { display: false },
+                                    ticks: { color: '#414754' }
+                                }
+                            }
+                        }
+                    });
+                }
+            }
         };
 
         const normalizeSearchText = (value = '') => {
