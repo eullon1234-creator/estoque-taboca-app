@@ -36,6 +36,10 @@
         let isDataLoaded = false;
         let currentAudio = null;
         let selectedProductIds = new Set();
+        let currentViewId = 'dashboard-view';
+        let coreUnsubscribers = [];
+        let estrelaUnsubscribers = [];
+        let hasVisibilityListener = false;
         
         // 🔐 Sistema de Autenticação e Permissões
         let currentUser = null;
@@ -587,65 +591,81 @@
             }
         }
 
-        function setupListeners() {
-            // Handler de erro melhorado
-            const handleFirestoreError = (error, dataType) => {
-                console.error(`Erro ao buscar ${dataType}:`, error);
-                
-                let errorMessage = '';
-                switch (error.code) {
-                    case 'permission-denied':
-                        errorMessage = `🔒 Sem permissão para acessar ${dataType}. Configure as regras do Firebase.`;
-                        authStatusDiv.innerHTML = `<p class="text-sm text-red-600 font-semibold">Sem Permissão</p><p class="text-xs text-slate-400">Verifique Firebase</p>`;
-                        break;
-                    case 'unavailable':
-                        errorMessage = `📡 Servidor indisponível. Verifique sua conexão.`;
-                        break;
-                    case 'not-found':
-                        errorMessage = `❓ Coleção de ${dataType} não encontrada.`;
-                        break;
-                    default:
-                        errorMessage = `❌ Erro ao carregar ${dataType}. Tente recarregar a página.`;
-                }
-                
-                showToast(errorMessage, true);
-            };
+        const handleFirestoreError = (error, dataType) => {
+            console.error(`Erro ao buscar ${dataType}:`, error);
 
-            onSnapshot(settingsDocRef, (doc) => {
+            let errorMessage = '';
+            switch (error.code) {
+                case 'permission-denied':
+                    errorMessage = `🔒 Sem permissão para acessar ${dataType}. Configure as regras do Firebase.`;
+                    authStatusDiv.innerHTML = `<p class="text-sm text-red-600 font-semibold">Sem Permissão</p><p class="text-xs text-slate-400">Verifique Firebase</p>`;
+                    break;
+                case 'unavailable':
+                    errorMessage = `📡 Servidor indisponível. Verifique sua conexão.`;
+                    break;
+                case 'not-found':
+                    errorMessage = `❓ Coleção de ${dataType} não encontrada.`;
+                    break;
+                default:
+                    errorMessage = `❌ Erro ao carregar ${dataType}. Tente recarregar a página.`;
+            }
+
+            showToast(errorMessage, true);
+        };
+
+        const stopSnapshotGroup = (unsubscribers) => {
+            unsubscribers.forEach(unsub => {
+                try { if (typeof unsub === 'function') unsub(); } catch (_) {}
+            });
+            unsubscribers.length = 0;
+        };
+
+        function stopCoreListeners() {
+            stopSnapshotGroup(coreUnsubscribers);
+        }
+
+        function stopEstrelaListeners() {
+            stopSnapshotGroup(estrelaUnsubscribers);
+        }
+
+        function startCoreListeners() {
+            if (coreUnsubscribers.length > 0) return;
+
+            coreUnsubscribers.push(onSnapshot(settingsDocRef, (doc) => {
                 if (doc.exists()) updateAppSettingsUI(doc.data());
                 else updateAppSettingsUI({ appName: 'Estoque Taboca', logoUrl: null });
-            }, (error) => handleFirestoreError(error, 'configurações'));
+            }, (error) => handleFirestoreError(error, 'configurações')));
 
-            onSnapshot(productsCollectionRef, (snapshot) => {
+            coreUnsubscribers.push(onSnapshot(productsCollectionRef, (snapshot) => {
                 products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
                 if (!hasAutoFilledMissingGroups) {
                     autoFillMissingProductGroups();
                 }
 
-                if(isDataLoaded) { 
-                    renderProducts(); 
-                    updateDashboard(); 
+                if (isDataLoaded) {
+                    renderProducts();
+                    updateDashboard();
                     renderEntryView();
-                    renderExitView(); 
+                    renderExitView();
                 }
-            }, (error) => handleFirestoreError(error, 'produtos'));
+            }, (error) => handleFirestoreError(error, 'produtos')));
 
-            onSnapshot(historyCollectionRef, (snapshot) => {
+            coreUnsubscribers.push(onSnapshot(historyCollectionRef, (snapshot) => {
                 history = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                if (isDataLoaded) { 
-                    updateDashboard(); 
-                    renderExitLog(exitsSearchInput.value); 
+                if (isDataLoaded) {
+                    updateDashboard();
+                    renderExitLog(exitsSearchInput.value);
                     renderRMView(rmSearchInput.value);
                 }
-            }, (error) => handleFirestoreError(error, 'histórico'));
+            }, (error) => handleFirestoreError(error, 'histórico')));
 
-            onSnapshot(requisitionsCollectionRef, (snapshot) => {
+            coreUnsubscribers.push(onSnapshot(requisitionsCollectionRef, (snapshot) => {
                 requisitions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 if (isDataLoaded) renderRequisitions();
-            }, (error) => handleFirestoreError(error, 'requisições'));
+            }, (error) => handleFirestoreError(error, 'requisições')));
 
-            onSnapshot(locationsCollectionRef, (snapshot) => {
+            coreUnsubscribers.push(onSnapshot(locationsCollectionRef, (snapshot) => {
                 locations = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 if (!isDataLoaded) {
                     isDataLoaded = true;
@@ -659,23 +679,46 @@
                 } else {
                     renderLocations();
                 }
-            }, (error) => handleFirestoreError(error, 'locais'));
+            }, (error) => handleFirestoreError(error, 'locais')));
+        }
 
-            // ⭐ UHE Estrela Listeners
-            onSnapshot(estrelaProductsRef, (snapshot) => {
+        function startEstrelaListeners() {
+            if (estrelaUnsubscribers.length > 0) return;
+
+            estrelaUnsubscribers.push(onSnapshot(estrelaProductsRef, (snapshot) => {
                 estrelaProducts = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-                if (isDataLoaded) renderEstrelaEstoque();
-            }, (error) => handleFirestoreError(error, 'produtos Estrela'));
+                if (isDataLoaded && currentViewId === 'estrela-view') renderEstrelaEstoque();
+            }, (error) => handleFirestoreError(error, 'produtos Estrela')));
 
-            onSnapshot(estrelaEntriesRef, (snapshot) => {
+            estrelaUnsubscribers.push(onSnapshot(estrelaEntriesRef, (snapshot) => {
                 estrelaEntries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-                if (isDataLoaded) renderEstrelaEntradas();
-            }, (error) => handleFirestoreError(error, 'entradas Estrela'));
+                if (isDataLoaded && currentViewId === 'estrela-view') renderEstrelaEntradas();
+            }, (error) => handleFirestoreError(error, 'entradas Estrela')));
 
-            onSnapshot(estrelaExitsRef, (snapshot) => {
+            estrelaUnsubscribers.push(onSnapshot(estrelaExitsRef, (snapshot) => {
                 estrelaExits = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-                if (isDataLoaded) renderEstrelaSaidas();
-            }, (error) => handleFirestoreError(error, 'saídas Estrela'));
+                if (isDataLoaded && currentViewId === 'estrela-view') renderEstrelaSaidas();
+            }, (error) => handleFirestoreError(error, 'saídas Estrela')));
+        }
+
+        function syncRealtimeListeners() {
+            if (!currentUser || document.hidden) {
+                stopEstrelaListeners();
+                stopCoreListeners();
+                return;
+            }
+
+            startCoreListeners();
+            if (currentViewId === 'estrela-view') startEstrelaListeners();
+            else stopEstrelaListeners();
+        }
+
+        function setupListeners() {
+            syncRealtimeListeners();
+            if (!hasVisibilityListener) {
+                document.addEventListener('visibilitychange', syncRealtimeListeners);
+                hasVisibilityListener = true;
+            }
         }
 
         // --- Funções de Lógica (Firestore) ---
@@ -2057,6 +2100,7 @@
         };
 
         const switchView = (viewId) => {
+            currentViewId = viewId;
             if (viewId !== 'inventory-view' && viewId !== 'requisitions-view') {
                 selectedProductIds.clear();
             }
@@ -2087,6 +2131,8 @@
                 renderComprasView(sel ? parseInt(sel.value) : 15);
             }
             if (viewId === 'estrela-view') renderEstrelaView();
+
+            syncRealtimeListeners();
         };
 
         const updateSelectionActionButtonsState = () => {
@@ -2279,6 +2325,8 @@
         loginUsernameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loginPasswordInput.focus(); });
 
         logoutBtn.addEventListener('click', () => {
+            stopEstrelaListeners();
+            stopCoreListeners();
             localStorage.removeItem('appUser');
             currentUser = null;
             userRole = null;
