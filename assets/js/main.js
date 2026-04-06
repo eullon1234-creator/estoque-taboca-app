@@ -22,7 +22,7 @@
         let history = [];
         let requisitions = [];
         let locations = [];
-        let appSettings = { appName: 'Estoque Taboca', logoUrl: null };
+        let appSettings = { appName: 'Estoque Estrela', logoUrl: null };
         let currentProductId = null;
         let currentLocationId = null;
         let productsCollectionRef;
@@ -633,7 +633,7 @@
 
             coreUnsubscribers.push(onSnapshot(settingsDocRef, (doc) => {
                 if (doc.exists()) updateAppSettingsUI(doc.data());
-                else updateAppSettingsUI({ appName: 'Estoque Taboca', logoUrl: null });
+                else updateAppSettingsUI({ appName: 'Estoque Estrela', logoUrl: null });
             }, (error) => handleFirestoreError(error, 'configurações')));
 
             coreUnsubscribers.push(onSnapshot(productsCollectionRef, (snapshot) => {
