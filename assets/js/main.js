@@ -4797,7 +4797,8 @@
             XLS.utils.book_append_sheet(wb, wsSai, 'Saídas');
 
             // ─── GERAR E BAIXAR ───
-            const filename = `Controle_Estoque_UHE_Estrela_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 16);
+            const filename = `Controle_Estoque_UHE_Estrela_${stamp}.xlsx`;
             XLS.writeFile(wb, filename);
             showToast(`⭐ Planilha baixada: ${filename}`);
         };
