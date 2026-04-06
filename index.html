@@ -10,8 +10,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-        <link rel="stylesheet" href="assets/css/tailwind.css">
-    <link rel="stylesheet" href="assets/css/main.css">
+    <link rel="stylesheet" href="assets/css/tailwind.css?v=modern2">
+    <link rel="stylesheet" href="assets/css/main.css?v=modern2">
 </head>
 <body class="bg-slate-50 text-slate-800">
 
@@ -20,52 +20,57 @@
     </div>
 
     <!-- 🔐 Tela de Login -->
-    <div id="login-screen" class="fixed inset-0 flex items-center justify-center z-50" style="background: linear-gradient(135deg, #005bbf 0%, #003d8a 100%);">
-        <div class="bg-white rounded-3xl p-8 max-w-sm w-full mx-4" style="box-shadow:0 24px 80px rgba(0,61,138,0.3);">
+    <div id="login-screen" class="fixed inset-0 flex items-center justify-center z-50" style="background: linear-gradient(135deg, #0a0f1a 0%, #111d3a 40%, #0d1f4a 70%, #091428 100%);">
+        <!-- Decoração de fundo -->
+        <div style="position:absolute;inset:0;overflow:hidden;pointer-events:none;">
+            <div style="position:absolute;top:-20%;right:-10%;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(0,102,255,0.15),transparent 70%);"></div>
+            <div style="position:absolute;bottom:-15%;left:-5%;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(99,102,241,0.1),transparent 70%);"></div>
+        </div>
+        <div class="rounded-3xl p-8 max-w-sm w-full mx-4 relative" style="background:rgba(255,255,255,0.95);backdrop-filter:blur(20px);box-shadow:0 32px 80px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.1);">
             <div class="text-center mb-8">
-                <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4" style="background:rgba(0,91,191,0.1);">
-                    <span class="material-symbols-outlined" style="font-size:36px; color:#005bbf; font-variation-settings:'FILL' 1,'wght' 400;">inventory_2</span>
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4" style="background:linear-gradient(135deg, #0066FF, #4F46E5);box-shadow:0 8px 24px rgba(0,102,255,0.3);">
+                    <span class="material-symbols-outlined text-white" style="font-size:32px; font-variation-settings:'FILL' 1,'wght' 400;">inventory_2</span>
                 </div>
-                <h1 class="text-2xl font-extrabold tracking-tight" style="color:#191c1d;">Controle de Estoque</h1>
-                <p class="text-sm mt-1" style="color:#727785;">UHE Taboca — Faça login para continuar</p>
+                <h1 class="text-2xl font-extrabold tracking-tight" style="color:#111827;">Controle de Estoque</h1>
+                <p class="text-sm mt-1" style="color:#6b7280;">UHE Taboca — Faça login para continuar</p>
             </div>
-            <div id="login-error" class="hidden mb-4 p-3 rounded-xl text-sm text-center font-medium" style="background:rgba(186,26,26,0.1); color:#ba1a1a;"></div>
+            <div id="login-error" class="hidden mb-4 p-3 rounded-xl text-sm text-center font-medium" style="background:rgba(220,38,38,0.08); color:#dc2626;"></div>
             <div class="space-y-4">
                 <div>
-                    <label class="block text-xs font-bold uppercase tracking-wider mb-1.5" style="color:#414754;">Nome de usuário</label>
-                    <input id="login-username" type="text" autocomplete="username" placeholder="Digite seu nome" class="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all" style="background:#f3f4f5; color:#191c1d; border:2px solid transparent;" onfocus="this.style.borderColor='#005bbf';this.style.background='#fff'" onblur="this.style.borderColor='transparent';this.style.background='#f3f4f5'">
+                    <label class="block text-xs font-bold uppercase tracking-wider mb-1.5" style="color:#374151;">Nome de usuário</label>
+                    <input id="login-username" type="text" autocomplete="username" placeholder="Digite seu nome" class="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all" style="background:#f3f4f6; color:#111827; border:2px solid #e5e7eb;" onfocus="this.style.borderColor='#0066FF';this.style.background='#fff';this.style.boxShadow='0 0 0 3px rgba(0,102,255,0.12)'" onblur="this.style.borderColor='#e5e7eb';this.style.background='#f3f4f6';this.style.boxShadow='none'">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold uppercase tracking-wider mb-1.5" style="color:#414754;">Senha</label>
-                    <input id="login-password" type="password" autocomplete="current-password" placeholder="••••••" class="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all" style="background:#f3f4f5; color:#191c1d; border:2px solid transparent;" onfocus="this.style.borderColor='#005bbf';this.style.background='#fff'" onblur="this.style.borderColor='transparent';this.style.background='#f3f4f5'">
+                    <label class="block text-xs font-bold uppercase tracking-wider mb-1.5" style="color:#374151;">Senha</label>
+                    <input id="login-password" type="password" autocomplete="current-password" placeholder="••••••" class="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all" style="background:#f3f4f6; color:#111827; border:2px solid #e5e7eb;" onfocus="this.style.borderColor='#0066FF';this.style.background='#fff';this.style.boxShadow='0 0 0 3px rgba(0,102,255,0.12)'" onblur="this.style.borderColor='#e5e7eb';this.style.background='#f3f4f6';this.style.boxShadow='none'">
                 </div>
-                <button id="login-btn" class="w-full py-3.5 rounded-xl text-sm font-bold tracking-wide text-white transition-all active:scale-95 hover:opacity-90" style="background:#005bbf;">Entrar</button>
+                <button id="login-btn" class="w-full py-3.5 rounded-xl text-sm font-bold tracking-wide text-white transition-all active:scale-95 hover:shadow-lg" style="background:linear-gradient(135deg, #0066FF, #4F46E5);box-shadow:0 4px 16px rgba(0,102,255,0.3);">Entrar</button>
             </div>
         </div>
     </div>
 
     <div id="app-container" class="container mx-auto p-3 md:p-6 max-w-7xl hidden">
 
-        <!-- Header compacto para tablet -->
-        <header class="mb-6 flex items-center justify-between gap-3 glass-panel bg-white/70 px-4 py-3 sm:px-6 sm:py-4 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/60 sticky top-2 z-30 backdrop-blur-xl">
+        <!-- Header -->
+        <header class="mb-5 flex items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-3.5 rounded-2xl sticky top-3 z-30" style="background:rgba(255,255,255,0.72);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(0,0,0,0.06);box-shadow:0 4px 16px rgba(0,0,0,0.06);">
             <div class="flex items-center gap-3">
-                <div id="app-logo" class="bg-gradient-to-b from-primary to-primary-container p-2.5 rounded-xl shadow-md flex items-center justify-center h-11 w-11">
+                <div id="app-logo" class="p-2.5 rounded-xl flex items-center justify-center h-11 w-11" style="background:linear-gradient(135deg, #0066FF, #4F46E5);box-shadow:0 4px 12px rgba(0,102,255,0.3);">
                     <span class="material-symbols-outlined text-white" style="font-size:22px;">inventory_2</span>
                 </div>
                 <div>
-                    <h1 id="app-title" class="text-xl md:text-2xl font-bold" style="color:#191c1d;">Estoque Taboca</h1>
-                    <p class="text-xs hidden md:block" style="color:#727785;">Gestão de almoxarifado</p>
+                    <h1 id="app-title" class="text-lg md:text-xl font-extrabold" style="color:#111827;">Estoque Taboca</h1>
+                    <p class="text-xs hidden md:block" style="color:#6b7280;">Gestão de almoxarifado</p>
                 </div>
             </div>
             <div class="flex items-center gap-2">
-                <button id="settings-btn" class="p-2.5 rounded-xl transition" style="background:rgba(0,91,191,0.07); color:#005bbf;" title="Configurações">
+                <button id="settings-btn" class="p-2.5 rounded-xl transition hover:scale-105" style="background:rgba(0,102,255,0.06); color:#0066FF;" title="Configurações">
                     <span class="material-symbols-outlined" style="font-size:22px;">settings</span>
                 </button>
                 <div id="auth-status" class="flex items-center gap-2">
                     <div id="user-info" class="hidden md:block">
-                        <p class="text-sm" style="color:#727785;">Conectando...</p>
+                        <p class="text-sm" style="color:#6b7280;">Conectando...</p>
                     </div>
-                    <button id="logout-btn" class="hidden px-3 py-2 rounded-xl text-sm font-semibold transition" style="background:rgba(186,26,26,0.08); color:#ba1a1a;">
+                    <button id="logout-btn" class="hidden px-3 py-2 rounded-xl text-sm font-semibold transition hover:scale-105" style="background:rgba(220,38,38,0.06); color:#dc2626;">
                         <span class="material-symbols-outlined" style="font-size:18px; vertical-align:-4px;">logout</span>
                         <span class="hidden md:inline">Sair</span>
                     </button>
@@ -76,14 +81,14 @@
         <div class="flex flex-col lg:flex-row gap-5">
             <!-- Sidebar: só aparece em desktop (lg+) -->
             <aside class="w-full lg:w-60 flex-shrink-0 lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto hidden lg:block">
-                <nav id="main-nav" class="flex flex-col glass-panel bg-white/70 rounded-2xl p-2 pb-3 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/60" aria-label="Tabs">
+                <nav id="main-nav" class="flex flex-col rounded-2xl p-2 pb-3" style="background:rgba(255,255,255,0.72);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(0,0,0,0.06);box-shadow:0 4px 16px rgba(0,0,0,0.06);" aria-label="Tabs">
 
                     <!-- Logo topo da sidebar -->
-                    <div class="flex items-center gap-3 px-3 py-4 mb-1" style="border-bottom: 1px solid #e7e8e9;">
-                        <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background: linear-gradient(180deg, #005bbf, #1a73e8);">
+                    <div class="flex items-center gap-3 px-3 py-4 mb-1" style="border-bottom: 1px solid #e5e7eb;">
+                        <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg, #0066FF, #4F46E5);box-shadow:0 4px 12px rgba(0,102,255,0.25);">
                             <span class="material-symbols-outlined text-white" style="font-size:20px;">inventory_2</span>
                         </div>
-                        <span id="sidebar-app-title" class="text-sm font-bold text-on-surface truncate">Estoque Taboca</span>
+                        <span id="sidebar-app-title" class="text-sm font-extrabold truncate" style="color:#111827;">Estoque Taboca</span>
                     </div>
 
                     <!-- SEÇÃO: GERAL -->
@@ -154,21 +159,21 @@
                     </button>
 
                     <!-- Rodapé da sidebar -->
-                    <div class="mt-3 pt-3" style="border-top: 1px solid #e7e8e9;">
+                    <div class="mt-3 pt-3" style="border-top: 1px solid #e5e7eb;">
                         <div id="sidebar-user-info" class="flex items-center gap-2.5 px-3 py-2 rounded-xl">
-                            <div id="sidebar-avatar" class="w-9 h-9 rounded-full flex-shrink-0 overflow-hidden flex items-center justify-center" style="background: rgba(0,91,191,0.1);">
-                                <span class="material-symbols-outlined" style="font-size:20px; color:#005bbf;">person</span>
+                            <div id="sidebar-avatar" class="w-9 h-9 rounded-full flex-shrink-0 overflow-hidden flex items-center justify-center" style="background:linear-gradient(135deg, rgba(0,102,255,0.15), rgba(79,70,229,0.12));">
+                                <span class="material-symbols-outlined" style="font-size:20px; color:#0066FF;">person</span>
                             </div>
                             <div class="min-w-0">
-                                <p id="sidebar-user-name" class="text-xs font-bold truncate" style="color:#191c1d;">Carregando...</p>
-                                <p id="sidebar-user-role" class="text-xs truncate" style="color:#727785;">—</p>
+                                <p id="sidebar-user-name" class="text-xs font-bold truncate" style="color:#111827;">Carregando...</p>
+                                <p id="sidebar-user-role" class="text-xs truncate" style="color:#6b7280;">—</p>
                             </div>
                         </div>
                     </div>
                 </nav>
             </aside>
 
-            <main class="flex-1 bg-surface-container-lowest p-4 md:p-6 rounded-2xl tonal-elevation">
+            <main class="flex-1 p-4 md:p-6 rounded-2xl" style="background:rgba(255,255,255,0.72);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(0,0,0,0.06);box-shadow:0 4px 16px rgba(0,0,0,0.06);">
                 <div id="dashboard-view" class="view-content">
                     <div id="dashboard-stats" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
                     <div id="dashboard-activity" class="mt-8"></div>
@@ -847,29 +852,29 @@
     <div id="print-area" class="hidden"></div>
 
     <!-- BOTTOM NAV: aparece em tablet/mobile (oculto em lg+) -->
-    <nav id="bottom-nav" class="fixed bottom-0 left-0 w-full lg:hidden z-50 flex justify-around items-center px-2 py-1" style="background:#ffffff; border-top:1px solid #e7e8e9; box-shadow:0 -4px 20px rgba(25,28,29,0.06); padding-bottom: max(8px, env(safe-area-inset-bottom));">
-        <button data-view="dashboard-view" class="bottom-nav-btn flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-xl min-w-[56px] transition-all" style="color:#005bbf; background:rgba(0,91,191,0.08);">
+    <nav id="bottom-nav" class="fixed bottom-0 left-0 w-full lg:hidden z-50 flex justify-around items-center px-2 py-1" style="background:rgba(255,255,255,0.8); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border-top:1px solid rgba(0,0,0,0.06); box-shadow:0 -4px 24px rgba(0,0,0,0.06); padding-bottom: max(8px, env(safe-area-inset-bottom));">
+        <button data-view="dashboard-view" class="bottom-nav-btn flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-xl min-w-[56px] transition-all" style="color:#0066FF; background:rgba(0,102,255,0.08);">
             <span class="material-symbols-outlined" style="font-size:24px; font-variation-settings:'FILL' 1;">dashboard</span>
             <span style="font-size:0.6rem; font-weight:700; letter-spacing:0.04em; text-transform:uppercase;">Painel</span>
         </button>
-        <button data-view="inventory-view" class="bottom-nav-btn flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-xl min-w-[56px] transition-all" style="color:#727785;">
+        <button data-view="inventory-view" class="bottom-nav-btn flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-xl min-w-[56px] transition-all" style="color:#6b7280;">
             <span class="material-symbols-outlined" style="font-size:24px;">shelves</span>
             <span style="font-size:0.6rem; font-weight:700; letter-spacing:0.04em; text-transform:uppercase;">Estoque</span>
         </button>
-        <button data-view="entry-view" class="bottom-nav-btn flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-xl min-w-[56px] transition-all" style="color:#727785;">
+        <button data-view="entry-view" class="bottom-nav-btn flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-xl min-w-[56px] transition-all" style="color:#6b7280;">
             <span class="material-symbols-outlined" style="font-size:24px;">input</span>
             <span style="font-size:0.6rem; font-weight:700; letter-spacing:0.04em; text-transform:uppercase;">Entrada</span>
         </button>
-        <button data-view="exit-view" class="bottom-nav-btn flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-xl min-w-[56px] transition-all" style="color:#727785;">
+        <button data-view="exit-view" class="bottom-nav-btn flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-xl min-w-[56px] transition-all" style="color:#6b7280;">
             <span class="material-symbols-outlined" style="font-size:24px;">output</span>
             <span style="font-size:0.6rem; font-weight:700; letter-spacing:0.04em; text-transform:uppercase;">Saída</span>
         </button>
-        <button data-view="requisitions-view" class="bottom-nav-btn flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-xl min-w-[56px] transition-all relative" style="color:#727785;">
+        <button data-view="requisitions-view" class="bottom-nav-btn flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-xl min-w-[56px] transition-all relative" style="color:#6b7280;">
             <span class="material-symbols-outlined" style="font-size:24px;">assignment</span>
-            <span id="bottom-req-badge" class="absolute top-1 right-2 text-xs font-bold px-1 rounded-full hidden" style="background:#fbbc05; color:#261a00; font-size:0.55rem;">0</span>
+            <span id="bottom-req-badge" class="absolute top-1 right-2 text-xs font-bold px-1 rounded-full hidden" style="background:#0066FF; color:#fff; font-size:0.55rem;">0</span>
             <span style="font-size:0.6rem; font-weight:700; letter-spacing:0.04em; text-transform:uppercase;">Req.</span>
         </button>
-        <button id="bottom-nav-more-btn" class="bottom-nav-btn flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-xl min-w-[56px] transition-all" style="color:#727785;">
+        <button id="bottom-nav-more-btn" class="bottom-nav-btn flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-xl min-w-[56px] transition-all" style="color:#6b7280;">
             <span class="material-symbols-outlined" style="font-size:24px;">more_horiz</span>
             <span style="font-size:0.6rem; font-weight:700; letter-spacing:0.04em; text-transform:uppercase;">Mais</span>
         </button>
@@ -917,6 +922,6 @@
         Criado por Eullon
     </footer>
 
-    <script type="module" src="assets/js/main.js?v=20260406-obs"></script>
+    <script type="module" src="assets/js/main.js?v=modern2"></script>
 </body>
 </html>
