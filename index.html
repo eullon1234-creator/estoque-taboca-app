@@ -4,47 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Estoque Taboca</title>
-    <script src="https://cdn.tailwindcss.com?plugins=typography,forms"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              "primary": "#005bbf",
-              "primary-container": "#1a73e8",
-              "on-primary": "#ffffff",
-              "secondary": "#006e2c",
-              "secondary-container": "#86f898",
-              "on-secondary-container": "#00722f",
-              "tertiary": "#795900",
-              "tertiary-fixed": "#ffdfa0",
-              "tertiary-fixed-dim": "#fbbc05",
-              "error": "#ba1a1a",
-              "error-container": "#ffdad6",
-              "on-error-container": "#93000a",
-              "surface": "#f8f9fa",
-              "surface-dim": "#d9dadb",
-              "surface-bright": "#f8f9fa",
-              "surface-container-lowest": "#ffffff",
-              "surface-container-low": "#f3f4f5",
-              "surface-container": "#edeeef",
-              "surface-container-high": "#e7e8e9",
-              "surface-container-highest": "#e1e3e4",
-              "on-surface": "#191c1d",
-              "on-surface-variant": "#414754",
-              "outline": "#727785",
-              "outline-variant": "#c1c6d6"
-            }
-          }
-        }
-      }
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+        <link rel="stylesheet" href="assets/css/tailwind.css">
     <link rel="stylesheet" href="assets/css/main.css">
 </head>
 <body class="bg-slate-50 text-slate-800">
@@ -160,6 +126,13 @@
                     <button data-view="rm-view" type="button" class="tab-btn">
                         <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">task_alt</span></span>
                         <span>Baixa RM</span>
+                    </button>
+
+                    <!-- SEÇÃO: UHE ESTRELA -->
+                    <p class="nav-section-label">UHE Estrela</p>
+                    <button data-view="estrela-view" type="button" class="tab-btn">
+                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">star</span></span>
+                        <span>Estoque Estrela</span>
                     </button>
 
                     <!-- SEÇÃO: ANÁLISE -->
@@ -349,6 +322,12 @@
                                 <div>
                                     <label class="block text-sm font-medium text-slate-600">Fornecedor/Procedência</label>
                                     <input type="text" id="entry-supplier" class="mt-1 w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500/50 focus:border-green-500" placeholder="Fornecedor ou origem do material">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-1 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-600">Observação</label>
+                                    <textarea id="entry-observation" rows="2" class="mt-1 w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500/50 focus:border-green-500" placeholder="Informações adicionais sobre a entrada (opcional)"></textarea>
                                 </div>
                             </div>
                             <div class="pt-4 flex justify-end">
@@ -596,6 +575,222 @@
                     </div>
                 </div>
 
+                <!-- ⭐ VIEW: Controle de Estoque UHE Estrela -->
+                <div id="estrela-view" class="view-content hidden">
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                        <div>
+                            <h2 class="text-2xl font-bold" style="color:#191c1d;">⭐ Controle de Estoque — UHE Estrela</h2>
+                            <p class="text-sm mt-0.5" style="color:#727785;">Gestão completa de materiais da UHE Estrela</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button id="estrela-export-btn" class="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm text-white shadow-sm transition hover:opacity-90" style="background:#006e2c;">
+                                <span class="material-symbols-outlined" style="font-size:18px;">download</span>
+                                Exportar CSV
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Abas internas -->
+                    <div class="flex gap-1 p-1 rounded-xl mb-6" style="background:#f3f4f5;">
+                        <button data-estrela-tab="estoque" class="estrela-tab-btn active flex-1 py-2.5 px-4 rounded-lg text-sm font-bold transition-all" style="background:#005bbf; color:#fff;">
+                            <span class="material-symbols-outlined align-middle mr-1" style="font-size:18px;">inventory_2</span>Estoque
+                        </button>
+                        <button data-estrela-tab="entrada" class="estrela-tab-btn flex-1 py-2.5 px-4 rounded-lg text-sm font-bold transition-all" style="background:transparent; color:#414754;">
+                            <span class="material-symbols-outlined align-middle mr-1" style="font-size:18px;">input</span>Entradas
+                        </button>
+                        <button data-estrela-tab="saida" class="estrela-tab-btn flex-1 py-2.5 px-4 rounded-lg text-sm font-bold transition-all" style="background:transparent; color:#414754;">
+                            <span class="material-symbols-outlined align-middle mr-1" style="font-size:18px;">output</span>Saídas
+                        </button>
+                    </div>
+
+                    <!-- ========== ABA: ESTOQUE ========== -->
+                    <div id="estrela-tab-estoque" class="estrela-tab-content">
+                        <div class="flex flex-col md:flex-row justify-between items-center mb-4 gap-3">
+                            <div class="relative flex-grow w-full md:w-auto">
+                                <input type="text" id="estrela-search" placeholder="Buscar produto, código ou localização..." class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 text-sm">
+                            </div>
+                            <button id="estrela-add-product-btn" class="flex items-center gap-2 px-4 py-3 rounded-lg font-semibold text-sm text-white shadow-sm transition hover:opacity-90" style="background:#005bbf;">
+                                <span class="material-symbols-outlined" style="font-size:18px;">add_circle</span>
+                                Novo Produto
+                            </button>
+                        </div>
+
+                        <!-- Cards de resumo -->
+                        <div id="estrela-summary" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5"></div>
+
+                        <div class="overflow-x-auto rounded-xl border border-slate-200">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="text-left text-xs uppercase tracking-wider" style="background:#f3f4f5; color:#727785;">
+                                        <th class="px-4 py-3 rounded-tl-xl">Código</th>
+                                        <th class="px-4 py-3">Produto</th>
+                                        <th class="px-4 py-3">Grupo</th>
+                                        <th class="px-4 py-3 text-center">Unidade</th>
+                                        <th class="px-4 py-3 text-center">Qtd. Atual</th>
+                                        <th class="px-4 py-3 text-center">Qtd. Mínima</th>
+                                        <th class="px-4 py-3">Localização</th>
+                                        <th class="px-4 py-3 text-center">Status</th>
+                                        <th class="px-4 py-3 text-center rounded-tr-xl">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="estrela-products-list" class="divide-y divide-slate-100 bg-white"></tbody>
+                            </table>
+                            <div id="no-estrela-products" class="text-center py-16 text-slate-500 hidden">
+                                <span class="material-symbols-outlined" style="font-size:48px; color:#c1c6d6;">inventory_2</span>
+                                <p class="mt-2 font-medium">Nenhum produto cadastrado na UHE Estrela</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ========== ABA: ENTRADA ========== -->
+                    <div id="estrela-tab-entrada" class="estrela-tab-content hidden">
+                        <div class="max-w-3xl mx-auto">
+                            <form id="estrela-entry-form" class="p-6 rounded-2xl border border-slate-200 mb-6" style="background:#f8fdf8;">
+                                <h3 class="text-lg font-bold mb-4" style="color:#006e2c;"><span class="material-symbols-outlined align-middle mr-1" style="font-size:22px;">input</span> Registrar Nova Entrada</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div class="md:col-span-2">
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Produto</label>
+                                        <select id="estrela-entry-product" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500/50 focus:border-green-500 text-sm" required>
+                                            <option value="">Selecione um produto...</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Quantidade</label>
+                                        <input type="number" id="estrela-entry-qty" min="1" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500/50 focus:border-green-500 text-sm" placeholder="0" required>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Data de Chegada</label>
+                                        <input type="date" id="estrela-entry-date" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500/50 focus:border-green-500 text-sm" required>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Fornecedor</label>
+                                        <input type="text" id="estrela-entry-supplier" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500/50 focus:border-green-500 text-sm" placeholder="Nome do fornecedor" required>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Nº da Nota Fiscal</label>
+                                        <input type="text" id="estrela-entry-nf" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500/50 focus:border-green-500 text-sm" placeholder="Ex: 123456" required>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Valor Unitário (R$)</label>
+                                        <input type="number" id="estrela-entry-price" step="0.01" min="0" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500/50 focus:border-green-500 text-sm" placeholder="0,00">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Recebido por</label>
+                                        <input type="text" id="estrela-entry-received-by" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500/50 focus:border-green-500 text-sm" placeholder="Quem recebeu o material">
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Observação</label>
+                                        <textarea id="estrela-entry-obs" rows="2" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500/50 focus:border-green-500 text-sm" placeholder="Informações adicionais sobre a entrada..."></textarea>
+                                    </div>
+                                </div>
+                                <div class="mt-4 flex justify-end">
+                                    <button type="submit" class="px-6 py-3 rounded-lg font-semibold text-sm text-white shadow-sm transition hover:opacity-90" style="background:#006e2c;">Confirmar Entrada</button>
+                                </div>
+                            </form>
+
+                            <h3 class="text-lg font-bold mb-3" style="color:#191c1d;">Histórico de Entradas</h3>
+                            <div class="relative mb-4">
+                                <input type="text" id="estrela-entry-search" placeholder="Buscar entrada por produto, NF ou fornecedor..." class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500/50 focus:border-green-500 text-sm">
+                            </div>
+                            <div class="overflow-x-auto rounded-xl border border-slate-200">
+                                <table class="w-full text-sm">
+                                    <thead>
+                                        <tr class="text-left text-xs uppercase tracking-wider" style="background:#f3f4f5; color:#727785;">
+                                            <th class="px-4 py-3 rounded-tl-xl">Data</th>
+                                            <th class="px-4 py-3">Produto</th>
+                                            <th class="px-4 py-3 text-center">Qtd.</th>
+                                            <th class="px-4 py-3">Fornecedor</th>
+                                            <th class="px-4 py-3">NF</th>
+                                            <th class="px-4 py-3">Valor Un.</th>
+                                            <th class="px-4 py-3">Recebido por</th>
+                                            <th class="px-4 py-3 rounded-tr-xl">Observação</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="estrela-entries-list" class="divide-y divide-slate-100 bg-white"></tbody>
+                                </table>
+                                <div id="no-estrela-entries" class="text-center py-12 text-slate-500 hidden">
+                                    <span class="material-symbols-outlined" style="font-size:40px; color:#c1c6d6;">inbox</span>
+                                    <p class="mt-2 font-medium">Nenhuma entrada registrada</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ========== ABA: SAÍDA ========== -->
+                    <div id="estrela-tab-saida" class="estrela-tab-content hidden">
+                        <div class="max-w-3xl mx-auto">
+                            <form id="estrela-exit-form" class="p-6 rounded-2xl border border-slate-200 mb-6" style="background:#fef8f8;">
+                                <h3 class="text-lg font-bold mb-4" style="color:#ba1a1a;"><span class="material-symbols-outlined align-middle mr-1" style="font-size:22px;">output</span> Registrar Nova Saída</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div class="md:col-span-2">
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Produto</label>
+                                        <select id="estrela-exit-product" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-red-500/50 focus:border-red-500 text-sm" required>
+                                            <option value="">Selecione um produto...</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Quantidade</label>
+                                        <input type="number" id="estrela-exit-qty" min="1" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-red-500/50 focus:border-red-500 text-sm" placeholder="0" required>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Data da Saída</label>
+                                        <input type="date" id="estrela-exit-date" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-red-500/50 focus:border-red-500 text-sm" required>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Quem Pegou (Responsável)</label>
+                                        <input type="text" id="estrela-exit-who" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-red-500/50 focus:border-red-500 text-sm" placeholder="Nome de quem retirou" required>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Líder / Encarregado</label>
+                                        <input type="text" id="estrela-exit-leader" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-red-500/50 focus:border-red-500 text-sm" placeholder="Líder responsável" required>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Local de Aplicação</label>
+                                        <input type="text" id="estrela-exit-location" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-red-500/50 focus:border-red-500 text-sm" placeholder="Onde será aplicado" required>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Ordem de Serviço (OS)</label>
+                                        <input type="text" id="estrela-exit-os" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-red-500/50 focus:border-red-500 text-sm" placeholder="Nº da OS (opcional)">
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Observação</label>
+                                        <textarea id="estrela-exit-obs" rows="2" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-red-500/50 focus:border-red-500 text-sm" placeholder="Informações adicionais sobre a saída..."></textarea>
+                                    </div>
+                                </div>
+                                <div class="mt-4 flex justify-end">
+                                    <button type="submit" class="px-6 py-3 rounded-lg font-semibold text-sm text-white shadow-sm transition hover:opacity-90" style="background:#ba1a1a;">Confirmar Saída</button>
+                                </div>
+                            </form>
+
+                            <h3 class="text-lg font-bold mb-3" style="color:#191c1d;">Histórico de Saídas</h3>
+                            <div class="relative mb-4">
+                                <input type="text" id="estrela-exit-search" placeholder="Buscar saída por produto, responsável ou local..." class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-red-500/50 focus:border-red-500 text-sm">
+                            </div>
+                            <div class="overflow-x-auto rounded-xl border border-slate-200">
+                                <table class="w-full text-sm">
+                                    <thead>
+                                        <tr class="text-left text-xs uppercase tracking-wider" style="background:#f3f4f5; color:#727785;">
+                                            <th class="px-4 py-3 rounded-tl-xl">Data</th>
+                                            <th class="px-4 py-3">Produto</th>
+                                            <th class="px-4 py-3 text-center">Qtd.</th>
+                                            <th class="px-4 py-3">Quem Pegou</th>
+                                            <th class="px-4 py-3">Líder</th>
+                                            <th class="px-4 py-3">Local Aplicação</th>
+                                            <th class="px-4 py-3">OS</th>
+                                            <th class="px-4 py-3 rounded-tr-xl">Observação</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="estrela-exits-list" class="divide-y divide-slate-100 bg-white"></tbody>
+                                </table>
+                                <div id="no-estrela-exits" class="text-center py-12 text-slate-500 hidden">
+                                    <span class="material-symbols-outlined" style="font-size:40px; color:#c1c6d6;">outbox</span>
+                                    <p class="mt-2 font-medium">Nenhuma saída registrada</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="reports-view" class="view-content hidden">
                     <h2 class="text-2xl font-semibold text-slate-800 mb-6">Relatórios e Ferramentas</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -708,6 +903,10 @@
             <button data-view="compras-view" class="drawer-btn flex flex-col items-center justify-center gap-1.5 p-4 rounded-2xl" style="background:#fff;">
                 <span class="material-symbols-outlined" style="font-size:26px; color:#e65100;">shopping_cart</span>
                 <span class="text-xs font-semibold" style="color:#414754;">Compras</span>
+            </button>
+            <button data-view="estrela-view" class="drawer-btn flex flex-col items-center justify-center gap-1.5 p-4 rounded-2xl" style="background:#fff; border:2px solid #fbbc05;">
+                <span class="material-symbols-outlined" style="font-size:26px; color:#fbbc05;">star</span>
+                <span class="text-xs font-semibold" style="color:#414754;">UHE Estrela</span>
             </button>
         </div>
     </div>

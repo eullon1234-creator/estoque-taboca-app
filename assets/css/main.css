@@ -262,3 +262,63 @@
             #print-area, #print-area * { visibility: visible; }
             #print-area { position: absolute; left: 0; top: 0; width: 100%; }
         }
+
+        /* ⭐ Estrela Module Styles */
+        .estrela-tab-btn {
+            cursor: pointer;
+            border: none;
+            outline: none;
+        }
+        .estrela-tab-btn:not(.active):hover {
+            background: rgba(0, 91, 191, 0.07) !important;
+            color: #005bbf !important;
+        }
+        .estrela-summary-card {
+            background: #ffffff;
+            border: 1px solid #e7e8e9;
+            border-radius: 1rem;
+            padding: 1rem 1.25rem;
+            box-shadow: 0 4px 12px rgba(25, 28, 29, 0.04);
+        }
+        .estrela-summary-card .value {
+            font-size: 1.75rem;
+            font-weight: 800;
+            letter-spacing: -0.025em;
+            color: #191c1d;
+        }
+        .estrela-summary-card .label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #727785;
+            margin-top: 0.15rem;
+        }
+        .estrela-status-ok {
+            background: rgba(0, 110, 44, 0.1);
+            color: #006e2c;
+            font-weight: 700;
+            font-size: 0.7rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 9999px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .estrela-status-low {
+            background: rgba(186, 26, 26, 0.1);
+            color: #ba1a1a;
+            font-weight: 700;
+            font-size: 0.7rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 9999px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .estrela-status-warn {
+            background: rgba(121, 89, 0, 0.1);
+            color: #795900;
+            font-weight: 700;
+            font-size: 0.7rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 9999px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }

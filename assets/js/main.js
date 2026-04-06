@@ -51,6 +51,14 @@
         let dashboardTrendChart = null;
         let lastComprasFilteredItems = [];
         let lastComprasPeriodDays = 15;
+        
+        // ⭐ UHE Estrela State
+        let estrelaProducts = [];
+        let estrelaEntries = [];
+        let estrelaExits = [];
+        let estrelaProductsRef;
+        let estrelaEntriesRef;
+        let estrelaExitsRef;
 
         // --- Seletores ---
         const productList = document.getElementById('product-list');
@@ -524,6 +532,11 @@
             locationsCollectionRef = collection(db, `/artifacts/${appId}/public/data/locations`);
             settingsDocRef = doc(db, `/artifacts/${appId}/public/data/app_settings/main`);
             usersCollectionRef = collection(db, `/artifacts/${appId}/public/data/users`);
+            
+            // ⭐ UHE Estrela collections
+            estrelaProductsRef = collection(db, `/artifacts/${appId}/public/data/estrela_products`);
+            estrelaEntriesRef = collection(db, `/artifacts/${appId}/public/data/estrela_entries`);
+            estrelaExitsRef = collection(db, `/artifacts/${appId}/public/data/estrela_exits`);
 
             // Avatar com iniciais
             const initials = customUser.displayName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
@@ -647,6 +660,22 @@
                     renderLocations();
                 }
             }, (error) => handleFirestoreError(error, 'locais'));
+
+            // ⭐ UHE Estrela Listeners
+            onSnapshot(estrelaProductsRef, (snapshot) => {
+                estrelaProducts = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                if (isDataLoaded) renderEstrelaEstoque();
+            }, (error) => handleFirestoreError(error, 'produtos Estrela'));
+
+            onSnapshot(estrelaEntriesRef, (snapshot) => {
+                estrelaEntries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                if (isDataLoaded) renderEstrelaEntradas();
+            }, (error) => handleFirestoreError(error, 'entradas Estrela'));
+
+            onSnapshot(estrelaExitsRef, (snapshot) => {
+                estrelaExits = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                if (isDataLoaded) renderEstrelaSaidas();
+            }, (error) => handleFirestoreError(error, 'saídas Estrela'));
         }
 
         // --- Funções de Lógica (Firestore) ---
@@ -793,6 +822,10 @@
                     </div>
                     <p class="text-4xl font-extrabold tracking-tighter" style="color:#191c1d;">${totalUnits.toLocaleString('pt-BR')}</p>
                     <p class="text-sm font-medium mt-1" style="color:#727785;">Unidades em Estoque</p>
+                    <button onclick="downloadEstrelaExcel()" class="mt-4 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all hover:opacity-90" style="background:linear-gradient(135deg, #fbbc05 0%, #f9a825 100%); color:#261a00; box-shadow:0 4px 12px rgba(251,188,5,0.3);">
+                        <span class="material-symbols-outlined" style="font-size:20px; font-variation-settings:'FILL' 1;">download</span>
+                        Baixar Controle Estoque UHE Estrela
+                    </button>
                 </div>
                 <!-- KPI: Produtos (SKUs) -->
                 <div class="bg-surface-container-lowest p-5 rounded-2xl tonal-elevation dashboard-reveal" style="animation-delay: 0.08s;">
@@ -2053,6 +2086,7 @@
                 const sel = document.getElementById('compras-period-select');
                 renderComprasView(sel ? parseInt(sel.value) : 15);
             }
+            if (viewId === 'estrela-view') renderEstrelaView();
         };
 
         const updateSelectionActionButtonsState = () => {
@@ -2724,6 +2758,7 @@
                 const quantity = parseInt(document.getElementById('entry-quantity').value);
                 const nfNumber = document.getElementById('entry-nf').value.trim();
                 const supplier = document.getElementById('entry-supplier').value.trim();
+                const observation = document.getElementById('entry-observation').value.trim();
                 const receivedBy = currentUser?.displayName || currentUser?.uid || 'Sistema';
 
                 if (!productId || !nfNumber || isNaN(quantity) || quantity <= 0) {
@@ -2760,7 +2795,8 @@
                             receivedBy,
                             supplier,
                             nfNumber,
-                            details: `Entrada da NF ${nfNumber}`,
+                            observation,
+                            details: observation ? `Entrada da NF ${nfNumber} - ${observation}` : `Entrada da NF ${nfNumber}`,
                             rmProcessed: false,
                             date: serverTimestamp()
                         });
@@ -3925,3 +3961,843 @@
             appContainer.classList.add('hidden');
         }
         showLoader(false);
+
+        // =====================================================================
+        // ⭐ MÓDULO COMPLETO — Controle de Estoque UHE Estrela
+        // =====================================================================
+
+        const renderEstrelaView = () => {
+            renderEstrelaEstoque();
+            renderEstrelaEntradas();
+            renderEstrelaSaidas();
+            populateEstrelaProductSelects();
+        };
+
+        // --- Abas internas ---
+        document.querySelectorAll('.estrela-tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.estrelaTab;
+                document.querySelectorAll('.estrela-tab-btn').forEach(b => {
+                    b.classList.remove('active');
+                    b.style.background = 'transparent';
+                    b.style.color = '#414754';
+                });
+                btn.classList.add('active');
+                btn.style.background = '#005bbf';
+                btn.style.color = '#fff';
+                document.querySelectorAll('.estrela-tab-content').forEach(c => c.classList.add('hidden'));
+                document.getElementById(`estrela-tab-${tab}`).classList.remove('hidden');
+            });
+        });
+
+        // --- Busca no estoque ---
+        const estrelaSearchInput = document.getElementById('estrela-search');
+        if (estrelaSearchInput) {
+            estrelaSearchInput.addEventListener('input', () => renderEstrelaEstoque(estrelaSearchInput.value));
+        }
+        const estrelaEntrySearchInput = document.getElementById('estrela-entry-search');
+        if (estrelaEntrySearchInput) {
+            estrelaEntrySearchInput.addEventListener('input', () => renderEstrelaEntradas(estrelaEntrySearchInput.value));
+        }
+        const estrelaExitSearchInput = document.getElementById('estrela-exit-search');
+        if (estrelaExitSearchInput) {
+            estrelaExitSearchInput.addEventListener('input', () => renderEstrelaSaidas(estrelaExitSearchInput.value));
+        }
+
+        // --- Populate selects ---
+        const populateEstrelaProductSelects = () => {
+            const sorted = [...estrelaProducts].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            [document.getElementById('estrela-entry-product'), document.getElementById('estrela-exit-product')].forEach(sel => {
+                if (!sel) return;
+                const val = sel.value;
+                sel.innerHTML = '<option value="">Selecione um produto...</option>' +
+                    sorted.map(p => `<option value="${p.id}">${p.code || ''} — ${p.name} (Estoque: ${p.quantity ?? 0})</option>`).join('');
+                if (val) sel.value = val;
+            });
+        };
+
+        // --- Gerar código sequencial ---
+        const generateEstrelaCode = () => {
+            const codes = estrelaProducts.map(p => {
+                const m = (p.code || '').match(/^EST-(\d+)$/);
+                return m ? parseInt(m[1]) : 0;
+            });
+            const next = Math.max(0, ...codes) + 1;
+            return `EST-${String(next).padStart(4, '0')}`;
+        };
+
+        // ============================
+        // RENDER: ABA ESTOQUE
+        // ============================
+        const renderEstrelaEstoque = (search = '') => {
+            const summaryEl = document.getElementById('estrela-summary');
+            const tbody = document.getElementById('estrela-products-list');
+            const noMsg = document.getElementById('no-estrela-products');
+            if (!tbody) return;
+
+            let filtered = [...estrelaProducts];
+            if (search.trim()) {
+                const q = search.toLowerCase();
+                filtered = filtered.filter(p =>
+                    (p.name || '').toLowerCase().includes(q) ||
+                    (p.code || '').toLowerCase().includes(q) ||
+                    (p.codeRM || '').toLowerCase().includes(q) ||
+                    (p.location || '').toLowerCase().includes(q) ||
+                    (p.group || '').toLowerCase().includes(q)
+                );
+            }
+            filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+            // Summary cards
+            const totalItems = estrelaProducts.length;
+            const totalUnits = estrelaProducts.reduce((s, p) => s + (p.quantity || 0), 0);
+            const lowStock = estrelaProducts.filter(p => (p.quantity || 0) <= (p.minQuantity || 0)).length;
+            const zeroStock = estrelaProducts.filter(p => (p.quantity || 0) === 0).length;
+
+            if (summaryEl) {
+                summaryEl.innerHTML = `
+                    <div class="estrela-summary-card"><div class="value">${totalItems}</div><div class="label">Produtos</div></div>
+                    <div class="estrela-summary-card"><div class="value">${totalUnits.toLocaleString('pt-BR')}</div><div class="label">Unidades</div></div>
+                    <div class="estrela-summary-card" style="border-bottom:3px solid #fbbc05;"><div class="value" style="color:#795900;">${lowStock}</div><div class="label">Estoque Baixo</div></div>
+                    <div class="estrela-summary-card" style="border-bottom:3px solid #ba1a1a;"><div class="value" style="color:#ba1a1a;">${zeroStock}</div><div class="label">Zerados</div></div>
+                `;
+            }
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '';
+                if (noMsg) noMsg.classList.remove('hidden');
+                return;
+            }
+            if (noMsg) noMsg.classList.add('hidden');
+
+            tbody.innerHTML = filtered.map(p => {
+                const qty = p.quantity || 0;
+                const min = p.minQuantity || 0;
+                let statusClass = 'estrela-status-ok', statusText = 'OK';
+                if (qty === 0) { statusClass = 'estrela-status-low'; statusText = 'ZERADO'; }
+                else if (qty <= min) { statusClass = 'estrela-status-warn'; statusText = 'BAIXO'; }
+
+                return `<tr class="hover:bg-slate-50 transition-colors">
+                    <td class="px-4 py-3 font-mono text-xs font-bold" style="color:#005bbf;">${p.code || '—'}</td>
+                    <td class="px-4 py-3">
+                        <p class="font-semibold text-sm" style="color:#191c1d;">${p.name || '—'}</p>
+                        <p class="text-xs" style="color:#727785;">RM: ${p.codeRM || '—'}</p>
+                    </td>
+                    <td class="px-4 py-3 text-xs">${p.group || '—'}</td>
+                    <td class="px-4 py-3 text-center text-xs">${p.unit || 'Un'}</td>
+                    <td class="px-4 py-3 text-center font-bold">${qty}</td>
+                    <td class="px-4 py-3 text-center text-xs" style="color:#727785;">${min}</td>
+                    <td class="px-4 py-3 text-xs">${p.location || '—'}</td>
+                    <td class="px-4 py-3 text-center"><span class="${statusClass}">${statusText}</span></td>
+                    <td class="px-4 py-3 text-center">
+                        <div class="flex items-center justify-center gap-1">
+                            <button onclick="editEstrelaProduct('${p.id}')" class="p-1.5 rounded-lg transition" style="background:rgba(0,91,191,0.08); color:#005bbf;" title="Editar">
+                                <span class="material-symbols-outlined" style="font-size:18px;">edit</span>
+                            </button>
+                            <button onclick="deleteEstrelaProduct('${p.id}')" class="p-1.5 rounded-lg transition" style="background:rgba(186,26,26,0.08); color:#ba1a1a;" title="Excluir">
+                                <span class="material-symbols-outlined" style="font-size:18px;">delete</span>
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+
+            populateEstrelaProductSelects();
+        };
+
+        // ============================
+        // RENDER: ABA ENTRADAS
+        // ============================
+        const renderEstrelaEntradas = (search = '') => {
+            const tbody = document.getElementById('estrela-entries-list');
+            const noMsg = document.getElementById('no-estrela-entries');
+            if (!tbody) return;
+
+            let filtered = [...estrelaEntries].sort((a, b) => {
+                const da = a.date ? (a.date.seconds || 0) : 0;
+                const db2 = b.date ? (b.date.seconds || 0) : 0;
+                return db2 - da;
+            });
+
+            if (search.trim()) {
+                const q = search.toLowerCase();
+                filtered = filtered.filter(e =>
+                    (e.productName || '').toLowerCase().includes(q) ||
+                    (e.nf || '').toLowerCase().includes(q) ||
+                    (e.supplier || '').toLowerCase().includes(q) ||
+                    (e.receivedBy || '').toLowerCase().includes(q)
+                );
+            }
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '';
+                if (noMsg) noMsg.classList.remove('hidden');
+                return;
+            }
+            if (noMsg) noMsg.classList.add('hidden');
+
+            tbody.innerHTML = filtered.map(e => {
+                const dateStr = e.entryDate || (e.date ? new Date(e.date.seconds * 1000).toLocaleDateString('pt-BR') : '—');
+                const price = e.unitPrice ? `R$ ${parseFloat(e.unitPrice).toFixed(2)}` : '—';
+                return `<tr class="hover:bg-slate-50 transition-colors">
+                    <td class="px-4 py-3 text-xs font-semibold" style="color:#006e2c;">${dateStr}</td>
+                    <td class="px-4 py-3 text-sm font-semibold">${e.productName || '—'}</td>
+                    <td class="px-4 py-3 text-center font-bold" style="color:#006e2c;">+${e.quantity || 0}</td>
+                    <td class="px-4 py-3 text-xs">${e.supplier || '—'}</td>
+                    <td class="px-4 py-3 text-xs font-mono">${e.nf || '—'}</td>
+                    <td class="px-4 py-3 text-xs">${price}</td>
+                    <td class="px-4 py-3 text-xs">${e.receivedBy || '—'}</td>
+                    <td class="px-4 py-3 text-xs" style="max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${(e.observation || '').replace(/"/g, '&quot;')}">${e.observation || '—'}</td>
+                </tr>`;
+            }).join('');
+        };
+
+        // ============================
+        // RENDER: ABA SAÍDAS
+        // ============================
+        const renderEstrelaSaidas = (search = '') => {
+            const tbody = document.getElementById('estrela-exits-list');
+            const noMsg = document.getElementById('no-estrela-exits');
+            if (!tbody) return;
+
+            let filtered = [...estrelaExits].sort((a, b) => {
+                const da = a.date ? (a.date.seconds || 0) : 0;
+                const db2 = b.date ? (b.date.seconds || 0) : 0;
+                return db2 - da;
+            });
+
+            if (search.trim()) {
+                const q = search.toLowerCase();
+                filtered = filtered.filter(e =>
+                    (e.productName || '').toLowerCase().includes(q) ||
+                    (e.who || '').toLowerCase().includes(q) ||
+                    (e.leader || '').toLowerCase().includes(q) ||
+                    (e.applicationLocation || '').toLowerCase().includes(q) ||
+                    (e.os || '').toLowerCase().includes(q)
+                );
+            }
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '';
+                if (noMsg) noMsg.classList.remove('hidden');
+                return;
+            }
+            if (noMsg) noMsg.classList.add('hidden');
+
+            tbody.innerHTML = filtered.map(e => {
+                const dateStr = e.exitDate || (e.date ? new Date(e.date.seconds * 1000).toLocaleDateString('pt-BR') : '—');
+                return `<tr class="hover:bg-slate-50 transition-colors">
+                    <td class="px-4 py-3 text-xs font-semibold" style="color:#ba1a1a;">${dateStr}</td>
+                    <td class="px-4 py-3 text-sm font-semibold">${e.productName || '—'}</td>
+                    <td class="px-4 py-3 text-center font-bold" style="color:#ba1a1a;">-${e.quantity || 0}</td>
+                    <td class="px-4 py-3 text-xs">${e.who || '—'}</td>
+                    <td class="px-4 py-3 text-xs">${e.leader || '—'}</td>
+                    <td class="px-4 py-3 text-xs">${e.applicationLocation || '—'}</td>
+                    <td class="px-4 py-3 text-xs font-mono">${e.os || '—'}</td>
+                    <td class="px-4 py-3 text-xs" style="max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${(e.observation || '').replace(/"/g, '&quot;')}">${e.observation || '—'}</td>
+                </tr>`;
+            }).join('');
+        };
+
+        // ============================
+        // CRUD: Adicionar produto UHE Estrela
+        // ============================
+        const addEstrelaProductBtn = document.getElementById('estrela-add-product-btn');
+        if (addEstrelaProductBtn) {
+            addEstrelaProductBtn.addEventListener('click', () => {
+                const modal = document.getElementById('generic-modal');
+                modal.innerHTML = `
+                    <h2 class="text-xl font-bold mb-4" style="color:#191c1d;"><span class="material-symbols-outlined align-middle mr-1" style="font-size:24px; color:#fbbc05;">star</span> Novo Produto — UHE Estrela</h2>
+                    <form id="estrela-add-form" class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Nome do Produto</label>
+                            <input type="text" id="ep-name" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm" required>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Código RM</label>
+                                <input type="text" id="ep-code-rm" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Código Interno</label>
+                                <input type="text" id="ep-code" class="w-full p-2.5 border border-slate-200 rounded-lg bg-slate-100 text-sm" value="${generateEstrelaCode()}" readonly>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Grupo</label>
+                                <select id="ep-group" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm">
+                                    <option>Elétrico</option><option>Hidráulico</option><option>Consumível</option>
+                                    <option>Ferramentas Manuais</option><option>Material de Corte e Solda</option>
+                                    <option>Escritório</option><option>Segurança</option><option>Outros</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Unidade</label>
+                                <select id="ep-unit" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm">
+                                    <option>Unidade</option><option>Peça</option><option>Metros</option>
+                                    <option>Litro</option><option>Quilo</option><option>Caixa</option>
+                                    <option>Pacote</option><option>Rolo</option><option>Galão</option><option>Saco</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Quantidade Inicial</label>
+                                <input type="number" id="ep-qty" min="0" value="0" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Quantidade Mínima</label>
+                                <input type="number" id="ep-min" min="0" value="0" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm" required>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Localização</label>
+                            <input type="text" id="ep-location" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm" placeholder="Ex: Prateleira A-01" required>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-3">
+                            <button type="button" id="ep-cancel" class="px-4 py-2.5 rounded-lg text-sm font-semibold" style="background:#f3f4f5; color:#414754;">Cancelar</button>
+                            <button type="submit" class="px-4 py-2.5 rounded-lg text-sm font-bold text-white" style="background:#005bbf;">Cadastrar</button>
+                        </div>
+                    </form>
+                `;
+                openModal('generic-modal');
+
+                document.getElementById('ep-cancel').onclick = () => closeGenericModal();
+
+                document.getElementById('estrela-add-form').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const name = document.getElementById('ep-name').value.trim();
+                    if (!name) return showToast('Informe o nome do produto.', true);
+                    try {
+                        await addDoc(estrelaProductsRef, {
+                            name,
+                            code: document.getElementById('ep-code').value.trim(),
+                            codeRM: document.getElementById('ep-code-rm').value.trim(),
+                            group: document.getElementById('ep-group').value,
+                            unit: document.getElementById('ep-unit').value,
+                            quantity: parseInt(document.getElementById('ep-qty').value) || 0,
+                            minQuantity: parseInt(document.getElementById('ep-min').value) || 0,
+                            location: document.getElementById('ep-location').value.trim(),
+                            createdAt: serverTimestamp(),
+                            createdBy: currentUser?.displayName || 'Anônimo'
+                        });
+                        showToast('⭐ Produto cadastrado na UHE Estrela!');
+                        closeGenericModal();
+                    } catch (err) {
+                        console.error(err);
+                        showToast('Erro ao cadastrar produto.', true);
+                    }
+                });
+            });
+        }
+
+        // ============================
+        // CRUD: Editar produto UHE Estrela
+        // ============================
+        window.editEstrelaProduct = (id) => {
+            const p = estrelaProducts.find(x => x.id === id);
+            if (!p) return;
+            const modal = document.getElementById('generic-modal');
+            modal.innerHTML = `
+                <h2 class="text-xl font-bold mb-4" style="color:#191c1d;">Editar Produto — UHE Estrela</h2>
+                <form id="estrela-edit-form" class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Nome do Produto</label>
+                        <input type="text" id="epe-name" value="${(p.name || '').replace(/"/g, '&quot;')}" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm" required>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Código RM</label>
+                            <input type="text" id="epe-code-rm" value="${p.codeRM || ''}" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Código Interno</label>
+                            <input type="text" id="epe-code" value="${p.code || ''}" class="w-full p-2.5 border border-slate-200 rounded-lg bg-slate-100 text-sm" readonly>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Grupo</label>
+                            <select id="epe-group" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm">
+                                ${['Elétrico','Hidráulico','Consumível','Ferramentas Manuais','Material de Corte e Solda','Escritório','Segurança','Outros'].map(g => `<option ${g===p.group?'selected':''}>${g}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Unidade</label>
+                            <select id="epe-unit" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm">
+                                ${['Unidade','Peça','Metros','Litro','Quilo','Caixa','Pacote','Rolo','Galão','Saco'].map(u => `<option ${u===p.unit?'selected':''}>${u}</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Quantidade</label>
+                            <input type="number" id="epe-qty" min="0" value="${p.quantity || 0}" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Quantidade Mínima</label>
+                            <input type="number" id="epe-min" min="0" value="${p.minQuantity || 0}" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm" required>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Localização</label>
+                        <input type="text" id="epe-location" value="${p.location || ''}" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm" required>
+                    </div>
+                    <div class="flex justify-end gap-2 pt-3">
+                        <button type="button" id="epe-cancel" class="px-4 py-2.5 rounded-lg text-sm font-semibold" style="background:#f3f4f5; color:#414754;">Cancelar</button>
+                        <button type="submit" class="px-4 py-2.5 rounded-lg text-sm font-bold text-white" style="background:#005bbf;">Salvar</button>
+                    </div>
+                </form>
+            `;
+            openModal('generic-modal');
+
+            document.getElementById('epe-cancel').onclick = () => closeGenericModal();
+
+            document.getElementById('estrela-edit-form').addEventListener('submit', async (ev) => {
+                ev.preventDefault();
+                try {
+                    await updateDoc(doc(estrelaProductsRef, id), {
+                        name: document.getElementById('epe-name').value.trim(),
+                        codeRM: document.getElementById('epe-code-rm').value.trim(),
+                        group: document.getElementById('epe-group').value,
+                        unit: document.getElementById('epe-unit').value,
+                        quantity: parseInt(document.getElementById('epe-qty').value) || 0,
+                        minQuantity: parseInt(document.getElementById('epe-min').value) || 0,
+                        location: document.getElementById('epe-location').value.trim(),
+                        updatedAt: serverTimestamp(),
+                        updatedBy: currentUser?.displayName || 'Anônimo'
+                    });
+                    showToast('⭐ Produto atualizado!');
+                    closeGenericModal();
+                } catch (err) {
+                    console.error(err);
+                    showToast('Erro ao atualizar produto.', true);
+                }
+            });
+        };
+
+        // ============================
+        // CRUD: Excluir produto UHE Estrela
+        // ============================
+        window.deleteEstrelaProduct = (id) => {
+            const p = estrelaProducts.find(x => x.id === id);
+            if (!p) return;
+            const modal = document.getElementById('generic-modal');
+            modal.innerHTML = `
+                <h2 class="text-xl font-bold mb-3" style="color:#ba1a1a;">Confirmar Exclusão</h2>
+                <p class="text-sm mb-4" style="color:#414754;">Deseja excluir <strong>${p.name}</strong> do estoque UHE Estrela? Esta ação não pode ser desfeita.</p>
+                <div class="flex justify-end gap-2">
+                    <button id="edel-cancel" class="px-4 py-2.5 rounded-lg text-sm font-semibold" style="background:#f3f4f5; color:#414754;">Cancelar</button>
+                    <button id="edel-confirm" class="px-4 py-2.5 rounded-lg text-sm font-bold text-white" style="background:#ba1a1a;">Excluir</button>
+                </div>
+            `;
+            openModal('generic-modal');
+
+            document.getElementById('edel-cancel').onclick = () => closeGenericModal();
+            document.getElementById('edel-confirm').onclick = async () => {
+                try {
+                    await deleteDoc(doc(estrelaProductsRef, id));
+                    showToast('Produto excluído do estoque Estrela.');
+                    closeGenericModal();
+                } catch (err) {
+                    console.error(err);
+                    showToast('Erro ao excluir.', true);
+                }
+            };
+        };
+
+        // ============================
+        // FORM: Registrar entrada UHE Estrela
+        // ============================
+        const estrelaEntryForm = document.getElementById('estrela-entry-form');
+        if (estrelaEntryForm) {
+            estrelaEntryForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const productId = document.getElementById('estrela-entry-product').value;
+                const qty = parseInt(document.getElementById('estrela-entry-qty').value) || 0;
+                const entryDate = document.getElementById('estrela-entry-date').value;
+                const supplier = document.getElementById('estrela-entry-supplier').value.trim();
+                const nf = document.getElementById('estrela-entry-nf').value.trim();
+
+                if (!productId) return showToast('Selecione um produto.', true);
+                if (qty <= 0) return showToast('Quantidade deve ser maior que zero.', true);
+                if (!entryDate) return showToast('Informe a data de chegada.', true);
+                if (!supplier) return showToast('Informe o fornecedor.', true);
+                if (!nf) return showToast('Informe o número da NF.', true);
+
+                const product = estrelaProducts.find(p => p.id === productId);
+                if (!product) return showToast('Produto não encontrado.', true);
+
+                try {
+                    const newQty = (product.quantity || 0) + qty;
+                    await updateDoc(doc(estrelaProductsRef, productId), { quantity: newQty, updatedAt: serverTimestamp() });
+                    await addDoc(estrelaEntriesRef, {
+                        productId,
+                        productName: product.name,
+                        productCode: product.code || '',
+                        quantity: qty,
+                        entryDate,
+                        supplier,
+                        nf,
+                        unitPrice: document.getElementById('estrela-entry-price').value || null,
+                        receivedBy: document.getElementById('estrela-entry-received-by').value.trim() || null,
+                        observation: document.getElementById('estrela-entry-obs').value.trim() || null,
+                        date: serverTimestamp(),
+                        registeredBy: currentUser?.displayName || 'Anônimo'
+                    });
+                    showToast(`⭐ Entrada registrada: +${qty} ${product.name}`);
+                    estrelaEntryForm.reset();
+                    document.getElementById('estrela-entry-date').valueAsDate = new Date();
+                } catch (err) {
+                    console.error(err);
+                    showToast('Erro ao registrar entrada.', true);
+                }
+            });
+        }
+
+        // ============================
+        // FORM: Registrar saída UHE Estrela
+        // ============================
+        const estrelaExitForm = document.getElementById('estrela-exit-form');
+        if (estrelaExitForm) {
+            estrelaExitForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const productId = document.getElementById('estrela-exit-product').value;
+                const qty = parseInt(document.getElementById('estrela-exit-qty').value) || 0;
+                const exitDate = document.getElementById('estrela-exit-date').value;
+                const who = document.getElementById('estrela-exit-who').value.trim();
+                const leader = document.getElementById('estrela-exit-leader').value.trim();
+                const appLocation = document.getElementById('estrela-exit-location').value.trim();
+
+                if (!productId) return showToast('Selecione um produto.', true);
+                if (qty <= 0) return showToast('Quantidade deve ser maior que zero.', true);
+                if (!exitDate) return showToast('Informe a data da saída.', true);
+                if (!who) return showToast('Informe quem pegou o material.', true);
+                if (!leader) return showToast('Informe o líder/encarregado.', true);
+                if (!appLocation) return showToast('Informe o local de aplicação.', true);
+
+                const product = estrelaProducts.find(p => p.id === productId);
+                if (!product) return showToast('Produto não encontrado.', true);
+                if (qty > (product.quantity || 0)) return showToast(`Estoque insuficiente! Disponível: ${product.quantity || 0}`, true);
+
+                try {
+                    const newQty = (product.quantity || 0) - qty;
+                    await updateDoc(doc(estrelaProductsRef, productId), { quantity: newQty, updatedAt: serverTimestamp() });
+                    await addDoc(estrelaExitsRef, {
+                        productId,
+                        productName: product.name,
+                        productCode: product.code || '',
+                        quantity: qty,
+                        exitDate,
+                        who,
+                        leader,
+                        applicationLocation: appLocation,
+                        os: document.getElementById('estrela-exit-os').value.trim() || null,
+                        observation: document.getElementById('estrela-exit-obs').value.trim() || null,
+                        date: serverTimestamp(),
+                        registeredBy: currentUser?.displayName || 'Anônimo'
+                    });
+                    showToast(`⭐ Saída registrada: -${qty} ${product.name}`);
+                    estrelaExitForm.reset();
+                    document.getElementById('estrela-exit-date').valueAsDate = new Date();
+                } catch (err) {
+                    console.error(err);
+                    showToast('Erro ao registrar saída.', true);
+                }
+            });
+        }
+
+        // ============================
+        // Exportar CSV UHE Estrela
+        // ============================
+        const estrelaExportBtn = document.getElementById('estrela-export-btn');
+        if (estrelaExportBtn) {
+            estrelaExportBtn.addEventListener('click', () => {
+                const activeTab = document.querySelector('.estrela-tab-btn.active');
+                const tab = activeTab ? activeTab.dataset.estrelaTab : 'estoque';
+                let csvContent = '';
+                let filename = '';
+
+                if (tab === 'estoque') {
+                    csvContent = 'Código,Código RM,Produto,Grupo,Unidade,Qtd Atual,Qtd Mínima,Localização,Status\n';
+                    estrelaProducts.forEach(p => {
+                        const qty = p.quantity || 0;
+                        const min = p.minQuantity || 0;
+                        let status = 'OK';
+                        if (qty === 0) status = 'ZERADO';
+                        else if (qty <= min) status = 'BAIXO';
+                        csvContent += `"${p.code || ''}","${p.codeRM || ''}","${(p.name || '').replace(/"/g, '""')}","${p.group || ''}","${p.unit || 'Un'}",${qty},${min},"${p.location || ''}","${status}"\n`;
+                    });
+                    filename = `Estoque_UHE_Estrela_${new Date().toISOString().slice(0, 10)}.csv`;
+                } else if (tab === 'entrada') {
+                    csvContent = 'Data,Produto,Quantidade,Fornecedor,NF,Valor Unitário,Recebido Por,Observação\n';
+                    estrelaEntries.forEach(e => {
+                        const dateStr = e.entryDate || '';
+                        csvContent += `"${dateStr}","${(e.productName || '').replace(/"/g, '""')}",${e.quantity || 0},"${(e.supplier || '').replace(/"/g, '""')}","${e.nf || ''}","${e.unitPrice || ''}","${e.receivedBy || ''}","${(e.observation || '').replace(/"/g, '""')}"\n`;
+                    });
+                    filename = `Entradas_UHE_Estrela_${new Date().toISOString().slice(0, 10)}.csv`;
+                } else {
+                    csvContent = 'Data,Produto,Quantidade,Quem Pegou,Líder,Local Aplicação,OS,Observação\n';
+                    estrelaExits.forEach(e => {
+                        const dateStr = e.exitDate || '';
+                        csvContent += `"${dateStr}","${(e.productName || '').replace(/"/g, '""')}",${e.quantity || 0},"${(e.who || '').replace(/"/g, '""')}","${(e.leader || '').replace(/"/g, '""')}","${(e.applicationLocation || '').replace(/"/g, '""')}","${e.os || ''}","${(e.observation || '').replace(/"/g, '""')}"\n`;
+                    });
+                    filename = `Saidas_UHE_Estrela_${new Date().toISOString().slice(0, 10)}.csv`;
+                }
+
+                const BOM = '\uFEFF';
+                const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast(`CSV exportado: ${filename}`);
+            });
+        }
+
+        // Inicializar datas nos formulários de entrada/saída
+        const estrelaEntryDateInput = document.getElementById('estrela-entry-date');
+        const estrelaExitDateInput = document.getElementById('estrela-exit-date');
+        if (estrelaEntryDateInput) estrelaEntryDateInput.valueAsDate = new Date();
+        if (estrelaExitDateInput) estrelaExitDateInput.valueAsDate = new Date();
+
+        // Fechar modal genérico (wrapper para módulo Estrela)
+        const closeGenericModal = () => closeModal('generic-modal');
+
+        // ============================
+        // ⭐ BAIXAR PLANILHA COMPLETA UHE ESTRELA (Excel com 3 abas — dados do app)
+        // ============================
+        window.downloadEstrelaExcel = () => {
+            const XLS = typeof XLSX !== 'undefined' ? XLSX : null;
+            if (!XLS) {
+                showToast('Biblioteca de planilhas não carregou. Recarregue a página.', true);
+                return;
+            }
+
+            const wb = XLS.utils.book_new();
+            const today = new Date().toLocaleDateString('pt-BR');
+            const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+            // ─── ESTILOS ───
+            const titleStyle = {
+                font: { bold: true, sz: 16, color: { rgb: 'FFFFFF' } },
+                fill: { fgColor: { rgb: '005BBF' } },
+                alignment: { horizontal: 'center', vertical: 'center' },
+                border: { bottom: { style: 'medium', color: { rgb: '003D8A' } } }
+            };
+            const subtitleStyle = {
+                font: { italic: true, sz: 10, color: { rgb: '555555' } },
+                alignment: { horizontal: 'center', vertical: 'center' }
+            };
+            const headerStyle = {
+                font: { bold: true, sz: 11, color: { rgb: 'FFFFFF' } },
+                fill: { fgColor: { rgb: '1A73E8' } },
+                alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+                border: {
+                    top: { style: 'thin', color: { rgb: '003D8A' } },
+                    bottom: { style: 'thin', color: { rgb: '003D8A' } },
+                    left: { style: 'thin', color: { rgb: '003D8A' } },
+                    right: { style: 'thin', color: { rgb: '003D8A' } }
+                }
+            };
+            const headerGreen = { ...headerStyle, fill: { fgColor: { rgb: '006E2C' } }, border: { ...headerStyle.border, top: { style: 'thin', color: { rgb: '004D1A' } }, bottom: { style: 'thin', color: { rgb: '004D1A' } }, left: { style: 'thin', color: { rgb: '004D1A' } }, right: { style: 'thin', color: { rgb: '004D1A' } } } };
+            const headerRed = { ...headerStyle, fill: { fgColor: { rgb: 'BA1A1A' } }, border: { ...headerStyle.border, top: { style: 'thin', color: { rgb: '8A0000' } }, bottom: { style: 'thin', color: { rgb: '8A0000' } }, left: { style: 'thin', color: { rgb: '8A0000' } }, right: { style: 'thin', color: { rgb: '8A0000' } } } };
+
+            const cellBorder = {
+                top: { style: 'thin', color: { rgb: 'D0D0D0' } },
+                bottom: { style: 'thin', color: { rgb: 'D0D0D0' } },
+                left: { style: 'thin', color: { rgb: 'D0D0D0' } },
+                right: { style: 'thin', color: { rgb: 'D0D0D0' } }
+            };
+            const cellBase = { font: { sz: 10 }, alignment: { vertical: 'center' }, border: cellBorder };
+            const cellCenter = { ...cellBase, alignment: { horizontal: 'center', vertical: 'center' } };
+            const cellBold = { ...cellCenter, font: { sz: 10, bold: true } };
+            const cellEven = { ...cellBase, fill: { fgColor: { rgb: 'F2F7FF' } } };
+            const cellEvenCenter = { ...cellCenter, fill: { fgColor: { rgb: 'F2F7FF' } } };
+            const cellEvenBold = { ...cellBold, fill: { fgColor: { rgb: 'F2F7FF' } } };
+            const cellEvenGreen = { ...cellBase, fill: { fgColor: { rgb: 'F0FFF4' } } };
+            const cellEvenGreenCenter = { ...cellCenter, fill: { fgColor: { rgb: 'F0FFF4' } } };
+            const cellEvenRed = { ...cellBase, fill: { fgColor: { rgb: 'FFF5F5' } } };
+            const cellEvenRedCenter = { ...cellCenter, fill: { fgColor: { rgb: 'FFF5F5' } } };
+
+            const statusOk = { ...cellCenter, font: { sz: 9, bold: true, color: { rgb: '006E2C' } }, fill: { fgColor: { rgb: 'DCFCE7' } }, border: cellBorder };
+            const statusBaixo = { ...cellCenter, font: { sz: 9, bold: true, color: { rgb: '795900' } }, fill: { fgColor: { rgb: 'FEF9C3' } }, border: cellBorder };
+            const statusZerado = { ...cellCenter, font: { sz: 9, bold: true, color: { rgb: 'BA1A1A' } }, fill: { fgColor: { rgb: 'FEE2E2' } }, border: cellBorder };
+            const statusOkEven = { ...statusOk, fill: { fgColor: { rgb: 'BBF7D0' } } };
+            const statusBaixoEven = { ...statusBaixo, fill: { fgColor: { rgb: 'FDE68A' } } };
+            const statusZeradoEven = { ...statusZerado, fill: { fgColor: { rgb: 'FECACA' } } };
+
+            const qtyGreen = { ...cellCenter, font: { sz: 10, bold: true, color: { rgb: '006E2C' } }, border: cellBorder };
+            const qtyRed = { ...cellCenter, font: { sz: 10, bold: true, color: { rgb: 'BA1A1A' } }, border: cellBorder };
+            const qtyGreenEven = { ...qtyGreen, fill: { fgColor: { rgb: 'F0FFF4' } } };
+            const qtyRedEven = { ...qtyRed, fill: { fgColor: { rgb: 'FFF5F5' } } };
+
+            const applyStyles = (ws, startRow, dataLen, colCount, styleFn) => {
+                for (let r = 0; r < dataLen; r++) {
+                    for (let c = 0; c < colCount; c++) {
+                        const addr = XLS.utils.encode_cell({ r: startRow + r, c });
+                        if (ws[addr]) ws[addr].s = styleFn(r, c, ws[addr].v);
+                    }
+                }
+            };
+
+            // ─────────────────────────────────────────────
+            // ABA 1: ESTOQUE (dados reais do app — products)
+            // ─────────────────────────────────────────────
+            const estoqueHeaders = ['Nº', 'Código SKU', 'Código RM', 'Produto', 'Grupo', 'Unidade', 'Qtd. Atual', 'Qtd. Mínima', 'Localização', 'Status'];
+            const sortedProducts = [...products].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            const estoqueRows = sortedProducts.map((p, i) => {
+                const qty = p.quantity || 0;
+                const min = p.minQuantity || 0;
+                let status = '✅ OK';
+                if (qty === 0) status = '🔴 ZERADO';
+                else if (qty <= min) status = '🟡 BAIXO';
+                return [i + 1, p.code || '', p.codeRM || '', p.name || '', p.group || '', p.unit || 'Un', qty, min, p.location || '', status];
+            });
+
+            const totalUnits = products.reduce((s, p) => s + (p.quantity || 0), 0);
+            const lowCount = products.filter(p => (p.quantity || 0) > 0 && (p.quantity || 0) <= (p.minQuantity || 0)).length;
+            const zeroCount = products.filter(p => (p.quantity || 0) === 0).length;
+
+            const wsE = XLS.utils.aoa_to_sheet([
+                ['CONTROLE DE ESTOQUE — UHE ESTRELA'],
+                [`Gerado em ${today} às ${hora} | Total de Produtos: ${products.length} | Unidades: ${totalUnits.toLocaleString('pt-BR')} | Estoque Baixo: ${lowCount} | Zerados: ${zeroCount}`],
+                [],
+                estoqueHeaders,
+                ...estoqueRows
+            ]);
+            wsE['!cols'] = [
+                { wch: 5 }, { wch: 14 }, { wch: 14 }, { wch: 42 }, { wch: 22 },
+                { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 24 }, { wch: 14 }
+            ];
+            wsE['!merges'] = [
+                { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
+                { s: { r: 1, c: 0 }, e: { r: 1, c: 9 } }
+            ];
+            wsE['!rows'] = [{ hpt: 32 }, { hpt: 20 }, { hpt: 8 }, { hpt: 28 }];
+            // Estilo título e subtítulo
+            wsE['A1'].s = titleStyle;
+            wsE['A2'].s = subtitleStyle;
+            // Estilo cabeçalho
+            for (let c = 0; c < estoqueHeaders.length; c++) {
+                const addr = XLS.utils.encode_cell({ r: 3, c });
+                if (wsE[addr]) wsE[addr].s = headerStyle;
+            }
+            // Estilo dados
+            applyStyles(wsE, 4, estoqueRows.length, estoqueHeaders.length, (r, c, v) => {
+                const isEven = r % 2 === 1;
+                if (c === 9) {
+                    if (String(v).includes('ZERADO')) return isEven ? statusZeradoEven : statusZerado;
+                    if (String(v).includes('BAIXO')) return isEven ? statusBaixoEven : statusBaixo;
+                    return isEven ? statusOkEven : statusOk;
+                }
+                if (c === 0 || c === 5 || c === 6 || c === 7) return isEven ? cellEvenCenter : cellCenter;
+                if (c === 1 || c === 2) return isEven ? cellEvenBold : cellBold;
+                return isEven ? cellEven : cellBase;
+            });
+            XLS.utils.book_append_sheet(wb, wsE, 'Estoque');
+
+            // ─────────────────────────────────────────────
+            // ABA 2: ENTRADAS (dados reais do app — history filtrado)
+            // ─────────────────────────────────────────────
+            const entradas = history
+                .filter(h => ['Entrada', 'Entrada por NF', 'Ajuste Entrada', 'Criação', 'Importação'].includes(h.type))
+                .sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
+
+            const entradaHeaders = ['Nº', 'Data', 'Tipo', 'Produto', 'Código RM', 'Quantidade', 'Novo Saldo', 'NF', 'Fornecedor', 'Observação'];
+            const entradaRows = entradas.map((e, i) => {
+                const dateStr = e.date ? new Date(e.date.seconds * 1000).toLocaleDateString('pt-BR') : '';
+                return [
+                    i + 1, dateStr, e.type || '', e.productName || '', e.productCodeRM || '',
+                    e.quantity || 0, e.newTotal ?? '', e.nfNumber || e.details || '',
+                    e.supplier || '', e.observation || e.details || e.performedBy || ''
+                ];
+            });
+
+            const titleGreenStyle = { ...titleStyle, fill: { fgColor: { rgb: '006E2C' } }, border: { bottom: { style: 'medium', color: { rgb: '004D1A' } } } };
+            const wsEnt = XLS.utils.aoa_to_sheet([
+                ['REGISTRO DE ENTRADAS — UHE ESTRELA'],
+                [`Gerado em ${today} às ${hora} | Total de registros: ${entradas.length}`],
+                [],
+                entradaHeaders,
+                ...entradaRows
+            ]);
+            wsEnt['!cols'] = [
+                { wch: 5 }, { wch: 12 }, { wch: 18 }, { wch: 42 }, { wch: 14 },
+                { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 28 }, { wch: 20 }
+            ];
+            wsEnt['!merges'] = [
+                { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
+                { s: { r: 1, c: 0 }, e: { r: 1, c: 9 } }
+            ];
+            wsEnt['!rows'] = [{ hpt: 32 }, { hpt: 20 }, { hpt: 8 }, { hpt: 28 }];
+            wsEnt['A1'].s = titleGreenStyle;
+            wsEnt['A2'].s = subtitleStyle;
+            for (let c = 0; c < entradaHeaders.length; c++) {
+                const addr = XLS.utils.encode_cell({ r: 3, c });
+                if (wsEnt[addr]) wsEnt[addr].s = headerGreen;
+            }
+            applyStyles(wsEnt, 4, entradaRows.length, entradaHeaders.length, (r, c, v) => {
+                const isEven = r % 2 === 1;
+                if (c === 5) return isEven ? qtyGreenEven : qtyGreen;
+                if (c === 0 || c === 1 || c === 6) return isEven ? cellEvenGreenCenter : cellCenter;
+                return isEven ? cellEvenGreen : cellBase;
+            });
+            XLS.utils.book_append_sheet(wb, wsEnt, 'Entradas');
+
+            // ─────────────────────────────────────────────
+            // ABA 3: SAÍDAS (dados reais do app — history filtrado)
+            // ─────────────────────────────────────────────
+            const saidas = history
+                .filter(h => ['Saída', 'Saída por Requisição', 'Ajuste Saída'].includes(h.type))
+                .sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
+
+            const saidaHeaders = ['Nº', 'Data', 'Produto', 'Código RM', 'Quantidade', 'Novo Saldo', 'Retirado Por', 'Líder', 'Local Aplicação', 'Obra', 'Registrado Por'];
+            const saidaRows = saidas.map((e, i) => {
+                const dateStr = e.date ? new Date(e.date.seconds * 1000).toLocaleDateString('pt-BR') : '';
+                return [
+                    i + 1, dateStr, e.productName || '', e.productCodeRM || '',
+                    e.quantity || 0, e.newTotal ?? '', e.withdrawnBy || '',
+                    e.teamLeader || '', e.applicationLocation || '', e.obra || '', e.performedBy || ''
+                ];
+            });
+
+            const titleRedStyle = { ...titleStyle, fill: { fgColor: { rgb: 'BA1A1A' } }, border: { bottom: { style: 'medium', color: { rgb: '8A0000' } } } };
+            const wsSai = XLS.utils.aoa_to_sheet([
+                ['REGISTRO DE SAÍDAS — UHE ESTRELA'],
+                [`Gerado em ${today} às ${hora} | Total de registros: ${saidas.length}`],
+                [],
+                saidaHeaders,
+                ...saidaRows
+            ]);
+            wsSai['!cols'] = [
+                { wch: 5 }, { wch: 12 }, { wch: 42 }, { wch: 14 }, { wch: 12 },
+                { wch: 12 }, { wch: 22 }, { wch: 18 }, { wch: 28 }, { wch: 12 }, { wch: 20 }
+            ];
+            wsSai['!merges'] = [
+                { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
+                { s: { r: 1, c: 0 }, e: { r: 1, c: 10 } }
+            ];
+            wsSai['!rows'] = [{ hpt: 32 }, { hpt: 20 }, { hpt: 8 }, { hpt: 28 }];
+            wsSai['A1'].s = titleRedStyle;
+            wsSai['A2'].s = subtitleStyle;
+            for (let c = 0; c < saidaHeaders.length; c++) {
+                const addr = XLS.utils.encode_cell({ r: 3, c });
+                if (wsSai[addr]) wsSai[addr].s = headerRed;
+            }
+            applyStyles(wsSai, 4, saidaRows.length, saidaHeaders.length, (r, c, v) => {
+                const isEven = r % 2 === 1;
+                if (c === 4) return isEven ? qtyRedEven : qtyRed;
+                if (c === 0 || c === 1 || c === 5 || c === 9) return isEven ? cellEvenRedCenter : cellCenter;
+                return isEven ? cellEvenRed : cellBase;
+            });
+            XLS.utils.book_append_sheet(wb, wsSai, 'Saídas');
+
+            // ─── GERAR E BAIXAR ───
+            const filename = `Controle_Estoque_UHE_Estrela_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            XLS.writeFile(wb, filename);
+            showToast(`⭐ Planilha baixada: ${filename}`);
+        };
