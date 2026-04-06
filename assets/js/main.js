@@ -501,6 +501,7 @@
         const updateAppSettingsUI = (settings) => {
             appSettings = { ...appSettings, ...settings };
             document.getElementById('app-title').textContent = appSettings.appName;
+            document.title = appSettings.appName;
             const sidebarTitle = document.getElementById('sidebar-app-title');
             if (sidebarTitle) sidebarTitle.textContent = appSettings.appName;
             const logoContainer = document.getElementById('app-logo');
@@ -632,7 +633,14 @@
             if (coreUnsubscribers.length > 0) return;
 
             coreUnsubscribers.push(onSnapshot(settingsDocRef, (doc) => {
-                if (doc.exists()) updateAppSettingsUI(doc.data());
+                if (doc.exists()) {
+                    const data = doc.data();
+                    if (data.appName === 'Estoque Taboca') {
+                        data.appName = 'Estoque Estrela';
+                        setDoc(settingsDocRef, { appName: 'Estoque Estrela' }, { merge: true }).catch(() => {});
+                    }
+                    updateAppSettingsUI(data);
+                }
                 else updateAppSettingsUI({ appName: 'Estoque Estrela', logoUrl: null });
             }, (error) => handleFirestoreError(error, 'configurações')));
 

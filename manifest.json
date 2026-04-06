@@ -1,7 +1,7 @@
 {
   "name": "Estoque Estrela",
   "short_name": "Estoque",
-  "description": "Gestão de almoxarifado — Taboca",
+  "description": "Gestão de almoxarifado — Estrela",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
