@@ -1,6 +1,6 @@
 {
-  "name": "Estoque Estrela",
-  "short_name": "Estoque",
+  "name": "UHE Estrela",
+  "short_name": "Estrela",
   "description": "Gestão de almoxarifado — Estrela",
   "start_url": "./index.html",
   "scope": "./",

@@ -22,7 +22,7 @@
         let history = [];
         let requisitions = [];
         let locations = [];
-        let appSettings = { appName: 'Estoque Estrela', logoUrl: null };
+        let appSettings = { appName: 'UHE Estrela', logoUrl: null };
         let currentProductId = null;
         let currentLocationId = null;
         let productsCollectionRef;
@@ -635,13 +635,13 @@
             coreUnsubscribers.push(onSnapshot(settingsDocRef, (doc) => {
                 if (doc.exists()) {
                     const data = doc.data();
-                    if (data.appName === 'Estoque Taboca') {
-                        data.appName = 'Estoque Estrela';
-                        setDoc(settingsDocRef, { appName: 'Estoque Estrela' }, { merge: true }).catch(() => {});
+                    if (data.appName === 'Estoque Taboca' || data.appName === 'Estoque Estrela') {
+                        data.appName = 'UHE Estrela';
+                        setDoc(settingsDocRef, { appName: 'UHE Estrela' }, { merge: true }).catch(() => {});
                     }
                     updateAppSettingsUI(data);
                 }
-                else updateAppSettingsUI({ appName: 'Estoque Estrela', logoUrl: null });
+                else updateAppSettingsUI({ appName: 'UHE Estrela', logoUrl: null });
             }, (error) => handleFirestoreError(error, 'configurações')));
 
             coreUnsubscribers.push(onSnapshot(productsCollectionRef, (snapshot) => {
@@ -3413,7 +3413,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
 </head><body>
 <table>
     <!-- CABEÇALHO -->
-    <tr><td colspan="6" style="font-size:20px;font-weight:bold;color:#005BBF;padding:14px 8px 2px 8px;font-family:Calibri,sans-serif;">RELATÓRIO DE KPIs — ESTOQUE UHE TABOCA</td></tr>
+    <tr><td colspan="6" style="font-size:20px;font-weight:bold;color:#005BBF;padding:14px 8px 2px 8px;font-family:Calibri,sans-serif;">RELATÓRIO DE KPIs — ESTOQUE UHE ESTRELA</td></tr>
     <tr><td colspan="6" style="font-size:11px;color:#555;padding:2px 8px 10px 8px;font-family:Calibri,sans-serif;">Gerado em: ${esc(dataGerada)}</td></tr>
 
     <!-- SEÇÃO 1: INDICADORES GERAIS -->
@@ -3535,7 +3535,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
     <tr><td colspan="6" style="height:10px;"></td></tr>
 
     <!-- RODAPÉ -->
-    <tr><td colspan="6" style="border-top:2px solid #005BBF;padding:8px;font-size:10px;color:#999;font-family:Calibri,sans-serif;">Estoque UHE Taboca — Relatório gerado automaticamente em ${esc(dataGerada)}</td></tr>
+    <tr><td colspan="6" style="border-top:2px solid #005BBF;padding:8px;font-size:10px;color:#999;font-family:Calibri,sans-serif;">Estoque UHE Estrela — Relatório gerado automaticamente em ${esc(dataGerada)}</td></tr>
 </table>
 </body></html>`;
 
@@ -3626,7 +3626,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
 </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
 </head><body>
 <table>
-    <tr><td colspan="11" style="font-size:18px;font-weight:bold;color:#005BBF;padding:12px 8px 2px 8px;font-family:Calibri,sans-serif;">SUGESTÃO DE COMPRAS — ESTOQUE UHE TABOCA</td></tr>
+    <tr><td colspan="11" style="font-size:18px;font-weight:bold;color:#005BBF;padding:12px 8px 2px 8px;font-family:Calibri,sans-serif;">SUGESTÃO DE COMPRAS — ESTOQUE UHE ESTRELA</td></tr>
     <tr>
         <td colspan="3" style="font-size:11px;color:#555;padding:2px 8px;font-family:Calibri,sans-serif;">Período: ${esc(periodLabel)}</td>
         <td colspan="3" style="font-size:11px;color:#555;padding:2px 8px;font-family:Calibri,sans-serif;">Gerado em: ${esc(dataGerada)}</td>
