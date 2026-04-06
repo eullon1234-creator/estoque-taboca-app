@@ -64,6 +64,55 @@ body {
     box-shadow: var(--shadow-md);
 }
 
+/* ---------- FILTER TOOLTIP (desktop hover + mobile tap) ---------- */
+.filter-tooltip-wrap {
+    position: relative;
+    display: inline-flex;
+}
+.filter-tooltip {
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1f2937;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 500;
+    line-height: 1.35;
+    padding: 6px 10px;
+    border-radius: 8px;
+    white-space: nowrap;
+    max-width: 260px;
+    white-space: normal;
+    text-align: center;
+    pointer-events: none;
+    transition: opacity 0.2s, visibility 0.2s;
+    z-index: 50;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.filter-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #1f2937;
+}
+/* Desktop: hover */
+.filter-tooltip-wrap:hover .filter-tooltip {
+    visibility: visible;
+    opacity: 1;
+}
+/* Mobile: tap/focus */
+.filter-tooltip-wrap .compras-filter-btn:focus + .filter-tooltip,
+.filter-tooltip-wrap .compras-filter-btn:active + .filter-tooltip {
+    visibility: visible;
+    opacity: 1;
+}
+
 /* ---------- SCROLLBAR ---------- */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
