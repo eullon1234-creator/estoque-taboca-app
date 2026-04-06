@@ -64,6 +64,22 @@ body {
     box-shadow: var(--shadow-md);
 }
 
+/* ---------- BOTÃO INSTALAR PWA ---------- */
+.pwa-install-btn {
+    background: linear-gradient(135deg, #0066FF, #4F46E5);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(0, 102, 255, 0.35);
+    animation: pwa-pulse 2.5s infinite;
+}
+.pwa-install-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(0, 102, 255, 0.5);
+}
+@keyframes pwa-pulse {
+    0%, 100% { box-shadow: 0 4px 12px rgba(0,102,255,0.35); }
+    50%       { box-shadow: 0 4px 20px rgba(0,102,255,0.6); }
+}
+
 /* ---------- FILTER TOOLTIP (desktop hover + mobile tap) ---------- */
 .filter-tooltip-wrap {
     position: relative;
