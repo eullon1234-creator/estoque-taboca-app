@@ -530,18 +530,43 @@
             userRole = customUser.role;
             if (loginBtn) loginBtn.disabled = false;
 
+            // Determinar base de dados conforme a obra do usuário
+            const obraId = customUser.obraId || 'uhe_estrela';
+            const obraBase = obraId === 'uhe_estrela'
+                ? `/artifacts/${appId}/public/data`
+                : `/artifacts/${appId}/public/data/obras/${obraId}`;
+
             // Configurar referências do Firestore
-            productsCollectionRef = collection(db, `/artifacts/${appId}/public/data/products`);
-            historyCollectionRef = collection(db, `/artifacts/${appId}/public/data/history`);
-            requisitionsCollectionRef = collection(db, `/artifacts/${appId}/public/data/requisitions`);
-            locationsCollectionRef = collection(db, `/artifacts/${appId}/public/data/locations`);
-            settingsDocRef = doc(db, `/artifacts/${appId}/public/data/app_settings/main`);
+            productsCollectionRef = collection(db, `${obraBase}/products`);
+            historyCollectionRef = collection(db, `${obraBase}/history`);
+            requisitionsCollectionRef = collection(db, `${obraBase}/requisitions`);
+            locationsCollectionRef = collection(db, `${obraBase}/locations`);
+            settingsDocRef = doc(db, `${obraBase}/app_settings/main`);
             usersCollectionRef = collection(db, `/artifacts/${appId}/public/data/users`);
-            
-            // ⭐ UHE Estrela collections
+
+            // ⭐ UHE Estrela collections (exclusivo para obra uhe_estrela)
             estrelaProductsRef = collection(db, `/artifacts/${appId}/public/data/estrela_products`);
             estrelaEntriesRef = collection(db, `/artifacts/${appId}/public/data/estrela_entries`);
             estrelaExitsRef = collection(db, `/artifacts/${appId}/public/data/estrela_exits`);
+
+            // Mostrar/ocultar aba Estoque Estrela conforme a obra
+            const navSecaoEstrela = document.getElementById('nav-section-estrela');
+            const navBtnEstrela = document.getElementById('nav-btn-estrela');
+            if (obraId !== 'uhe_estrela') {
+                if (navSecaoEstrela) navSecaoEstrela.style.display = 'none';
+                if (navBtnEstrela) navBtnEstrela.style.display = 'none';
+            } else {
+                if (navSecaoEstrela) navSecaoEstrela.style.display = '';
+                if (navBtnEstrela) navBtnEstrela.style.display = '';
+            }
+
+            // Atualizar nome do app no header e sidebar conforme a obra
+            const obraDisplayNames = { 'uhe_estrela': 'UHE Estrela', 'pch_taboca': 'PCH Taboca' };
+            const obraDisplayName = obraDisplayNames[obraId] || customUser.displayName;
+            const appTitleEl = document.getElementById('app-title');
+            const sidebarAppTitleEl = document.getElementById('sidebar-app-title');
+            if (appTitleEl) appTitleEl.textContent = obraDisplayName;
+            if (sidebarAppTitleEl) sidebarAppTitleEl.textContent = obraDisplayName;
 
             // Avatar com iniciais
             const initials = customUser.displayName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
@@ -632,16 +657,19 @@
         function startCoreListeners() {
             if (coreUnsubscribers.length > 0) return;
 
+            const obraDefaultNames = { 'uhe_estrela': 'UHE Estrela', 'pch_taboca': 'PCH Taboca' };
+            const obraDefaultName = obraDefaultNames[currentUser?.obraId] || 'UHE Estrela';
             coreUnsubscribers.push(onSnapshot(settingsDocRef, (doc) => {
                 if (doc.exists()) {
                     const data = doc.data();
-                    if (data.appName === 'Estoque Taboca' || data.appName === 'Estoque Estrela') {
+                    // Corrigir nomes legados apenas para UHE Estrela
+                    if (currentUser?.obraId === 'uhe_estrela' && (data.appName === 'Estoque Taboca' || data.appName === 'Estoque Estrela')) {
                         data.appName = 'UHE Estrela';
                         setDoc(settingsDocRef, { appName: 'UHE Estrela' }, { merge: true }).catch(() => {});
                     }
                     updateAppSettingsUI(data);
                 }
-                else updateAppSettingsUI({ appName: 'UHE Estrela', logoUrl: null });
+                else updateAppSettingsUI({ appName: obraDefaultName, logoUrl: null });
             }, (error) => handleFirestoreError(error, 'configurações')));
 
             coreUnsubscribers.push(onSnapshot(productsCollectionRef, (snapshot) => {
@@ -2360,13 +2388,14 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
 
             // 1. Verificar credenciais hardcoded (funciona sem internet)
             const BUILTIN_USERS = {
-                'uhe_estrela': { displayName: 'UHE ESTRELA', role: 'admin', pwd: '60218' }
+                'uhe_estrela': { displayName: 'UHE ESTRELA', role: 'admin', pwd: '60218', obraId: 'uhe_estrela' },
+                'pch_taboca':  { displayName: 'PCH TABOCA',  role: 'admin', pwd: '60218', obraId: 'pch_taboca'  }
             };
             const builtin = BUILTIN_USERS[userId];
             if (builtin) {
                 const expectedHash = await hashPassword(builtin.pwd);
                 if (hash === expectedHash) {
-                    const appUser = { uid: userId, displayName: builtin.displayName, role: builtin.role };
+                    const appUser = { uid: userId, displayName: builtin.displayName, role: builtin.role, obraId: builtin.obraId };
                     localStorage.setItem('appUser', JSON.stringify(appUser));
                     initializeAppSession(appUser);
                     return;
