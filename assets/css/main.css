@@ -527,3 +527,54 @@ input:focus, select:focus, textarea:focus {
 /* ---------- MOBILE MENU ---------- */
 #mobile-menu-btn svg { transition: transform 0.2s ease-in-out; }
 #mobile-menu-btn.open svg { transform: rotate(90deg); }
+
+/* ---------- ZOOM / SCALE ADJUSTMENT ---------- */
+#bottom-nav,
+#bottom-drawer,
+#bottom-drawer-backdrop,
+#toast,
+#loader-overlay,
+#login-screen {
+    font-size: 16px !important;
+}
+#bottom-nav *,
+#bottom-drawer *,
+#toast *,
+#loader-overlay *,
+#login-screen * {
+    font-size: revert;
+}
+
+/* Zoom range slider styling */
+#zoom-range {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    border-radius: 3px;
+    background: #e2e8f0;
+    outline: none;
+}
+#zoom-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #2563eb;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+    transition: transform 0.15s;
+}
+#zoom-range::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+}
+#zoom-range::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #2563eb;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+

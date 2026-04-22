@@ -1809,6 +1809,7 @@
         
         const showSettingsModal = () => {
             const logoPreviewSrc = appSettings.logoUrl || 'https://placehold.co/200x60/e2e8f0/475569?text=Sem+Logo';
+            const currentZoom = parseInt(localStorage.getItem('appZoomLevel') || '100');
             const content = `
                 <h2 class="text-2xl font-semibold mb-6 text-slate-800">Configurações</h2>
                 <form id="settings-form" class="space-y-4">
@@ -1827,6 +1828,28 @@
                             <input type="file" id="logo-upload-input" class="hidden" accept="image/*">
                         </div>
                     </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-2">
+                            <span class="material-symbols-outlined align-middle mr-1" style="font-size:18px;">zoom_in</span>
+                            Ajuste de Tela / Zoom
+                        </label>
+                        <p class="text-xs text-slate-400 mb-3">Ajuste o tamanho da interface para melhor visualização no seu dispositivo.</p>
+                        <div class="flex items-center gap-3 p-3 border border-slate-200 rounded-lg bg-slate-50">
+                            <button type="button" id="zoom-decrease-btn" class="w-9 h-9 flex items-center justify-center rounded-lg bg-white border border-slate-300 font-bold text-lg text-slate-700 hover:bg-slate-100 transition flex-shrink-0">−</button>
+                            <div class="flex-grow">
+                                <input type="range" id="zoom-range" min="70" max="130" step="5" value="${currentZoom}" class="w-full accent-blue-600" style="cursor:pointer;">
+                            </div>
+                            <button type="button" id="zoom-increase-btn" class="w-9 h-9 flex items-center justify-center rounded-lg bg-white border border-slate-300 font-bold text-lg text-slate-700 hover:bg-slate-100 transition flex-shrink-0">+</button>
+                            <span id="zoom-value" class="text-sm font-bold text-slate-700 min-w-[3rem] text-center">${currentZoom}%</span>
+                        </div>
+                        <div class="flex gap-2 mt-2">
+                            <button type="button" id="zoom-preset-85" class="text-xs px-2.5 py-1 rounded-full border font-semibold transition ${currentZoom === 85 ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'}">85%</button>
+                            <button type="button" id="zoom-preset-90" class="text-xs px-2.5 py-1 rounded-full border font-semibold transition ${currentZoom === 90 ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'}">90%</button>
+                            <button type="button" id="zoom-preset-100" class="text-xs px-2.5 py-1 rounded-full border font-semibold transition ${currentZoom === 100 ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'}">100%</button>
+                            <button type="button" id="zoom-preset-110" class="text-xs px-2.5 py-1 rounded-full border font-semibold transition ${currentZoom === 110 ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'}">110%</button>
+                            <button type="button" id="zoom-preset-120" class="text-xs px-2.5 py-1 rounded-full border font-semibold transition ${currentZoom === 120 ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'}">120%</button>
+                        </div>
+                    </div>
                     <div class="mt-8 flex justify-end space-x-4">
                         <button type="button" class="close-modal-btn px-6 py-2 bg-slate-200 rounded-lg font-semibold hover:bg-slate-300 transition">Cancelar</button>
                         <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition">Salvar</button>
@@ -1835,7 +1858,59 @@
             `;
             document.getElementById('generic-modal').innerHTML = content;
             openModal('generic-modal');
+
+            // Zoom control logic
+            const zoomRange = document.getElementById('zoom-range');
+            const zoomValue = document.getElementById('zoom-value');
+            const zoomDecreaseBtn = document.getElementById('zoom-decrease-btn');
+            const zoomIncreaseBtn = document.getElementById('zoom-increase-btn');
+
+            const applyZoomPreview = (val) => {
+                zoomRange.value = val;
+                zoomValue.textContent = val + '%';
+                applyZoom(val);
+                // Update preset button styles
+                [85, 90, 100, 110, 120].forEach(p => {
+                    const btn = document.getElementById('zoom-preset-' + p);
+                    if (btn) {
+                        if (parseInt(val) === p) {
+                            btn.className = 'text-xs px-2.5 py-1 rounded-full border font-semibold transition bg-blue-600 text-white border-blue-600';
+                        } else {
+                            btn.className = 'text-xs px-2.5 py-1 rounded-full border font-semibold transition bg-white text-slate-600 border-slate-300 hover:bg-slate-100';
+                        }
+                    }
+                });
+            };
+
+            zoomRange.addEventListener('input', (e) => applyZoomPreview(e.target.value));
+            zoomDecreaseBtn.addEventListener('click', () => {
+                const newVal = Math.max(70, parseInt(zoomRange.value) - 5);
+                applyZoomPreview(newVal);
+            });
+            zoomIncreaseBtn.addEventListener('click', () => {
+                const newVal = Math.min(130, parseInt(zoomRange.value) + 5);
+                applyZoomPreview(newVal);
+            });
+            [85, 90, 100, 110, 120].forEach(preset => {
+                const btn = document.getElementById('zoom-preset-' + preset);
+                if (btn) btn.addEventListener('click', () => applyZoomPreview(preset));
+            });
         };
+
+        // --- Zoom / Scale Functions ---
+        const applyZoom = (level) => {
+            const val = parseInt(level) || 100;
+            document.documentElement.style.fontSize = (val / 100) * 16 + 'px';
+            localStorage.setItem('appZoomLevel', val);
+        };
+
+        // Apply saved zoom on page load
+        (() => {
+            const savedZoom = localStorage.getItem('appZoomLevel');
+            if (savedZoom && savedZoom !== '100') {
+                applyZoom(savedZoom);
+            }
+        })();
         
         const showEditLocationModal = () => {
             const loc = locations.find(l => l.id === currentLocationId);
@@ -2502,8 +2577,8 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
 
             // 🔒 VALIDAÇÕES CRÍTICAS
             // 1. Campos obrigatórios
-            if (!newProduct.codeRM || !newProduct.name) {
-                showToast('❌ Código RM e Nome do Produto são obrigatórios.', true);
+            if (!newProduct.name) {
+                showToast('❌ Nome do Produto é obrigatório.', true);
                 return;
             }
 
@@ -2519,13 +2594,15 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 return;
             }
 
-            // 4. Verificar código RM duplicado
-            const duplicateRM = products.find(p => 
-                p.codeRM.toLowerCase() === newProduct.codeRM.toLowerCase()
-            );
-            if (duplicateRM) {
-                showToast(`❌ Código RM "${newProduct.codeRM}" já existe no produto: ${duplicateRM.name}`, true);
-                return;
+            // 4. Verificar código RM duplicado (apenas se preenchido)
+            if (newProduct.codeRM) {
+                const duplicateRM = products.find(p => 
+                    p.codeRM && p.codeRM.toLowerCase() === newProduct.codeRM.toLowerCase()
+                );
+                if (duplicateRM) {
+                    showToast(`❌ Código RM "${newProduct.codeRM}" já existe no produto: ${duplicateRM.name}`, true);
+                    return;
+                }
             }
 
             // 5. Verificar código duplicado (se preenchido)
