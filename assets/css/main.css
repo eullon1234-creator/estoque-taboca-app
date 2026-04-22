@@ -171,8 +171,36 @@ body {
     padding-top: 0.75rem; margin-top: 1rem;
 }
 @media (max-width: 767px) {
-    .modal { width: calc(100% - 1.5rem); max-height: calc(100vh - 1rem); }
-    .modal > form, .modal > div:nth-of-type(1) { padding-bottom: 0.5rem; }
+    .modal { 
+        width: calc(100% - 1.5rem); 
+        max-height: calc(100vh - 120px); /* Garante espaço para o bottom nav */
+        bottom: 80px; /* Sobe o modal para não ficar atrás da barra */
+    }
+    .modal > form, .modal > div:nth-of-type(1) { 
+        padding-bottom: 2rem; 
+    }
+    /* Estilização para o brinde de atualização */
+    #update-notification {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #0066FF;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 600;
+        animation: slideDown 0.5s ease;
+    }
+    @keyframes slideDown {
+        from { transform: translate(-50%, -100%); }
+        to { transform: translate(-50%, 0); }
+    }
 }
 
 /* ---------- ABAS DE NAVEGAÇÃO (TABS ANTIGOS) ---------- */
