@@ -537,16 +537,43 @@
             currentObraId = obraId || 'uhe_estrela';
             if (loginBtn) loginBtn.disabled = false;
 
-            productsCollectionRef = collection(db, `/artifacts/${appId}/public/data/${currentObraId}/products`);
-            historyCollectionRef = collection(db, `/artifacts/${appId}/public/data/${currentObraId}/history`);
-            requisitionsCollectionRef = collection(db, `/artifacts/${appId}/public/data/${currentObraId}/requisitions`);
-            locationsCollectionRef = collection(db, `/artifacts/${appId}/public/data/${currentObraId}/locations`);
-            settingsDocRef = doc(db, `/artifacts/${appId}/public/data/${currentObraId}/app_settings/main`);
+            // Determinar base de dados conforme a obra do usuário
+            const obraId = customUser.obraId || 'uhe_estrela';
+            const obraBase = obraId === 'uhe_estrela'
+                ? `/artifacts/${appId}/public/data`
+                : `/artifacts/${appId}/public/data/obras/${obraId}`;
+
+            // Configurar referências do Firestore
+            productsCollectionRef = collection(db, `${obraBase}/products`);
+            historyCollectionRef = collection(db, `${obraBase}/history`);
+            requisitionsCollectionRef = collection(db, `${obraBase}/requisitions`);
+            locationsCollectionRef = collection(db, `${obraBase}/locations`);
+            settingsDocRef = doc(db, `${obraBase}/app_settings/main`);
             usersCollectionRef = collection(db, `/artifacts/${appId}/public/data/users`);
-            
-            estrelaProductsRef = collection(db, `/artifacts/${appId}/public/data/${currentObraId}/estrela_products`);
-            estrelaEntriesRef = collection(db, `/artifacts/${appId}/public/data/${currentObraId}/estrela_entries`);
-            estrelaExitsRef = collection(db, `/artifacts/${appId}/public/data/${currentObraId}/estrela_exits`);
+
+            // ⭐ UHE Estrela collections (exclusivo para obra uhe_estrela)
+            estrelaProductsRef = collection(db, `/artifacts/${appId}/public/data/estrela_products`);
+            estrelaEntriesRef = collection(db, `/artifacts/${appId}/public/data/estrela_entries`);
+            estrelaExitsRef = collection(db, `/artifacts/${appId}/public/data/estrela_exits`);
+
+            // Mostrar/ocultar aba Estoque Estrela conforme a obra
+            const navSecaoEstrela = document.getElementById('nav-section-estrela');
+            const navBtnEstrela = document.getElementById('nav-btn-estrela');
+            if (obraId !== 'uhe_estrela') {
+                if (navSecaoEstrela) navSecaoEstrela.style.display = 'none';
+                if (navBtnEstrela) navBtnEstrela.style.display = 'none';
+            } else {
+                if (navSecaoEstrela) navSecaoEstrela.style.display = '';
+                if (navBtnEstrela) navBtnEstrela.style.display = '';
+            }
+
+            // Atualizar nome do app no header e sidebar conforme a obra
+            const obraDisplayNames = { 'uhe_estrela': 'UHE Estrela', 'pch_taboca': 'PCH Taboca' };
+            const obraDisplayName = obraDisplayNames[obraId] || customUser.displayName;
+            const appTitleEl = document.getElementById('app-title');
+            const sidebarAppTitleEl = document.getElementById('sidebar-app-title');
+            if (appTitleEl) appTitleEl.textContent = obraDisplayName;
+            if (sidebarAppTitleEl) sidebarAppTitleEl.textContent = obraDisplayName;
 
             const initials = customUser.displayName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
             const roleLabels = {
@@ -581,6 +608,17 @@
 
             updateUIBasedOnPermissions();
             setupListeners();
+            
+            // 🔒 Timeout de segurança para garantir carregamento
+            setTimeout(() => {
+                if (!isDataLoaded) {
+                    isDataLoaded = true;
+                    showLoader(false);
+                    showProductsSkeleton(false);
+                    console.warn('⚠️ Carregamento com timeout: dados podem estar vazios');
+                }
+            }, 5000);
+            
             isAuthInitialized = true;
         };
 
@@ -589,8 +627,7 @@
         if (savedSession) {
             try {
                 const customUser = JSON.parse(savedSession);
-                const obraId = customUser.obraId || 'uhe_estrela';
-                initializeAppSession(customUser, obraId);
+                initializeAppSession(customUser);
             } catch(e) {
                 localStorage.removeItem('appUser');
             }
@@ -636,16 +673,19 @@
         function startCoreListeners() {
             if (coreUnsubscribers.length > 0) return;
 
+            const obraDefaultNames = { 'uhe_estrela': 'UHE Estrela', 'pch_taboca': 'PCH Taboca' };
+            const obraDefaultName = obraDefaultNames[currentUser?.obraId] || 'UHE Estrela';
             coreUnsubscribers.push(onSnapshot(settingsDocRef, (doc) => {
                 if (doc.exists()) {
                     const data = doc.data();
-                    if (data.appName === 'Estoque Taboca' || data.appName === 'Estoque Estrela') {
+                    // Corrigir nomes legados apenas para UHE Estrela
+                    if (currentUser?.obraId === 'uhe_estrela' && (data.appName === 'Estoque Taboca' || data.appName === 'Estoque Estrela')) {
                         data.appName = 'UHE Estrela';
                         setDoc(settingsDocRef, { appName: 'UHE Estrela' }, { merge: true }).catch(() => {});
                     }
                     updateAppSettingsUI(data);
                 }
-                else updateAppSettingsUI({ appName: 'UHE Estrela', logoUrl: null });
+                else updateAppSettingsUI({ appName: obraDefaultName, logoUrl: null });
             }, (error) => handleFirestoreError(error, 'configurações')));
 
             coreUnsubscribers.push(onSnapshot(productsCollectionRef, (snapshot) => {
@@ -691,7 +731,15 @@
                 } else {
                     renderLocations();
                 }
-            }, (error) => handleFirestoreError(error, 'locais')));
+            }, (error) => {
+                console.error('Erro ao buscar locais:', error);
+                if (!isDataLoaded) {
+                    isDataLoaded = true;
+                    showLoader(false);
+                    showProductsSkeleton(false);
+                }
+                handleFirestoreError(error, 'locais');
+            }));
         }
 
         function startEstrelaListeners() {
@@ -2348,10 +2396,10 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         const doLogin = async () => {
             const username = loginUsernameInput.value.trim().toUpperCase();
             const password = loginPasswordInput.value;
-            const obraId = loginObraSelect.value;
+            const selectedObraId = loginObraSelect.value;
             loginError.classList.add('hidden');
 
-            console.log('Tentando login:', { username, obraId });
+            console.log('Tentando login:', { username, selectedObraId });
 
             if (!username || !password) {
                 loginError.textContent = 'Preencha o nome de usuário e a senha.';
@@ -2370,23 +2418,18 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
 
                 // 1. Verificar credenciais hardcoded (funciona sem internet)
                 const BUILTIN_USERS = {
-                    'uhe_estrela': { displayName: 'UHE ESTRELA', role: 'admin', pwd: '60218' },
-                    'pch_taboca': { displayName: 'PCH TABOCA', role: 'admin', pwd: '60218' }
+                    'uhe_estrela': { displayName: 'UHE ESTRELA', role: 'admin', pwd: '60218', obraId: 'uhe_estrela' },
+                    'pch_taboca': { displayName: 'PCH TABOCA', role: 'admin', pwd: '60218', obraId: 'pch_taboca' }
                 };
                 const builtin = BUILTIN_USERS[userId];
-                console.log('Usuário encontrado em BUILTIN_USERS:', !!builtin);
 
                 if (builtin) {
                     const expectedHash = await hashPassword(builtin.pwd);
-                    console.log('Hash da senha:', hash.substring(0, 10) + '...');
-                    console.log('Hash esperado:', expectedHash.substring(0, 10) + '...');
-                    console.log('Hashes conferem:', hash === expectedHash);
-
                     if (hash === expectedHash) {
-                        const appUser = { uid: userId, displayName: builtin.displayName, role: builtin.role, obraId: obraId };
+                        const appUser = { uid: userId, displayName: builtin.displayName, role: builtin.role, obraId: builtin.obraId };
                         localStorage.setItem('appUser', JSON.stringify(appUser));
                         console.log('Iniciando sessão para:', appUser);
-                        initializeAppSession(appUser, obraId);
+                        initializeAppSession(appUser);
                         return;
                     } else {
                         loginError.textContent = 'Senha incorreta.';
@@ -2401,11 +2444,17 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 console.log('Buscando usuário no Firestore...');
                 const userRef = doc(db, `/artifacts/${appId}/public/data/users`, userId);
                 const userDoc = await getDoc(userRef);
+
                 if (userDoc.exists() && userDoc.data().passwordHash === hash) {
                     const data = userDoc.data();
-                    const appUser = { uid: userId, displayName: data.displayName || data.username || username, role: data.role || 'operador', obraId: obraId };
+                    const appUser = { 
+                        uid: userId, 
+                        displayName: data.displayName || data.username || username, 
+                        role: data.role || 'operador', 
+                        obraId: selectedObraId 
+                    };
                     localStorage.setItem('appUser', JSON.stringify(appUser));
-                    initializeAppSession(appUser, obraId);
+                    initializeAppSession(appUser);
                 } else {
                     loginError.textContent = userDoc.exists() ? 'Senha incorreta.' : 'Usuário não encontrado.';
                     loginError.classList.remove('hidden');
