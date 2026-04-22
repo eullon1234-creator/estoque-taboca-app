@@ -1,4 +1,4 @@
-const CACHE_NAME = 'estoque-taboca-v1.7.3';
+const CACHE_NAME = 'estoque-taboca-v1.8.0';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
