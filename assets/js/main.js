@@ -4637,20 +4637,20 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             const today = new Date().toLocaleDateString('pt-BR');
             const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-            // ─── ESTILOS ───
+            // ─── ESTILOS PROFISSIONAIS ───
             const titleStyle = {
-                font: { bold: true, sz: 16, color: { rgb: 'FFFFFF' } },
-                fill: { fgColor: { rgb: '005BBF' } },
+                font: { bold: true, sz: 18, color: { rgb: 'FFFFFF' } },
+                fill: { fgColor: { rgb: '1F2937' } },
                 alignment: { horizontal: 'center', vertical: 'center' },
-                border: { bottom: { style: 'medium', color: { rgb: '003D8A' } } }
+                border: { bottom: { style: 'medium', color: { rgb: '0066FF' } } }
             };
             const subtitleStyle = {
-                font: { italic: true, sz: 10, color: { rgb: '555555' } },
+                font: { italic: true, sz: 11, color: { rgb: '374151' } },
                 alignment: { horizontal: 'center', vertical: 'center' }
             };
             const headerStyle = {
                 font: { bold: true, sz: 11, color: { rgb: 'FFFFFF' } },
-                fill: { fgColor: { rgb: '1A73E8' } },
+                fill: { fgColor: { rgb: '0066FF' } },
                 alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
                 border: {
                     top: { style: 'thin', color: { rgb: '003D8A' } },
@@ -4659,37 +4659,46 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                     right: { style: 'thin', color: { rgb: '003D8A' } }
                 }
             };
-            const headerGreen = { ...headerStyle, fill: { fgColor: { rgb: '006E2C' } }, border: { ...headerStyle.border, top: { style: 'thin', color: { rgb: '004D1A' } }, bottom: { style: 'thin', color: { rgb: '004D1A' } }, left: { style: 'thin', color: { rgb: '004D1A' } }, right: { style: 'thin', color: { rgb: '004D1A' } } } };
-            const headerRed = { ...headerStyle, fill: { fgColor: { rgb: 'BA1A1A' } }, border: { ...headerStyle.border, top: { style: 'thin', color: { rgb: '8A0000' } }, bottom: { style: 'thin', color: { rgb: '8A0000' } }, left: { style: 'thin', color: { rgb: '8A0000' } }, right: { style: 'thin', color: { rgb: '8A0000' } } } };
+            const headerGreen = { ...headerStyle, fill: { fgColor: { rgb: '059669' } }, border: { ...headerStyle.border, top: { style: 'thin', color: { rgb: '047857' } }, bottom: { style: 'thin', color: { rgb: '047857' } }, left: { style: 'thin', color: { rgb: '047857' } }, right: { style: 'thin', color: { rgb: '047857' } } } };
+            const headerRed = { ...headerStyle, fill: { fgColor: { rgb: 'DC2626' } }, border: { ...headerStyle.border, top: { style: 'thin', color: { rgb: 'B91C1C' } }, bottom: { style: 'thin', color: { rgb: 'B91C1C' } }, left: { style: 'thin', color: { rgb: 'B91C1C' } }, right: { style: 'thin', color: { rgb: 'B91C1C' } } } };
+            const headerPurple = { ...headerStyle, fill: { fgColor: { rgb: '7C3AED' } }, border: { ...headerStyle.border, top: { style: 'thin', color: { rgb: '6D28D9' } }, bottom: { style: 'thin', color: { rgb: '6D28D9' } }, left: { style: 'thin', color: { rgb: '6D28D9' } }, right: { style: 'thin', color: { rgb: '6D28D9' } } } };
 
             const cellBorder = {
-                top: { style: 'thin', color: { rgb: 'D0D0D0' } },
-                bottom: { style: 'thin', color: { rgb: 'D0D0D0' } },
-                left: { style: 'thin', color: { rgb: 'D0D0D0' } },
-                right: { style: 'thin', color: { rgb: 'D0D0D0' } }
+                top: { style: 'thin', color: { rgb: 'E5E7EB' } },
+                bottom: { style: 'thin', color: { rgb: 'E5E7EB' } },
+                left: { style: 'thin', color: { rgb: 'E5E7EB' } },
+                right: { style: 'thin', color: { rgb: 'E5E7EB' } }
             };
-            const cellBase = { font: { sz: 10 }, alignment: { vertical: 'center' }, border: cellBorder };
+            const cellBase = { font: { sz: 10, color: { rgb: '111827' } }, alignment: { vertical: 'center' }, border: cellBorder };
             const cellCenter = { ...cellBase, alignment: { horizontal: 'center', vertical: 'center' } };
-            const cellBold = { ...cellCenter, font: { sz: 10, bold: true } };
-            const cellEven = { ...cellBase, fill: { fgColor: { rgb: 'F2F7FF' } } };
-            const cellEvenCenter = { ...cellCenter, fill: { fgColor: { rgb: 'F2F7FF' } } };
-            const cellEvenBold = { ...cellBold, fill: { fgColor: { rgb: 'F2F7FF' } } };
-            const cellEvenGreen = { ...cellBase, fill: { fgColor: { rgb: 'F0FFF4' } } };
-            const cellEvenGreenCenter = { ...cellCenter, fill: { fgColor: { rgb: 'F0FFF4' } } };
-            const cellEvenRed = { ...cellBase, fill: { fgColor: { rgb: 'FFF5F5' } } };
-            const cellEvenRedCenter = { ...cellCenter, fill: { fgColor: { rgb: 'FFF5F5' } } };
+            const cellBold = { ...cellCenter, font: { sz: 10, bold: true, color: { rgb: '111827' } } };
+            const cellEven = { ...cellBase, fill: { fgColor: { rgb: 'F9FAFB' } } };
+            const cellEvenCenter = { ...cellCenter, fill: { fgColor: { rgb: 'F9FAFB' } } };
+            const cellEvenBold = { ...cellBold, fill: { fgColor: { rgb: 'F9FAFB' } } };
+            const cellEvenGreen = { ...cellBase, fill: { fgColor: { rgb: 'F0FDF4' } } };
+            const cellEvenGreenCenter = { ...cellCenter, fill: { fgColor: { rgb: 'F0FDF4' } } };
+            const cellEvenRed = { ...cellBase, fill: { fgColor: { rgb: 'FEF2F2' } } };
+            const cellEvenRedCenter = { ...cellCenter, fill: { fgColor: { rgb: 'FEF2F2' } } };
+            const cellEvenPurple = { ...cellBase, fill: { fgColor: { rgb: 'FAF5FF' } } };
+            const cellEvenPurpleCenter = { ...cellCenter, fill: { fgColor: { rgb: 'FAF5FF' } } };
 
-            const statusOk = { ...cellCenter, font: { sz: 9, bold: true, color: { rgb: '006E2C' } }, fill: { fgColor: { rgb: 'DCFCE7' } }, border: cellBorder };
-            const statusBaixo = { ...cellCenter, font: { sz: 9, bold: true, color: { rgb: '795900' } }, fill: { fgColor: { rgb: 'FEF9C3' } }, border: cellBorder };
-            const statusZerado = { ...cellCenter, font: { sz: 9, bold: true, color: { rgb: 'BA1A1A' } }, fill: { fgColor: { rgb: 'FEE2E2' } }, border: cellBorder };
-            const statusOkEven = { ...statusOk, fill: { fgColor: { rgb: 'BBF7D0' } } };
-            const statusBaixoEven = { ...statusBaixo, fill: { fgColor: { rgb: 'FDE68A' } } };
+            // Status com cores mais vibrantes
+            const statusOk = { ...cellCenter, font: { sz: 9, bold: true, color: { rgb: '065F46' } }, fill: { fgColor: { rgb: 'D1FAE5' } }, border: cellBorder };
+            const statusBaixo = { ...cellCenter, font: { sz: 9, bold: true, color: { rgb: '92400E' } }, fill: { fgColor: { rgb: 'FEF3C7' } }, border: cellBorder };
+            const statusZerado = { ...cellCenter, font: { sz: 9, bold: true, color: { rgb: '7F1D1D' } }, fill: { fgColor: { rgb: 'FEE2E2' } }, border: cellBorder };
+            const statusOkEven = { ...statusOk, fill: { fgColor: { rgb: 'A7F3D0' } } };
+            const statusBaixoEven = { ...statusBaixo, fill: { fgColor: { rgb: 'FCD34D' } } };
             const statusZeradoEven = { ...statusZerado, fill: { fgColor: { rgb: 'FECACA' } } };
 
-            const qtyGreen = { ...cellCenter, font: { sz: 10, bold: true, color: { rgb: '006E2C' } }, border: cellBorder };
-            const qtyRed = { ...cellCenter, font: { sz: 10, bold: true, color: { rgb: 'BA1A1A' } }, border: cellBorder };
-            const qtyGreenEven = { ...qtyGreen, fill: { fgColor: { rgb: 'F0FFF4' } } };
-            const qtyRedEven = { ...qtyRed, fill: { fgColor: { rgb: 'FFF5F5' } } };
+            const qtyGreen = { ...cellCenter, font: { sz: 10, bold: true, color: { rgb: '059669' } }, border: cellBorder };
+            const qtyRed = { ...cellCenter, font: { sz: 10, bold: true, color: { rgb: 'DC2626' } }, border: cellBorder };
+            const qtyGreenEven = { ...qtyGreen, fill: { fgColor: { rgb: 'F0FDF4' } } };
+            const qtyRedEven = { ...qtyRed, fill: { fgColor: { rgb: 'FEF2F2' } } };
+
+            // Estilos para caixa de KPI
+            const kpiTitleStyle = { font: { bold: true, sz: 12, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '1F2937' } }, alignment: { horizontal: 'left', vertical: 'center' }, border: cellBorder };
+            const kpiValueStyle = { font: { bold: true, sz: 14, color: { rgb: '0066FF' } }, fill: { fgColor: { rgb: 'F0F9FF' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: cellBorder };
+            const kpiLabelStyle = { font: { sz: 9, color: { rgb: '6B7280' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: cellBorder, fill: { fgColor: { rgb: 'FFFFFF' } } };
 
             const applyStyles = (ws, startRow, dataLen, colCount, styleFn) => {
                 for (let r = 0; r < dataLen; r++) {
@@ -4701,79 +4710,169 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             };
 
             // ─────────────────────────────────────────────
-            // ABA 1: ESTOQUE (dados reais do app — products)
+            // ABA 0: RESUMO EXECUTIVO (Dashboard)
             // ─────────────────────────────────────────────
-            const estoqueHeaders = ['Nº', 'Código SKU', 'Código RM', 'Produto', 'Grupo', 'Unidade', 'Qtd. Atual', 'Qtd. Mínima', 'Localização', 'Status'];
+            const totalProducts = products.length;
+            const totalUnits = products.reduce((s, p) => s + (p.quantity || 0), 0);
+            const lowCount = products.filter(p => (p.quantity || 0) > 0 && (p.quantity || 0) <= (p.minQuantity || 0)).length;
+            const zeroCount = products.filter(p => (p.quantity || 0) === 0).length;
+            const okCount = totalProducts - lowCount - zeroCount;
+
+            // Cálculos de movimentação
+            const totalEntries = history.filter(h => ['Entrada', 'Entrada por NF', 'Ajuste Entrada', 'Criação'].includes(h.type)).length;
+            const totalExits = history.filter(h => ['Saída', 'Saída por Requisição', 'Ajuste Saída'].includes(h.type)).length;
+            const lastMonthEntries = history.filter(h => {
+                const hDate = h.date ? new Date(h.date.seconds * 1000) : new Date();
+                const now = new Date();
+                const diff = (now - hDate) / (1000 * 60 * 60 * 24);
+                return diff <= 30 && ['Entrada', 'Entrada por NF', 'Ajuste Entrada'].includes(h.type);
+            }).length;
+            const lastMonthExits = history.filter(h => {
+                const hDate = h.date ? new Date(h.date.seconds * 1000) : new Date();
+                const now = new Date();
+                const diff = (now - hDate) / (1000 * 60 * 60 * 24);
+                return diff <= 30 && ['Saída', 'Saída por Requisição', 'Ajuste Saída'].includes(h.type);
+            }).length;
+
+            const wsDash = XLS.utils.aoa_to_sheet([
+                ['CONTROLE DE ESTOQUE UHE ESTRELA'],
+                ['RESUMO EXECUTIVO — DASHBOARD DE GESTÃO'],
+                [],
+                ['Relatório Gerado em ' + today + ' às ' + hora],
+                [],
+                ['INDICADORES PRINCIPAIS'],
+                [],
+                ['Métrica', 'Valor', 'Status'],
+                ['Total de Produtos', totalProducts, 'Produtos cadastrados'],
+                ['Unidades em Estoque', totalUnits, 'Unidades totais'],
+                ['Produtos OK', okCount, 'Acima do mínimo'],
+                ['Estoque Baixo', lowCount, 'Abaixo do mínimo'],
+                ['Produtos Zerados', zeroCount, 'Sem disponibilidade'],
+                [],
+                ['MOVIMENTAÇÃO (últimos 30 dias)'],
+                [],
+                ['Tipo de Movimento', 'Últimos 30 dias', 'Total Histórico'],
+                ['Entradas', lastMonthEntries, totalEntries],
+                ['Saídas', lastMonthExits, totalExits],
+                [],
+                ['TAXA DE COBERTURA DE ESTOQUE'],
+                [],
+                ['Indicador', 'Percentual'],
+                ['Produtos com estoque OK', okCount > 0 ? ((okCount / totalProducts) * 100).toFixed(1) + '%' : '0%'],
+                ['Produtos em falta crítica', zeroCount > 0 ? ((zeroCount / totalProducts) * 100).toFixed(1) + '%' : '0%']
+            ]);
+
+            wsDash['!cols'] = [
+                { wch: 35 }, { wch: 18 }, { wch: 30 }
+            ];
+            wsDash['!merges'] = [
+                { s: { r: 0, c: 0 }, e: { r: 0, c: 2 } },
+                { s: { r: 1, c: 0 }, e: { r: 1, c: 2 } },
+                { s: { r: 5, c: 0 }, e: { r: 5, c: 2 } },
+                { s: { r: 14, c: 0 }, e: { r: 14, c: 2 } },
+                { s: { r: 20, c: 0 }, e: { r: 20, c: 2 } }
+            ];
+            
+            // Aplicar estilos ao dashboard
+            wsDash['A1'].s = titleStyle;
+            wsDash['A2'].s = subtitleStyle;
+            
+            // Headers de seções
+            ['A6', 'A15', 'A21'].forEach(cell => {
+                if (wsDash[cell]) wsDash[cell].s = { ...headerStyle, font: { bold: true, sz: 12, color: { rgb: 'FFFFFF' } } };
+            });
+            
+            // Headers de tabelas
+            [8, 17, 22].forEach(row => {
+                for (let c = 0; c < 3; c++) {
+                    const addr = XLS.utils.encode_cell({ r: row, c });
+                    if (wsDash[addr]) wsDash[addr].s = headerPurple;
+                }
+            });
+
+            // Aplicar cores aos dados do dashboard
+            for (let r = 9; r <= 13; r++) {
+                wsDash[XLS.utils.encode_cell({ r, c: 0 })].s = { ...cellBase, font: { bold: true, sz: 11 } };
+                wsDash[XLS.utils.encode_cell({ r, c: 1 })].s = { ...cellCenter, font: { bold: true, sz: 12, color: { rgb: '0066FF' } } };
+                wsDash[XLS.utils.encode_cell({ r, c: 2 })].s = cellEvenCenter;
+            }
+
+            XLS.utils.book_append_sheet(wb, wsDash, 'Dashboard');
+
+            // ─────────────────────────────────────────────
+            // ABA 1: ESTOQUE COMPLETO (dados reais)
+            // ─────────────────────────────────────────────
+            const estoqueHeaders = ['Nº', 'Código SKU', 'Código RM', 'Produto', 'Grupo', 'Unidade', 'Qtd. Atual', 'Qtd. Mínima', 'Falta', 'Localização', 'Status'];
             const sortedProducts = [...products].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
             const estoqueRows = sortedProducts.map((p, i) => {
                 const qty = p.quantity || 0;
                 const min = p.minQuantity || 0;
+                const falta = Math.max(0, min - qty);
                 let status = '✅ OK';
                 if (qty === 0) status = '🔴 ZERADO';
                 else if (qty <= min) status = '🟡 BAIXO';
-                return [i + 1, p.code || '', p.codeRM || '', p.name || '', p.group || '', p.unit || 'Un', qty, min, p.location || '', status];
+                return [i + 1, p.code || '', p.codeRM || '', p.name || '', p.group || '', p.unit || 'Un', qty, min, falta, p.location || '', status];
             });
 
-            const totalUnits = products.reduce((s, p) => s + (p.quantity || 0), 0);
-            const lowCount = products.filter(p => (p.quantity || 0) > 0 && (p.quantity || 0) <= (p.minQuantity || 0)).length;
-            const zeroCount = products.filter(p => (p.quantity || 0) === 0).length;
-
             const wsE = XLS.utils.aoa_to_sheet([
-                ['CONTROLE DE ESTOQUE — UHE ESTRELA'],
-                [`Gerado em ${today} às ${hora} | Total de Produtos: ${products.length} | Unidades: ${totalUnits.toLocaleString('pt-BR')} | Estoque Baixo: ${lowCount} | Zerados: ${zeroCount}`],
+                ['RELATÓRIO DETALHADO DE ESTOQUE — UHE ESTRELA'],
+                [`Gerado em ${today} às ${hora} | Total: ${totalProducts} produtos | Unidades: ${totalUnits.toLocaleString('pt-BR')}`],
                 [],
                 estoqueHeaders,
                 ...estoqueRows
             ]);
             wsE['!cols'] = [
-                { wch: 5 }, { wch: 14 }, { wch: 14 }, { wch: 42 }, { wch: 22 },
-                { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 24 }, { wch: 14 }
+                { wch: 5 }, { wch: 14 }, { wch: 14 }, { wch: 36 }, { wch: 20 },
+                { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 24 }, { wch: 14 }
             ];
             wsE['!merges'] = [
-                { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
-                { s: { r: 1, c: 0 }, e: { r: 1, c: 9 } }
+                { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
+                { s: { r: 1, c: 0 }, e: { r: 1, c: 10 } }
             ];
             wsE['!rows'] = [{ hpt: 32 }, { hpt: 20 }, { hpt: 8 }, { hpt: 28 }];
-            // Estilo título e subtítulo
+            wsE['!freeze'] = { xSplit: 0, ySplit: 4 };
+            
             wsE['A1'].s = titleStyle;
             wsE['A2'].s = subtitleStyle;
-            // Estilo cabeçalho
             for (let c = 0; c < estoqueHeaders.length; c++) {
                 const addr = XLS.utils.encode_cell({ r: 3, c });
                 if (wsE[addr]) wsE[addr].s = headerStyle;
             }
-            // Estilo dados
             applyStyles(wsE, 4, estoqueRows.length, estoqueHeaders.length, (r, c, v) => {
                 const isEven = r % 2 === 1;
-                if (c === 9) {
+                if (c === 10) {
                     if (String(v).includes('ZERADO')) return isEven ? statusZeradoEven : statusZerado;
                     if (String(v).includes('BAIXO')) return isEven ? statusBaixoEven : statusBaixo;
                     return isEven ? statusOkEven : statusOk;
                 }
-                if (c === 0 || c === 5 || c === 6 || c === 7) return isEven ? cellEvenCenter : cellCenter;
-                if (c === 1 || c === 2) return isEven ? cellEvenBold : cellBold;
+                if (c === 6 || c === 7 || c === 8) {
+                    const val = parseFloat(v) || 0;
+                    if (c === 8 && val > 0) return isEven ? { ...qtyRedEven, font: { bold: true, sz: 10, color: { rgb: 'DC2626' } } } : { ...qtyRed, font: { bold: true, sz: 10, color: { rgb: 'DC2626' } } };
+                    return isEven ? cellEvenCenter : cellCenter;
+                }
+                if (c === 0 || c === 1 || c === 2) return isEven ? cellEvenBold : cellBold;
                 return isEven ? cellEven : cellBase;
             });
             XLS.utils.book_append_sheet(wb, wsE, 'Estoque');
 
             // ─────────────────────────────────────────────
-            // ABA 2: ENTRADAS (dados reais do app — history filtrado)
+            // ABA 2: ENTRADAS (histórico completo)
             // ─────────────────────────────────────────────
             const entradas = history
                 .filter(h => ['Entrada', 'Entrada por NF', 'Ajuste Entrada', 'Criação', 'Importação'].includes(h.type))
                 .sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
 
-            const entradaHeaders = ['Nº', 'Data', 'Tipo', 'Produto', 'Código RM', 'Quantidade', 'Novo Saldo', 'NF', 'Fornecedor', 'Observação'];
+            const entradaHeaders = ['Nº', 'Data', 'Tipo', 'Produto', 'Código RM', 'Quantidade', 'Novo Saldo', 'NF/Lote', 'Fornecedor', 'Registrado Por'];
             const entradaRows = entradas.map((e, i) => {
                 const dateStr = e.date ? new Date(e.date.seconds * 1000).toLocaleDateString('pt-BR') : '';
                 return [
                     i + 1, dateStr, e.type || '', e.productName || '', e.productCodeRM || '',
                     e.quantity || 0, e.newTotal ?? '', e.nfNumber || e.details || '',
-                    e.supplier || '', e.observation || e.details || e.performedBy || ''
+                    e.supplier || '', e.performedBy || ''
                 ];
             });
 
-            const titleGreenStyle = { ...titleStyle, fill: { fgColor: { rgb: '006E2C' } }, border: { bottom: { style: 'medium', color: { rgb: '004D1A' } } } };
+            const titleGreenStyle = { ...titleStyle, fill: { fgColor: { rgb: '059669' } }, border: { bottom: { style: 'medium', color: { rgb: '047857' } } } };
             const wsEnt = XLS.utils.aoa_to_sheet([
                 ['REGISTRO DE ENTRADAS — UHE ESTRELA'],
                 [`Gerado em ${today} às ${hora} | Total de registros: ${entradas.length}`],
@@ -4782,7 +4881,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 ...entradaRows
             ]);
             wsEnt['!cols'] = [
-                { wch: 5 }, { wch: 12 }, { wch: 18 }, { wch: 42 }, { wch: 14 },
+                { wch: 5 }, { wch: 12 }, { wch: 18 }, { wch: 36 }, { wch: 14 },
                 { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 28 }, { wch: 20 }
             ];
             wsEnt['!merges'] = [
@@ -4790,6 +4889,8 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 { s: { r: 1, c: 0 }, e: { r: 1, c: 9 } }
             ];
             wsEnt['!rows'] = [{ hpt: 32 }, { hpt: 20 }, { hpt: 8 }, { hpt: 28 }];
+            wsEnt['!freeze'] = { xSplit: 0, ySplit: 4 };
+            
             wsEnt['A1'].s = titleGreenStyle;
             wsEnt['A2'].s = subtitleStyle;
             for (let c = 0; c < entradaHeaders.length; c++) {
@@ -4799,13 +4900,13 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             applyStyles(wsEnt, 4, entradaRows.length, entradaHeaders.length, (r, c, v) => {
                 const isEven = r % 2 === 1;
                 if (c === 5) return isEven ? qtyGreenEven : qtyGreen;
-                if (c === 0 || c === 1 || c === 6) return isEven ? cellEvenGreenCenter : cellCenter;
+                if (c === 0 || c === 1 || c === 6) return isEven ? cellEvenGreenCenter : cellEvenGreenCenter;
                 return isEven ? cellEvenGreen : cellBase;
             });
             XLS.utils.book_append_sheet(wb, wsEnt, 'Entradas');
 
             // ─────────────────────────────────────────────
-            // ABA 3: SAÍDAS (dados reais do app — history filtrado)
+            // ABA 3: SAÍDAS (histórico completo)
             // ─────────────────────────────────────────────
             const saidas = history
                 .filter(h => ['Saída', 'Saída por Requisição', 'Ajuste Saída'].includes(h.type))
@@ -4821,7 +4922,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 ];
             });
 
-            const titleRedStyle = { ...titleStyle, fill: { fgColor: { rgb: 'BA1A1A' } }, border: { bottom: { style: 'medium', color: { rgb: '8A0000' } } } };
+            const titleRedStyle = { ...titleStyle, fill: { fgColor: { rgb: 'DC2626' } }, border: { bottom: { style: 'medium', color: { rgb: 'B91C1C' } } } };
             const wsSai = XLS.utils.aoa_to_sheet([
                 ['REGISTRO DE SAÍDAS — UHE ESTRELA'],
                 [`Gerado em ${today} às ${hora} | Total de registros: ${saidas.length}`],
@@ -4830,14 +4931,16 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 ...saidaRows
             ]);
             wsSai['!cols'] = [
-                { wch: 5 }, { wch: 12 }, { wch: 42 }, { wch: 14 }, { wch: 12 },
-                { wch: 12 }, { wch: 22 }, { wch: 18 }, { wch: 28 }, { wch: 12 }, { wch: 20 }
+                { wch: 5 }, { wch: 12 }, { wch: 36 }, { wch: 14 }, { wch: 12 },
+                { wch: 12 }, { wch: 22 }, { wch: 18 }, { wch: 28 }, { wch: 15 }, { wch: 20 }
             ];
             wsSai['!merges'] = [
                 { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
                 { s: { r: 1, c: 0 }, e: { r: 1, c: 10 } }
             ];
             wsSai['!rows'] = [{ hpt: 32 }, { hpt: 20 }, { hpt: 8 }, { hpt: 28 }];
+            wsSai['!freeze'] = { xSplit: 0, ySplit: 4 };
+            
             wsSai['A1'].s = titleRedStyle;
             wsSai['A2'].s = subtitleStyle;
             for (let c = 0; c < saidaHeaders.length; c++) {
@@ -4847,14 +4950,100 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             applyStyles(wsSai, 4, saidaRows.length, saidaHeaders.length, (r, c, v) => {
                 const isEven = r % 2 === 1;
                 if (c === 4) return isEven ? qtyRedEven : qtyRed;
-                if (c === 0 || c === 1 || c === 5 || c === 9) return isEven ? cellEvenRedCenter : cellCenter;
+                if (c === 0 || c === 1 || c === 5 || c === 9) return isEven ? cellEvenRedCenter : cellEvenRedCenter;
                 return isEven ? cellEvenRed : cellBase;
             });
             XLS.utils.book_append_sheet(wb, wsSai, 'Saídas');
+
+            // ─────────────────────────────────────────────
+            // ABA 4: ANÁLISE & RELATÓRIO (Summary)
+            // ─────────────────────────────────────────────
+            const groupStats = {};
+            products.forEach(p => {
+                const group = p.group || 'Sem Grupo';
+                if (!groupStats[group]) groupStats[group] = { total: 0, low: 0, zero: 0, units: 0 };
+                groupStats[group].total++;
+                groupStats[group].units += p.quantity || 0;
+                if ((p.quantity || 0) === 0) groupStats[group].zero++;
+                else if ((p.quantity || 0) <= (p.minQuantity || 0)) groupStats[group].low++;
+            });
+
+            const groupAnalysisRows = Object.entries(groupStats).map(([group, stats]) => [
+                group,
+                stats.total,
+                stats.zero,
+                stats.low,
+                stats.total - stats.zero - stats.low,
+                stats.units
+            ]);
+
+            const analysisHeaders = ['Grupo de Produto', 'Total Produtos', 'Zerados', 'Em Falta', 'OK', 'Unidades'];
+            
+            const wsAnalysis = XLS.utils.aoa_to_sheet([
+                ['ANÁLISE & RELATÓRIO DE GESTÃO'],
+                [`Análise consolidada em ${today} às ${hora}`],
+                [],
+                ['RESUMO POR GRUPO DE PRODUTO'],
+                [],
+                analysisHeaders,
+                ...groupAnalysisRows,
+                [],
+                ['ALERTAS E RECOMENDAÇÕES'],
+                []
+            ]);
+
+            // Adicionar alertas
+            let alertRow = groupAnalysisRows.length + 10;
+            const alerts = [];
+            
+            if (zeroCount > 0) alerts.push(`⚠️ ${zeroCount} produto(s) com estoque ZERADO - Reposição crítica necessária`);
+            if (lowCount > 0) alerts.push(`⚠️ ${lowCount} produto(s) com estoque BAIXO - Verifique mínimos`);
+            if (lowCount + zeroCount === 0) alerts.push(`✅ Todos os produtos com estoque dentro dos limites`);
+            
+            alerts.forEach((alert, idx) => {
+                wsAnalysis[XLS.utils.encode_cell({ r: alertRow + idx, c: 0 })] = { v: alert };
+            });
+
+            wsAnalysis['!cols'] = [
+                { wch: 28 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 }
+            ];
+            wsAnalysis['!merges'] = [
+                { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
+                { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },
+                { s: { r: 3, c: 0 }, e: { r: 3, c: 5 } },
+                { s: { r: 9, c: 0 }, e: { r: 9, c: 5 } }
+            ];
+            wsAnalysis['!rows'] = [{ hpt: 32 }, { hpt: 20 }, { hpt: 8 }];
+            
+            wsAnalysis['A1'].s = { ...titleStyle, fill: { fgColor: { rgb: '7C3AED' } }, border: { bottom: { style: 'medium', color: { rgb: '6D28D9' } } } };
+            wsAnalysis['A2'].s = subtitleStyle;
+            wsAnalysis['A4'].s = { ...headerPurple, font: { bold: true, sz: 12 } };
+            wsAnalysis['A10'].s = { ...headerPurple, font: { bold: true, sz: 12 } };
+            
+            for (let c = 0; c < analysisHeaders.length; c++) {
+                const addr = XLS.utils.encode_cell({ r: 5, c });
+                if (wsAnalysis[addr]) wsAnalysis[addr].s = headerPurple;
+            }
+
+            for (let r = 0; r < groupAnalysisRows.length; r++) {
+                const isEven = r % 2 === 1;
+                for (let c = 0; c < 6; c++) {
+                    const addr = XLS.utils.encode_cell({ r: r + 6, c });
+                    if (wsAnalysis[addr]) {
+                        if (c === 1 || c === 5) {
+                            wsAnalysis[addr].s = isEven ? cellEvenPurpleCenter : cellEvenCenter;
+                        } else {
+                            wsAnalysis[addr].s = isEven ? cellEvenPurple : cellBase;
+                        }
+                    }
+                }
+            }
+
+            XLS.utils.book_append_sheet(wb, wsAnalysis, 'Análise');
 
             // ─── GERAR E BAIXAR ───
             const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 16);
             const filename = `Controle_Estoque_UHE_Estrela_${stamp}.xlsx`;
             XLS.writeFile(wb, filename);
-            showToast(`⭐ Planilha baixada: ${filename}`);
+            showToast(`✅ Planilha exportada com sucesso: ${filename}`);
         };
