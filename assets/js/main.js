@@ -348,6 +348,19 @@
         }
 
 
+        // --- Utilitários de Autenticação ---
+        const hashPassword = async (password) => {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(password);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            return hashHex;
+        };
+
+        const normalizeUserId = (username) =>
+            username.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+
         // --- Funções de UI ---
         const showLoader = (show) => {
             loaderOverlay.style.opacity = show ? '1' : '0';
@@ -2338,6 +2351,8 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             const obraId = loginObraSelect.value;
             loginError.classList.add('hidden');
 
+            console.log('Tentando login:', { username, obraId });
+
             if (!username || !password) {
                 loginError.textContent = 'Preencha o nome de usuário e a senha.';
                 loginError.classList.remove('hidden');
@@ -2347,33 +2362,43 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             loginBtn.disabled = true;
             loginBtn.textContent = 'Verificando...';
 
-            const hash = await hashPassword(password);
-            const userId = normalizeUserId(username);
-
-            // 1. Verificar credenciais hardcoded (funciona sem internet)
-            const BUILTIN_USERS = {
-                'uhe_estrela': { displayName: 'UHE ESTRELA', role: 'admin', pwd: '60218' },
-                'pch_taboca': { displayName: 'PCH TABOCA', role: 'admin', pwd: '60218' }
-            };
-            const builtin = BUILTIN_USERS[userId];
-            if (builtin) {
-                const expectedHash = await hashPassword(builtin.pwd);
-                if (hash === expectedHash) {
-                    const appUser = { uid: userId, displayName: builtin.displayName, role: builtin.role, obraId: obraId };
-                    localStorage.setItem('appUser', JSON.stringify(appUser));
-                    initializeAppSession(appUser, obraId);
-                    return;
-                } else {
-                    loginError.textContent = 'Senha incorreta.';
-                    loginError.classList.remove('hidden');
-                    loginBtn.disabled = false;
-                    loginBtn.textContent = 'Entrar';
-                    return;
-                }
-            }
-
-            // 2. Verificar no Firestore para outros usuários
             try {
+                const hash = await hashPassword(password);
+                const userId = normalizeUserId(username);
+
+                console.log('UserId normalizado:', userId);
+
+                // 1. Verificar credenciais hardcoded (funciona sem internet)
+                const BUILTIN_USERS = {
+                    'uhe_estrela': { displayName: 'UHE ESTRELA', role: 'admin', pwd: '60218' },
+                    'pch_taboca': { displayName: 'PCH TABOCA', role: 'admin', pwd: '60218' }
+                };
+                const builtin = BUILTIN_USERS[userId];
+                console.log('Usuário encontrado em BUILTIN_USERS:', !!builtin);
+
+                if (builtin) {
+                    const expectedHash = await hashPassword(builtin.pwd);
+                    console.log('Hash da senha:', hash.substring(0, 10) + '...');
+                    console.log('Hash esperado:', expectedHash.substring(0, 10) + '...');
+                    console.log('Hashes conferem:', hash === expectedHash);
+
+                    if (hash === expectedHash) {
+                        const appUser = { uid: userId, displayName: builtin.displayName, role: builtin.role, obraId: obraId };
+                        localStorage.setItem('appUser', JSON.stringify(appUser));
+                        console.log('Iniciando sessão para:', appUser);
+                        initializeAppSession(appUser, obraId);
+                        return;
+                    } else {
+                        loginError.textContent = 'Senha incorreta.';
+                        loginError.classList.remove('hidden');
+                        loginBtn.disabled = false;
+                        loginBtn.textContent = 'Entrar';
+                        return;
+                    }
+                }
+
+                // 2. Verificar no Firestore para outros usuários
+                console.log('Buscando usuário no Firestore...');
                 const userRef = doc(db, `/artifacts/${appId}/public/data/users`, userId);
                 const userDoc = await getDoc(userRef);
                 if (userDoc.exists() && userDoc.data().passwordHash === hash) {
@@ -2388,8 +2413,8 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                     loginBtn.textContent = 'Entrar';
                 }
             } catch (e) {
-                console.error('Erro ao verificar usuário no Firestore:', e);
-                loginError.textContent = 'Usuário não encontrado.';
+                console.error('Erro no login:', e);
+                loginError.textContent = 'Erro ao fazer login: ' + e.message;
                 loginError.classList.remove('hidden');
                 loginBtn.disabled = false;
                 loginBtn.textContent = 'Entrar';
