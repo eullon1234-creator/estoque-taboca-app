@@ -2402,13 +2402,14 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
 
             // 2. Verificar no Firestore para outros usuários
             try {
+                const obraId = loginObraSelect.value;
                 const userRef = doc(db, `/artifacts/${appId}/public/data/users`, userId);
                 const userDoc = await getDoc(userRef);
                 if (userDoc.exists() && userDoc.data().passwordHash === hash) {
                     const data = userDoc.data();
                     const appUser = { uid: userId, displayName: data.displayName || data.username || username, role: data.role || 'operador', obraId: obraId };
                     localStorage.setItem('appUser', JSON.stringify(appUser));
-                    initializeAppSession(appUser, obraId);
+                    initializeAppSession(appUser);
                 } else {
                     loginError.textContent = userDoc.exists() ? 'Senha incorreta.' : 'Usuário não encontrado.';
                     loginError.classList.remove('hidden');
