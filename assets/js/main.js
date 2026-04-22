@@ -44,6 +44,7 @@
         // 🔐 Sistema de Autenticação e Permissões
         let currentUser = null;
         let userRole = null; // 'admin', 'operador', 'visualizador'
+        let currentObraId = null; // ID da obra selecionada para multi-tenancy
         let isAuthInitialized = false; // Flag para controlar inicialização
         
         // 🚀 Paginação para Performance
@@ -100,6 +101,7 @@
         const addLocationForm = document.getElementById('add-location-form');
         const loginUsernameInput = document.getElementById('login-username');
         const loginPasswordInput = document.getElementById('login-password');
+        const loginObraSelect = document.getElementById('login-obra');
         const loginBtn = document.getElementById('login-btn');
         const loginError = document.getElementById('login-error');
         const logoutBtn = document.getElementById('logout-btn');
@@ -509,25 +511,17 @@
                 logoContainer.innerHTML = `<img src="${appSettings.logoUrl}" alt="Logo">`;
                 logoContainer.className = 'p-0 rounded-lg shadow-lg flex items-center justify-center';
             } else {
-                logoContainer.innerHTML = `<svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4M4 7l8 4.5 8-4.5M12 12l8 4.5"></path></svg>`;
-                logoContainer.className = 'bg-gradient-to-br from-indigo-600 to-indigo-700 p-3 rounded-xl shadow-lg shadow-indigo-500/20 flex items-center justify-center h-12 w-12';
+                logoContainer.innerHTML = `<span class="material-symbols-outlined text-white" style="font-size:22px;">inventory_2</span>`;
+                logoContainer.className = 'p-2.5 rounded-xl flex items-center justify-center h-11 w-11';
+                logoContainer.style.background = 'linear-gradient(135deg, #0066FF, #4F46E5)';
+                logoContainer.style.boxShadow = '0 4px 12px rgba(0,102,255,0.3)';
             }
         };
 
-        // --- Utilitários de Autenticação ---
-        const hashPassword = async (password) => {
-            const encoder = new TextEncoder();
-            const data = encoder.encode(password);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-            return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-        };
-
-        const normalizeUserId = (username) =>
-            username.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-
-        const initializeAppSession = (customUser) => {
+        const initializeAppSession = async (customUser, obraId) => {
             currentUser = customUser;
             userRole = customUser.role;
+            currentObraId = obraId || 'uhe_estrela';
             if (loginBtn) loginBtn.disabled = false;
 
             // Determinar base de dados conforme a obra do usuário
@@ -568,7 +562,6 @@
             if (appTitleEl) appTitleEl.textContent = obraDisplayName;
             if (sidebarAppTitleEl) sidebarAppTitleEl.textContent = obraDisplayName;
 
-            // Avatar com iniciais
             const initials = customUser.displayName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
             const roleLabels = {
                 admin: { text: 'Administrador', color: '#6600cc' },
@@ -586,7 +579,6 @@
                     </div>
                 </div>`;
 
-            // Sidebar footer
             const sidebarName = document.getElementById('sidebar-user-name');
             const sidebarRole = document.getElementById('sidebar-user-role');
             const sidebarAvatar = document.getElementById('sidebar-avatar');
@@ -611,7 +603,8 @@
         if (savedSession) {
             try {
                 const customUser = JSON.parse(savedSession);
-                initializeAppSession(customUser);
+                const obraId = customUser.obraId || 'uhe_estrela';
+                initializeAppSession(customUser, obraId);
             } catch(e) {
                 localStorage.removeItem('appUser');
             }
@@ -2372,6 +2365,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         const doLogin = async () => {
             const username = loginUsernameInput.value.trim().toUpperCase();
             const password = loginPasswordInput.value;
+            const obraId = loginObraSelect.value;
             loginError.classList.add('hidden');
 
             if (!username || !password) {
@@ -2414,9 +2408,9 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 const userDoc = await getDoc(userRef);
                 if (userDoc.exists() && userDoc.data().passwordHash === hash) {
                     const data = userDoc.data();
-                    const appUser = { uid: userId, displayName: data.displayName || data.username || username, role: data.role || 'operador' };
+                    const appUser = { uid: userId, displayName: data.displayName || data.username || username, role: data.role || 'operador', obraId: obraId };
                     localStorage.setItem('appUser', JSON.stringify(appUser));
-                    initializeAppSession(appUser);
+                    initializeAppSession(appUser, obraId);
                 } else {
                     loginError.textContent = userDoc.exists() ? 'Senha incorreta.' : 'Usuário não encontrado.';
                     loginError.classList.remove('hidden');
