@@ -10,8 +10,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <link rel="stylesheet" href="assets/css/tailwind.css?v=1.7.1">
-    <link rel="stylesheet" href="assets/css/main.css?v=1.7.1">
+    <link rel="stylesheet" href="assets/css/tailwind.css?v=1.7.3">
+    <link rel="stylesheet" href="assets/css/main.css?v=1.7.3">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0066FF">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -212,14 +212,14 @@
                             <div class="relative flex-grow">
                                 <input type="text" id="search-input" placeholder="Buscar por nome ou código..." class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition duration-200">
                             </div>
-                           <button id="ai-describe-btn" class="bg-yellow-400 text-yellow-900 font-semibold px-4 py-3 rounded-lg hover:bg-yellow-500 transition flex items-center gap-2 hidden shadow-sm" title="Ver descrição do material com IA">
+                           <button id="ai-describe-btn" class="bg-yellow-400 text-yellow-900 font-semibold px-4 py-3 rounded-lg hover:bg-yellow-500 transition items-center gap-2 hidden shadow-sm" title="Ver descrição do material com IA">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
                             </button>
-                            <button id="initiate-requisition-btn" class="bg-blue-500 text-white font-semibold px-4 py-3 rounded-lg hover:bg-blue-600 transition flex items-center gap-2 hidden shadow-sm">
+                            <button id="initiate-requisition-btn" class="bg-blue-500 text-white font-semibold px-4 py-3 rounded-lg hover:bg-blue-600 transition items-center gap-2 hidden shadow-sm">
                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
                                <span>Iniciar Req.</span>
                             </button>
-                            <button id="delete-selected-btn" class="bg-red-500 text-white font-semibold px-4 py-3 rounded-lg hover:bg-red-600 transition flex items-center gap-2 hidden shadow-sm">
+                            <button id="delete-selected-btn" class="bg-red-500 text-white font-semibold px-4 py-3 rounded-lg hover:bg-red-600 transition items-center gap-2 hidden shadow-sm">
                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                <span>Excluir</span>
                             </button>
@@ -939,10 +939,10 @@
     </div> <!-- Fim do app-container -->
 
     <footer class="text-center text-sm text-slate-500 py-4 mt-12">
-        Criado por Eullon — <span style="font-weight:600; color:#9ca3af;">v1.7.1</span>
+        Criado por Eullon — <span style="font-weight:600; color:#9ca3af;">v1.7.3</span>
     </footer>
 
-    <script type="module" src="assets/js/main.js?v=1.7.1"></script>
+    <script type="module" src="assets/js/main.js?v=1.7.3"></script>
 
     <script>
         // Registrar Service Worker (PWA)

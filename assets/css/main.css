@@ -183,7 +183,7 @@ body {
     .modal form > div.mt-8, 
     .modal div.mt-8 {
         position: sticky !important;
-        bottom: -20px !important;
+        bottom: 0 !important;
         left: 0;
         right: 0;
         background: white !important;
