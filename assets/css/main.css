@@ -172,10 +172,30 @@ body {
 }
 @media (max-width: 767px) {
     .modal { 
-        width: calc(100% - 1.5rem); 
-        max-height: calc(100vh - 120px); /* Garante espaço para o bottom nav */
-        bottom: 80px; /* Sobe o modal para não ficar atrás da barra */
+        width: 96% !important; 
+        max-height: 88vh !important;
+        top: 48% !important;
+        bottom: auto !important;
     }
+    .modal > form, .modal > div:nth-of-type(1) { 
+        padding-bottom: 80px !important; 
+    }
+    .modal form > div.mt-8, 
+    .modal div.mt-8 {
+        position: sticky !important;
+        bottom: -20px !important;
+        left: 0;
+        right: 0;
+        background: white !important;
+        padding: 15px !important;
+        margin: 0 -15px !important;
+        border-top: 1px solid #eee;
+        z-index: 10;
+        display: flex !important;
+        justify-content: center !important;
+        gap: 10px !important;
+    }
+}
     .modal > form, .modal > div:nth-of-type(1) { 
         padding-bottom: 2rem; 
     }
@@ -605,4 +625,5 @@ input:focus, select:focus, textarea:focus {
     border: none;
     box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
 }
+
 
