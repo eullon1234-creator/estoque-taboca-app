@@ -603,8 +603,7 @@
         if (savedSession) {
             try {
                 const customUser = JSON.parse(savedSession);
-                const obraId = customUser.obraId || 'uhe_estrela';
-                initializeAppSession(customUser, obraId);
+                initializeAppSession(customUser);
             } catch(e) {
                 localStorage.removeItem('appUser');
             }
@@ -2365,7 +2364,6 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         const doLogin = async () => {
             const username = loginUsernameInput.value.trim().toUpperCase();
             const password = loginPasswordInput.value;
-            const obraId = loginObraSelect.value;
             loginError.classList.add('hidden');
 
             if (!username || !password) {
