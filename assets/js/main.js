@@ -595,6 +595,17 @@
 
             updateUIBasedOnPermissions();
             setupListeners();
+            
+            // 🔒 Timeout de segurança para garantir carregamento
+            setTimeout(() => {
+                if (!isDataLoaded) {
+                    isDataLoaded = true;
+                    showLoader(false);
+                    showProductsSkeleton(false);
+                    console.warn('⚠️ Carregamento com timeout: dados podem estar vazios');
+                }
+            }, 5000);
+            
             isAuthInitialized = true;
         };
 
@@ -707,7 +718,15 @@
                 } else {
                     renderLocations();
                 }
-            }, (error) => handleFirestoreError(error, 'locais')));
+            }, (error) => {
+                console.error('Erro ao buscar locais:', error);
+                if (!isDataLoaded) {
+                    isDataLoaded = true;
+                    showLoader(false);
+                    showProductsSkeleton(false);
+                }
+                handleFirestoreError(error, 'locais');
+            }));
         }
 
         function startEstrelaListeners() {
@@ -2402,12 +2421,12 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
 
             // 2. Verificar no Firestore para outros usuários
             try {
-                const obraId = loginObraSelect.value;
+                const selectedObraId = loginObraSelect.value;
                 const userRef = doc(db, `/artifacts/${appId}/public/data/users`, userId);
                 const userDoc = await getDoc(userRef);
                 if (userDoc.exists() && userDoc.data().passwordHash === hash) {
                     const data = userDoc.data();
-                    const appUser = { uid: userId, displayName: data.displayName || data.username || username, role: data.role || 'operador', obraId: obraId };
+                    const appUser = { uid: userId, displayName: data.displayName || data.username || username, role: data.role || 'operador', obraId: selectedObraId };
                     localStorage.setItem('appUser', JSON.stringify(appUser));
                     initializeAppSession(appUser);
                 } else {
