@@ -531,13 +531,13 @@
             }
         };
 
-        const initializeAppSession = async (customUser, obraId) => {
+        const initializeAppSession = async (customUser) => {
             currentUser = customUser;
             userRole = customUser.role;
-            currentObraId = obraId || 'uhe_estrela';
+            currentObraId = customUser.obraId || 'uhe_estrela';
             if (loginBtn) loginBtn.disabled = false;
 
-            // Determinar base de dados conforme a obra do usuário
+            // Determinar base de dados - Simplificado para priorizar a base principal
             const obraId = customUser.obraId || 'uhe_estrela';
             const obraBase = obraId === 'uhe_estrela'
                 ? `/artifacts/${appId}/public/data`
@@ -575,7 +575,7 @@
             if (appTitleEl) appTitleEl.textContent = obraDisplayName;
             if (sidebarAppTitleEl) sidebarAppTitleEl.textContent = obraDisplayName;
 
-            const initials = customUser.displayName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+            const initials = customUser.displayName ? customUser.displayName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() : '??';
             const roleLabels = {
                 admin: { text: 'Administrador', color: '#6600cc' },
                 operador: { text: 'Operador', color: '#005bbf' },
@@ -635,15 +635,15 @@
 
         const handleFirestoreError = (error, dataType) => {
             console.error(`Erro ao buscar ${dataType}:`, error);
+            showLoader(false); // 🚀 Forçar saída do loader em caso de erro
 
             let errorMessage = '';
             switch (error.code) {
                 case 'permission-denied':
-                    errorMessage = `🔒 Sem permissão para acessar ${dataType}. Configure as regras do Firebase.`;
-                    authStatusDiv.innerHTML = `<p class="text-sm text-red-600 font-semibold">Sem Permissão</p><p class="text-xs text-slate-400">Verifique Firebase</p>`;
+                    errorMessage = `🔒 Sem permissão para acessar ${dataType}.`;
                     break;
                 case 'unavailable':
-                    errorMessage = `📡 Servidor indisponível. Verifique sua conexão.`;
+                    errorMessage = `📡 Servidor indisponível. Verifique a conexão.`;
                     break;
                 case 'not-found':
                     errorMessage = `❓ Coleção de ${dataType} não encontrada.`;
@@ -2396,7 +2396,8 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         const doLogin = async () => {
             const username = loginUsernameInput.value.trim().toUpperCase();
             const password = loginPasswordInput.value;
-            const selectedObraId = loginObraSelect.value;
+            // Pega o valor do input hidden (ou select se ainda existir)
+            const selectedObraId = loginObraSelect ? loginObraSelect.value : 'uhe_estrela';
             loginError.classList.add('hidden');
 
             console.log('Tentando login:', { username, selectedObraId });
@@ -2416,7 +2417,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
 
                 console.log('UserId normalizado:', userId);
 
-                // 1. Verificar credenciais hardcoded (funciona sem internet)
+                // 1. Verificar credenciais hardcoded
                 const BUILTIN_USERS = {
                     'uhe_estrela': { displayName: 'UHE ESTRELA', role: 'admin', pwd: '60218', obraId: 'uhe_estrela' },
                     'pch_taboca': { displayName: 'PCH TABOCA', role: 'admin', pwd: '60218', obraId: 'pch_taboca' }
