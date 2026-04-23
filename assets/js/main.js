@@ -92,8 +92,6 @@
         const createRequisitionBtn = document.getElementById('create-requisition-btn');
         const requisitionsList = document.getElementById('requisitions-list');
         const noRequisitionsMessage = document.getElementById('no-requisitions-message');
-        const exitForm = document.getElementById('exit-form');
-        const micBtn = document.getElementById('mic-btn');
         const printSelectedReqsBtn = document.getElementById('print-selected-reqs-btn');
         const generateExitReportBtn = document.getElementById('generate-exit-report-btn');
         const generateConsumptionReportBtn = document.getElementById('generate-consumption-report-btn');
@@ -125,8 +123,6 @@
         const noRmMessage = document.getElementById('no-rm-message');
         const importLocationsBtn = document.getElementById('import-locations-btn');
         const csvLocationsFileInput = document.getElementById('csv-locations-file-input');
-        const aiExitPrompt = document.getElementById('ai-exit-prompt');
-
         // --- Mapeamento de Unidades ---
         const unitMap = {
             'pc': 'Peça', 'pç': 'Peça',
@@ -2083,29 +2079,6 @@
         };
 
 
-        const renderExitView = () => {
-            const productSelect = document.getElementById('exit-product-select');
-            const locationDatalist = document.getElementById('location-datalist');
-            
-            const sortedProducts = [...products].sort((a, b) => a.name.localeCompare(b.name));
-            productSelect.innerHTML = '<option value="">Selecione um produto...</option>';
-            sortedProducts.forEach(p => {
-                const option = document.createElement('option');
-                option.value = p.id;
-                option.textContent = `${p.name} (${p.codeRM || p.code}) - Estoque: ${p.quantity}`;
-                productSelect.appendChild(option);
-            });
-
-            const sortedLocations = [...locations].sort((a, b) => a.name.localeCompare(b.name));
-            locationDatalist.innerHTML = '';
-            sortedLocations.forEach(l => {
-                const option = document.createElement('option');
-                option.value = l.name;
-                option.textContent = l.code ? `${l.name} (${l.code})` : l.name;
-                locationDatalist.appendChild(option);
-            });
-        };
-
         const renderComprasView = (periodDays = 15) => {
             const now = Date.now();
             const cutoff = now - periodDays * 864e5;
@@ -2324,7 +2297,6 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             if (viewId === 'exit-log-view') renderExitLog(exitsSearchInput.value);
             if (viewId === 'rm-view') renderRMView(rmSearchInput.value); 
             if (viewId === 'dashboard-view') updateDashboard();
-            if (viewId === 'exit-view') renderExitView();
             if (viewId === 'compras-view') {
                 const sel = document.getElementById('compras-period-select');
                 renderComprasView(sel ? parseInt(sel.value) : 15);
@@ -2389,41 +2361,6 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             }
             document.body.removeChild(textArea);
         };
-
-        // --- Speech Recognition ---
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        let recognition;
-        if (SpeechRecognition) {
-            recognition = new SpeechRecognition();
-            recognition.continuous = false;
-            recognition.lang = 'pt-BR';
-            recognition.interimResults = false;
-            recognition.maxAlternatives = 1;
-
-            recognition.onresult = (event) => {
-                const transcript = event.results[0][0].transcript;
-                aiExitPrompt.value = transcript;
-                aiExitPrompt.dispatchEvent(new Event('change'));
-            };
-
-            recognition.onspeechend = () => {
-                recognition.stop();
-                micBtn.classList.remove('is-listening');
-                document.getElementById('mic-status').textContent = 'Clique no microfone para falar';
-            };
-
-            recognition.onerror = (event) => {
-                micBtn.classList.remove('is-listening');
-                document.getElementById('mic-status').textContent = 'Clique no microfone para falar';
-                if (event.error !== 'no-speech') {
-                    showToast(`Erro no reconhecimento de voz: ${event.error}`, true);
-                }
-            };
-        } else {
-            micBtn.style.display = 'none';
-            document.getElementById('mic-status').textContent = 'Reconhecimento de voz não suportado.';
-        }
-
 
         // --- Bottom Nav + Drawer ---
         const openDrawer = () => {
@@ -2574,17 +2511,6 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             renderProducts();
         });
         
-        micBtn.addEventListener('click', () => {
-            if (!recognition) return;
-            if (micBtn.classList.contains('is-listening')) {
-                recognition.stop();
-            } else {
-                recognition.start();
-                micBtn.classList.add('is-listening');
-                document.getElementById('mic-status').textContent = 'Ouvindo...';
-            }
-        });
-
         productList.addEventListener('click', async (e) => {
             const button = e.target.closest('button');
             if (button) {
@@ -3077,71 +3003,6 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 } finally {
                     button.disabled = false;
                     button.textContent = 'Confirmar Entrada';
-                }
-            }
-            if (e.target.id === 'exit-form') {
-                e.preventDefault();
-                const productId = document.getElementById('exit-product-select').value;
-                const quantity = parseInt(document.getElementById('exit-quantity').value);
-                const withdrawnBy = document.getElementById('exit-withdrawn-by').value.trim();
-                const obra = document.getElementById('exit-obra').value;
-                const applicationLocation = document.getElementById('exit-application-location').value.trim();
-
-                if (!productId || !withdrawnBy || !applicationLocation || isNaN(quantity) || quantity <= 0) {
-                    showToast("Por favor, preencha todos os campos corretamente.", true);
-                    return;
-                }
-                
-                const button = e.target.querySelector('button[type="submit"]');
-                button.disabled = true;
-                button.innerHTML = `<div class="spinner-small"></div>`;
-
-                const productRef = doc(productsCollectionRef, productId);
-                try {
-                    let productDataForHistory = null;
-                    await runTransaction(db, async (transaction) => {
-                        const productDoc = await transaction.get(productRef);
-                        if (!productDoc.exists()) {
-                            throw new Error("Produto não encontrado.");
-                        }
-                        productDataForHistory = productDoc.data();
-                        const currentQuantity = productDataForHistory.quantity;
-                        if (currentQuantity < quantity) {
-                            throw new Error(`Estoque insuficiente. Disponível: ${currentQuantity}`);
-                        }
-                        const newQuantity = currentQuantity - quantity;
-                        transaction.update(productRef, { quantity: newQuantity });
-                        
-                        const historyRef = doc(historyCollectionRef);
-                        transaction.set(historyRef, {
-                            productId,
-                            productCode: productDataForHistory.code,
-                            productCodeRM: productDataForHistory.codeRM,
-                            productName: productDataForHistory.name,
-                            type: 'Saída',
-                            quantity: quantity,
-                            newTotal: newQuantity,
-                            withdrawnBy,
-                            obra,
-                            applicationLocation,
-                            teamLeader: null,
-                            details: 'Saída manual',
-                            rmProcessed: false,
-                            date: serverTimestamp()
-                        });
-                    });
-
-                    showToast("Saída registrada com sucesso!");
-                    e.target.reset();
-                    document.getElementById('ai-exit-prompt').value = '';
-                    document.getElementById('exit-product-select').value = '';
-
-                } catch (error) {
-                    console.error("Erro ao registrar saída: ", error);
-                    showToast(`Falha ao registrar saída: ${error.message}`, true);
-                } finally {
-                    button.disabled = false;
-                    button.textContent = 'Confirmar Saída';
                 }
             }
         });
@@ -4058,77 +3919,6 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 };
             } else {
                 descriptionContainer.innerHTML = `<p class="text-red-600 bg-red-50 p-4 rounded-lg border border-red-200">Não foi possível obter a descrição. Tente novamente.</p>`;
-            }
-        });
-
-        aiExitPrompt.addEventListener('change', async (e) => {
-            const promptText = e.target.value.trim();
-            if (!promptText) return;
-
-            showToast("Analisando com assistente de IA...");
-            const productNames = products.map(p => `"${p.name}" (código RM: ${p.codeRM})`).join(', ');
-            const locationNames = locations.map(l => `"${l.name}" (apelidos: ${(l.aliases || []).join(', ')})`).join(', ');
-
-            const jsonSchema = {
-                type: "OBJECT",
-                properties: {
-                    "productName": { "type": "STRING" },
-                    "quantity": { "type": "NUMBER" },
-                    "withdrawnBy": { "type": "STRING" },
-                    "applicationLocation": { "type": "STRING" },
-                    "obra": { "type": "STRING", "enum": ["TABOCA", "ESTRELA"] }
-                },
-                required: ["productName", "quantity", "withdrawnBy", "applicationLocation"]
-            };
-            
-            const systemPrompt = `Você é um assistente de almoxarifado. Sua tarefa é extrair informações de uma frase e preencher um formulário em formato JSON.
-            A frase descreve a retirada de um material. Você deve identificar o nome do produto, a quantidade, quem está retirando e onde o material será aplicado.
-            
-            Lista de produtos disponíveis: ${productNames}.
-            Lista de locais de aplicação disponíveis: ${locationNames}.
-            
-            Selecione o produto e o local mais provável da lista. Se a obra for mencionada como 'estrela', use "ESTRELA", caso contrário, o padrão é "TABOCA".
-            Responda APENAS com o JSON.`;
-             const fullPrompt = `${systemPrompt}\n\nFrase do usuário: "${promptText}"`
-
-            const config = {
-                generationConfig: {
-                    responseMimeType: "application/json",
-                }
-            };
-
-            const resultJsonString = await callGeminiAPI(fullPrompt, 'gemini-1.5-flash', config);
-            
-            if (resultJsonString) {
-                try {
-                    const result = JSON.parse(resultJsonString.replace(/```json\n?|\n?```/g, ''));
-                    
-                    const foundProduct = products.find(p => p.name.toLowerCase() === result.productName?.toLowerCase() || p.codeRM === result.productName);
-                    if (foundProduct) {
-                        document.getElementById('exit-product-select').value = foundProduct.id;
-                    } else {
-                        showToast(`Produto "${result.productName}" não encontrado.`, true);
-                    }
-
-                    const foundLocation = locations.find(l => l.name.toLowerCase() === result.applicationLocation?.toLowerCase() || (l.aliases && l.aliases.some(a => a.toLowerCase() === result.applicationLocation?.toLowerCase())));
-                    if (foundLocation) {
-                        document.getElementById('exit-application-location').value = foundLocation.name;
-                    } else {
-                        document.getElementById('exit-application-location').value = result.applicationLocation || '';
-                        showToast(`Local "${result.applicationLocation}" não cadastrado, mas foi preenchido.`, false);
-                    }
-
-                    document.getElementById('exit-quantity').value = result.quantity || '';
-                    document.getElementById('exit-withdrawn-by').value = result.withdrawnBy || '';
-                    if (result.obra) {
-                        document.getElementById('exit-obra').value = result.obra;
-                    }
-                    
-                    showToast("Formulário preenchido pela IA. Verifique os dados.", false);
-                } catch (error) {
-                    console.error("Error parsing AI response:", error, "Response was:", resultJsonString);
-                    showToast("Não foi possível entender o pedido. Tente ser mais específico.", true);
-                }
             }
         });
 
