@@ -33,6 +33,7 @@
         let usersCollectionRef;
         let inventoryFilter = 'all';
         let inventorySortOrder = 'default';
+        let inventoryLocationFilter = 'all';
         let isDataLoaded = false;
         let currentAudio = null;
         let selectedProductIds = new Set();
@@ -79,6 +80,7 @@
         const exitsSearchInput = document.getElementById('exits-search-input');
         const noExitsMessage = document.getElementById('no-exits-message');
         const sortOrderSelect = document.getElementById('sort-order');
+        const locationFilterSelect = document.getElementById('location-filter');
         const addForm = document.getElementById('add-product-form');
         const importBtn = document.getElementById('import-btn');
         const exportBtn = document.getElementById('export-btn');
@@ -1171,17 +1173,44 @@
         };
 
         // --- Funções de Renderização ---
+        const populateLocationFilter = () => {
+            if (!locationFilterSelect) return;
+            const uniqueLocations = [...new Set(
+                products
+                    .map(p => (p.location || '').trim())
+                    .filter(loc => loc.length > 0)
+            )].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+            const previousValue = inventoryLocationFilter;
+            const stillExists = previousValue === 'all' || uniqueLocations.includes(previousValue);
+
+            locationFilterSelect.innerHTML = '<option value="all">Todas as localizações</option>' +
+                uniqueLocations.map(loc => `<option value="${loc.replace(/"/g, '&quot;')}">${loc}</option>`).join('');
+
+            if (stillExists) {
+                locationFilterSelect.value = previousValue;
+            } else {
+                inventoryLocationFilter = 'all';
+                locationFilterSelect.value = 'all';
+            }
+        };
+
         const renderProducts = () => {
+            populateLocationFilter();
             const filterText = searchInput.value.toLowerCase();
             let processedProducts = [...products]; 
             if (inventoryFilter === 'low_stock') {
                 processedProducts = processedProducts.filter(p => p.quantity <= p.minQuantity);
             }
+            if (inventoryLocationFilter && inventoryLocationFilter !== 'all') {
+                processedProducts = processedProducts.filter(p => (p.location || '').trim() === inventoryLocationFilter);
+            }
             if (filterText) {
                 processedProducts = processedProducts.filter(p =>
                     (p.name && p.name.toLowerCase().includes(filterText)) || 
                     (p.code && p.code.toLowerCase().includes(filterText)) ||
-                    (p.codeRM && p.codeRM.toLowerCase().includes(filterText))
+                    (p.codeRM && p.codeRM.toLowerCase().includes(filterText)) ||
+                    (p.location && p.location.toLowerCase().includes(filterText))
                 );
             }
             if (inventorySortOrder === 'name_asc') processedProducts.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -2510,6 +2539,13 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             currentPage = 1; // 🚀 Resetar para primeira página ao ordenar
             renderProducts();
         });
+        if (locationFilterSelect) {
+            locationFilterSelect.addEventListener('change', (e) => {
+                inventoryLocationFilter = e.target.value || 'all';
+                currentPage = 1;
+                renderProducts();
+            });
+        }
         
         productList.addEventListener('click', async (e) => {
             const button = e.target.closest('button');
