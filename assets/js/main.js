@@ -651,12 +651,12 @@
             showToast(errorMessage, true);
         };
 
-        const stopSnapshotGroup = (unsubscribers) => {
+        function stopSnapshotGroup(unsubscribers) {
             unsubscribers.forEach(unsub => {
                 try { if (typeof unsub === 'function') unsub(); } catch (_) {}
             });
             unsubscribers.length = 0;
-        };
+        }
 
         function stopCoreListeners() {
             stopSnapshotGroup(coreUnsubscribers);
