@@ -183,7 +183,7 @@
                                 <p id="sidebar-user-role" class="text-xs truncate" style="color:#6b7280;">—</p>
                             </div>
                         </div>
-                        <p class="text-center mt-2 mb-1" style="font-size:0.6rem; font-weight:600; color:#9ca3af; letter-spacing:0.08em;">v1.9.0</p>
+                        <p class="text-center mt-2 mb-1" style="font-size:0.6rem; font-weight:600; color:#9ca3af; letter-spacing:0.08em;">v1.9.1</p>
                     </div>
                 </nav>
             </aside>
@@ -537,32 +537,54 @@
                 </div>
         
                 <div id="compras-view" class="view-content hidden">
-                    <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+                    <!-- Cabeçalho + botões de ação -->
+                    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
                         <div>
                             <h2 class="text-2xl font-semibold text-slate-800">Sugestão de Compras</h2>
                             <p class="text-sm text-slate-500 mt-0.5">Análise automática com base no consumo do período selecionado</p>
                         </div>
-                        <div class="flex gap-2">
-                            <select id="compras-period-select" class="p-2 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-orange-400/50 focus:border-orange-400">
-                                <option value="7">Últimos 7 dias</option>
-                                <option value="15" selected>Últimos 15 dias</option>
-                                <option value="30">Últimos 30 dias</option>
-                                <option value="60">Últimos 60 dias</option>
-                                <option value="90">Últimos 90 dias</option>
-                            </select>
+                        <div class="flex gap-2 flex-shrink-0">
                             <button id="compras-excel-btn" class="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm text-white shadow-sm transition hover:opacity-90" style="background:#006e2c;">
                                 <span class="material-symbols-outlined" style="font-size:18px;">table_view</span>
-                                Baixar Excel
+                                <span class="hidden sm:inline">Baixar Excel</span>
                             </button>
                             <button id="compras-print-btn" class="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm text-white shadow-sm transition hover:opacity-90" style="background:#e65100;">
                                 <span class="material-symbols-outlined" style="font-size:18px;">print</span>
-                                Imprimir / Exportar
+                                <span class="hidden sm:inline">Imprimir</span>
                             </button>
                         </div>
                     </div>
 
+                    <!-- Linha de filtros e controles -->
+                    <div class="flex flex-wrap gap-2 mb-5 items-center">
+                        <!-- Busca por nome (#6) -->
+                        <div class="relative flex-1 min-w-[180px]">
+                            <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" style="font-size:18px;">search</span>
+                            <input id="compras-search" type="text" placeholder="Buscar material..." class="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/40 focus:border-orange-400">
+                        </div>
+                        <!-- Filtro por grupo (#5) -->
+                        <select id="compras-group-filter" class="py-2 px-3 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-orange-400/40">
+                            <option value="">Todos os grupos</option>
+                        </select>
+                        <!-- Período de análise -->
+                        <select id="compras-period-select" class="py-2 px-3 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-orange-400/40">
+                            <option value="7">Consumo: 7 dias</option>
+                            <option value="15" selected>Consumo: 15 dias</option>
+                            <option value="30">Consumo: 30 dias</option>
+                            <option value="60">Consumo: 60 dias</option>
+                            <option value="90">Consumo: 90 dias</option>
+                        </select>
+                        <!-- Cobertura alvo (#3) -->
+                        <select id="compras-coverage-select" class="py-2 px-3 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-orange-400/40">
+                            <option value="15">Cobrir 15 dias</option>
+                            <option value="30" selected>Cobrir 30 dias</option>
+                            <option value="45">Cobrir 45 dias</option>
+                            <option value="60">Cobrir 60 dias</option>
+                        </select>
+                    </div>
+
                     <!-- Cards de resumo -->
-                    <div id="compras-summary" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"></div>
+                    <div id="compras-summary" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5"></div>
 
                     <!-- Filtro de status -->
                     <div class="flex gap-2 mb-4 flex-wrap">
@@ -579,6 +601,8 @@
                             <button data-filter="monitorar" class="compras-filter-btn px-3 py-1.5 rounded-full text-xs font-bold transition border" style="background:#f3f4f5; color:#414754; border-color:#c1c6d6;">🔵 Monitorar</button>
                             <span class="filter-tooltip">Estoque dentro do esperado — acompanhar consumo</span>
                         </span>
+                        <!-- Contador de resultados -->
+                        <span id="compras-count" class="ml-auto text-xs text-slate-400 self-center"></span>
                     </div>
 
                     <!-- Tabela -->
@@ -588,10 +612,12 @@
                                 <tr class="text-left text-xs uppercase tracking-wider" style="background:#f3f4f5; color:#727785;">
                                     <th class="px-4 py-3 rounded-tl-xl">Urgência</th>
                                     <th class="px-4 py-3">Material</th>
+                                    <th class="px-4 py-3">Grupo</th>
                                     <th class="px-4 py-3 text-center">Estoque Atual</th>
                                     <th class="px-4 py-3 text-center">Estoque Mín.</th>
                                     <th class="px-4 py-3 text-center">Consumo/Dia</th>
-                                    <th class="px-4 py-3 text-center">Dias Restantes</th>
+                                    <th class="px-4 py-3 text-center">Dias Rest.</th>
+                                    <th class="px-4 py-3 text-center">Último Mov.</th>
                                     <th class="px-4 py-3 text-center rounded-tr-xl">Qtd. Sugerida</th>
                                 </tr>
                             </thead>
@@ -599,7 +625,8 @@
                         </table>
                         <div id="no-compras-message" class="text-center py-16 text-slate-500 hidden">
                             <span class="material-symbols-outlined" style="font-size:48px; color:#c1c6d6;">check_circle</span>
-                            <p class="mt-2 font-medium">Nenhum item crítico encontrado</p>
+                            <p class="mt-2 font-medium">Nenhum item encontrado com os filtros atuais</p>
+                            <p class="text-xs mt-1 text-slate-400">Tente ajustar o período ou limpar os filtros</p>
                         </div>
                     </div>
                 </div>
@@ -943,7 +970,7 @@
     </div> <!-- Fim do app-container -->
 
     <footer class="text-center text-sm text-slate-500 py-4 mt-12">
-        Criado por Eullon — <span style="font-weight:600; color:#9ca3af;">v1.9.0</span>
+        Criado por Eullon — <span style="font-weight:600; color:#9ca3af;">v1.9.1</span>
     </footer>
 
     <script type="module" src="assets/js/main.js?v=1.9.0"></script>

@@ -2108,58 +2108,80 @@
 
         const renderComprasView = (periodDays = 15) => {
             const now = Date.now();
-            const periodMs = periodDays * 24 * 60 * 60 * 1000;
-            const cutoff = now - periodMs;
+            const cutoff = now - periodDays * 864e5;
 
-            // Calcular consumo por produto no período
+            // ── #3: cobertura alvo configurável ─────────────────────────────
+            const coverageDays = parseInt(document.getElementById('compras-coverage-select')?.value || '30');
+
+            // ── #7: consumo + último movimento por produto ───────────────────
             const consumoMap = {};
+            const lastMovMap = {}; // #7: timestamp da última saída (todo histórico)
             history.forEach(h => {
                 if (!h.productId) return;
                 const isExit = h.type === 'Saída' || h.type === 'Saída por Requisição' || h.type === 'Ajuste Saída';
                 if (!isExit) return;
                 const ts = h.date?.seconds ? h.date.seconds * 1000 : 0;
-                if (ts < cutoff) return;
-                consumoMap[h.productId] = (consumoMap[h.productId] || 0) + (h.quantity || 0);
+                // atualiza último movimento independente do período
+                if (!lastMovMap[h.productId] || ts > lastMovMap[h.productId]) lastMovMap[h.productId] = ts;
+                // soma consumo apenas dentro do período
+                if (ts >= cutoff) consumoMap[h.productId] = (consumoMap[h.productId] || 0) + Math.abs(h.quantity || 0);
             });
 
-            const activeFilter = document.querySelector('.compras-filter-btn[style*="background:#191c1d"]')?.dataset.filter || 'all';
+            // ── #5: popular select de grupos ────────────────────────────────
+            const groupSelect = document.getElementById('compras-group-filter');
+            if (groupSelect) {
+                const preserved = groupSelect.value;
+                const groups = [...new Set(products.map(p => p.group || 'Sem Grupo'))].sort();
+                groupSelect.innerHTML = '<option value="">Todos os grupos</option>' +
+                    groups.map(g => `<option value="${g}"${g === preserved ? ' selected' : ''}>${g}</option>`).join('');
+            }
 
-            // Montar lista com dados calculados
+            const activeFilter  = document.querySelector('.compras-filter-btn[style*="background:#191c1d"]')?.dataset.filter || 'all';
+            const searchQuery   = (document.getElementById('compras-search')?.value || '').trim().toLowerCase(); // #6
+            const groupFilter   = document.getElementById('compras-group-filter')?.value || '';                   // #5
+
+            // ── Montar itens ─────────────────────────────────────────────────
             const items = products.map(p => {
+                const qty          = p.quantity || 0;
+                const min          = p.minQuantity || 0;
                 const totalConsumed = consumoMap[p.id] || 0;
-                const dailyRate = totalConsumed / periodDays;
-                const daysRemaining = dailyRate > 0 ? Math.floor(p.quantity / dailyRate) : null;
-                const repoQty30days = Math.ceil(dailyRate * 30 * 1.2); // 30 dias + 20% margem
-                const suggestedQty = Math.max(0, repoQty30days - p.quantity);
+                const dailyRate    = totalConsumed / periodDays;
+                const daysRemaining = dailyRate > 0 ? Math.floor(qty / dailyRate) : null;
+                const lastMov      = lastMovMap[p.id] || null; // #7
+
+                // ── #3: qty sugerida com cobertura configurável ──────────────
+                // ── #1: se sem histórico mas abaixo do mínimo → preenche até mín ──
+                const coverageQty  = dailyRate > 0 ? Math.ceil(dailyRate * coverageDays * 1.2) : 0;
+                const suggestedQty = dailyRate > 0
+                    ? Math.max(0, coverageQty - qty)
+                    : Math.max(0, min - qty); // #1: sem consumo → comprar diferença até mínimo
 
                 let status;
-                if (p.quantity <= 0) status = 'critico';
-                else if (p.quantity <= p.minQuantity) status = 'critico';
+                if (qty <= 0)                                         status = 'critico';
+                else if (qty <= min)                                   status = 'critico';
                 else if (daysRemaining !== null && daysRemaining <= 15) status = 'atencao';
-                else if (p.quantity <= p.minQuantity * 1.5) status = 'atencao';
-                else if (totalConsumed > 0) status = 'monitorar';
-                else return null; // não consumido e ok → sem relevância
+                else if (qty <= min * 1.5)                             status = 'atencao';
+                else if (totalConsumed > 0)                            status = 'monitorar';
+                else return null; // estoque ok + sem consumo → não exibir
 
-                return { p, totalConsumed, dailyRate, daysRemaining, suggestedQty, status };
+                return { p, totalConsumed, dailyRate, daysRemaining, suggestedQty, status, lastMov };
             }).filter(Boolean);
 
-            // Ordenar: critico → atencao → monitorar, depois por dias restantes
+            // Ordenar: critico → atencao → monitorar, depois dias restantes asc
             const ordem = { critico: 0, atencao: 1, monitorar: 2 };
             items.sort((a, b) => {
                 if (ordem[a.status] !== ordem[b.status]) return ordem[a.status] - ordem[b.status];
-                const dA = a.daysRemaining ?? 9999;
-                const dB = b.daysRemaining ?? 9999;
-                return dA - dB;
+                return (a.daysRemaining ?? 9999) - (b.daysRemaining ?? 9999);
             });
 
-            // Cards de resumo
-            const criticos = items.filter(i => i.status === 'critico').length;
-            const atencoes = items.filter(i => i.status === 'atencao').length;
-            const monitorar = items.filter(i => i.status === 'monitorar').length;
-            const totalSugerido = items.reduce((acc, i) => acc + i.suggestedQty, 0);
+            // Cards de resumo (baseados em TODOS os itens, antes dos filtros de UI)
+            const criticos       = items.filter(i => i.status === 'critico').length;
+            const atencoes       = items.filter(i => i.status === 'atencao').length;
+            const monitorarCount = items.filter(i => i.status === 'monitorar').length;
+            const totalSugerido  = items.reduce((acc, i) => acc + i.suggestedQty, 0);
 
             const summaryEl = document.getElementById('compras-summary');
-            summaryEl.innerHTML = `
+            if (summaryEl) summaryEl.innerHTML = `
                 <div class="rounded-2xl p-4" style="background:#fff2f0; border:1px solid #f8bdb4;">
                     <p class="text-xs font-bold uppercase tracking-wider" style="color:#ba1a1a;">🔴 Crítico</p>
                     <p class="text-3xl font-black mt-1" style="color:#ba1a1a;">${criticos}</p>
@@ -2172,20 +2194,37 @@
                 </div>
                 <div class="rounded-2xl p-4" style="background:#f3f4f5; border:1px solid #c1c6d6;">
                     <p class="text-xs font-bold uppercase tracking-wider" style="color:#414754;">🔵 Monitorar</p>
-                    <p class="text-3xl font-black mt-1" style="color:#414754;">${monitorar}</p>
+                    <p class="text-3xl font-black mt-1" style="color:#414754;">${monitorarCount}</p>
                     <p class="text-xs mt-0.5" style="color:#727785;">consumo ativo</p>
                 </div>
                 <div class="rounded-2xl p-4" style="background:#e8f5e9; border:1px solid #a5d6a7;">
-                    <p class="text-xs font-bold uppercase tracking-wider" style="color:#006e2c;">📦 Itens p/ Comprar</p>
+                    <p class="text-xs font-bold uppercase tracking-wider" style="color:#006e2c;">📦 Para Comprar</p>
                     <p class="text-3xl font-black mt-1" style="color:#006e2c;">${criticos + atencoes}</p>
-                    <p class="text-xs mt-0.5" style="color:#727785;">compra sugerida: ${totalSugerido} unid.</p>
+                    <p class="text-xs mt-0.5" style="color:#727785;">sugerido: ${totalSugerido} unid. / ${coverageDays}d</p>
                 </div>
             `;
 
-            // Filtrar por status selecionado
-            const filtered = activeFilter === 'all' ? items : items.filter(i => i.status === activeFilter);
+            // ── Aplicar filtros de UI (status + busca + grupo) ────────────────
+            let filtered = activeFilter === 'all' ? items : items.filter(i => i.status === activeFilter);
+
+            // #6: busca por nome ou código
+            if (searchQuery) {
+                filtered = filtered.filter(i =>
+                    (i.p.name || '').toLowerCase().includes(searchQuery) ||
+                    (i.p.codeRM || i.p.code || '').toLowerCase().includes(searchQuery)
+                );
+            }
+            // #5: filtro por grupo
+            if (groupFilter) {
+                filtered = filtered.filter(i => (i.p.group || 'Sem Grupo') === groupFilter);
+            }
+
             lastComprasFilteredItems = filtered;
-            lastComprasPeriodDays = periodDays;
+            lastComprasPeriodDays    = periodDays;
+
+            // Contador de resultados
+            const countEl = document.getElementById('compras-count');
+            if (countEl) countEl.textContent = filtered.length ? `${filtered.length} item(s) exibido(s)` : '';
 
             const tbody = document.getElementById('compras-list');
             const noMsg = document.getElementById('no-compras-message');
@@ -2197,33 +2236,58 @@
             }
             noMsg.classList.add('hidden');
 
-            filtered.forEach(({ p, totalConsumed, dailyRate, daysRemaining, suggestedQty, status }) => {
+            filtered.forEach(({ p, dailyRate, daysRemaining, suggestedQty, status, lastMov }) => {
                 let badgeBg, badgeColor, badgeLabel;
-                if (status === 'critico') { badgeBg = '#fff2f0'; badgeColor = '#ba1a1a'; badgeLabel = '🔴 CRÍTICO'; }
+                if (status === 'critico')      { badgeBg = '#fff2f0'; badgeColor = '#ba1a1a'; badgeLabel = '🔴 CRÍTICO'; }
                 else if (status === 'atencao') { badgeBg = '#fff8e1'; badgeColor = '#795900'; badgeLabel = '🟡 ATENÇÃO'; }
-                else { badgeBg = '#f3f4f5'; badgeColor = '#414754'; badgeLabel = '🔵 MONITORAR'; }
+                else                           { badgeBg = '#f3f4f5'; badgeColor = '#414754'; badgeLabel = '🔵 MONITORAR'; }
+
+                const qty = p.quantity || 0;
+                const min = p.minQuantity || 0;
 
                 const daysText = daysRemaining !== null
-                    ? (daysRemaining === 0 ? '<span style="color:#ba1a1a; font-weight:800;">ESGOTADO</span>'
-                        : `<span style="color:${daysRemaining <= 7 ? '#ba1a1a' : daysRemaining <= 15 ? '#795900' : '#006e2c'}; font-weight:700;">${daysRemaining}d</span>`)
+                    ? (daysRemaining === 0
+                        ? '<span style="color:#ba1a1a;font-weight:800;">ESGOTADO</span>'
+                        : `<span style="color:${daysRemaining <= 7 ? '#ba1a1a' : daysRemaining <= 15 ? '#795900' : '#006e2c'};font-weight:700;">${daysRemaining}d</span>`)
                     : '<span style="color:#c1c6d6;">—</span>';
 
-                const dailyText = dailyRate > 0 ? dailyRate.toFixed(1) : '<span style="color:#c1c6d6;">—</span>';
+                const dailyText = dailyRate > 0
+                    ? dailyRate.toFixed(1)
+                    : '<span style="color:#c1c6d6;">—</span>';
+
+                // #7: último movimento formatado
+                const lastMovText = lastMov
+                    ? (() => {
+                        const d = new Date(lastMov);
+                        const diffDays = Math.floor((now - lastMov) / 864e5);
+                        const label = diffDays === 0 ? 'hoje' : diffDays === 1 ? 'ontem' : `${diffDays}d atrás`;
+                        return `<span title="${d.toLocaleDateString('pt-BR')}" style="color:${diffDays <= 7 ? '#006e2c' : diffDays <= 30 ? '#795900' : '#727785'};font-size:11px;font-weight:600;">${label}</span>`;
+                      })()
+                    : '<span style="color:#c1c6d6;font-size:11px;">Sem registro</span>';
+
+                // #5: grupo
+                const grupo = p.group || '—';
 
                 const tr = document.createElement('tr');
                 tr.className = 'transition-colors hover:bg-slate-50';
                 tr.innerHTML = `
                     <td class="px-4 py-3">
-                        <span class="px-2 py-1 rounded-full text-xs font-bold" style="background:${badgeBg}; color:${badgeColor};">${badgeLabel}</span>
+                        <span class="px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap" style="background:${badgeBg}; color:${badgeColor};">${badgeLabel}</span>
                     </td>
                     <td class="px-4 py-3">
                         <p class="font-bold text-slate-800" style="font-size:13px;">${p.name}</p>
-                        <p class="text-xs text-slate-400">${p.codeRM || p.code} · ${p.location || 'N/A'}</p>
+                        <p class="text-xs text-slate-400">${p.codeRM || p.code || '—'} · ${p.location || 'N/A'}</p>
                     </td>
-                    <td class="px-4 py-3 text-center font-bold" style="color:${p.quantity <= p.minQuantity ? '#ba1a1a' : '#191c1d'};">${p.quantity} <span class="text-xs font-normal text-slate-400">${p.unit || ''}</span></td>
-                    <td class="px-4 py-3 text-center text-slate-500">${p.minQuantity}</td>
+                    <td class="px-4 py-3">
+                        <span class="text-xs font-medium px-2 py-0.5 rounded-full" style="background:#f3f4f5; color:#414754;">${grupo}</span>
+                    </td>
+                    <td class="px-4 py-3 text-center font-bold" style="color:${qty <= min ? '#ba1a1a' : '#191c1d'};">
+                        ${qty} <span class="text-xs font-normal text-slate-400">${p.unit || ''}</span>
+                    </td>
+                    <td class="px-4 py-3 text-center text-slate-500">${min}</td>
                     <td class="px-4 py-3 text-center text-slate-600">${dailyText}</td>
                     <td class="px-4 py-3 text-center">${daysText}</td>
+                    <td class="px-4 py-3 text-center">${lastMovText}</td>
                     <td class="px-4 py-3 text-center">
                         ${suggestedQty > 0
                             ? `<span class="px-3 py-1 rounded-full text-xs font-black" style="background:#e8f5e9; color:#006e2c;">${suggestedQty} ${p.unit || 'un'}</span>`
@@ -3901,8 +3965,19 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         });
 
         document.addEventListener('change', (e) => {
-            if (e.target.id === 'compras-period-select') {
-                renderComprasView(parseInt(e.target.value));
+            if (e.target.id === 'compras-period-select' ||
+                e.target.id === 'compras-coverage-select' ||
+                e.target.id === 'compras-group-filter') {
+                const sel = document.getElementById('compras-period-select');
+                renderComprasView(sel ? parseInt(sel.value) : 15);
+            }
+        });
+
+        // Busca por nome em tempo real (#6)
+        document.addEventListener('input', (e) => {
+            if (e.target.id === 'compras-search') {
+                const sel = document.getElementById('compras-period-select');
+                renderComprasView(sel ? parseInt(sel.value) : 15);
             }
         });
 

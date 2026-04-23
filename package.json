@@ -1,6 +1,6 @@
 {
   "name": "estoque-taboca-app",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "Aplicacao web para controle de materiais de almoxarifado, com foco em operacao rapida, rastreabilidade e reducao de faltas de estoque.",
   "main": "index.js",
   "scripts": {
