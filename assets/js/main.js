@@ -3434,266 +3434,297 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         });
 
         generateKpiReportBtn.addEventListener('click', () => {
-            const totalProducts = products.length;
-            const totalUnits = products.reduce((sum, p) => sum + (p.quantity || 0), 0);
-            const lowStockItems = products.filter(p => p.quantity <= p.minQuantity);
-            const lowStockCount = lowStockItems.length;
-            const pendingReqs = requisitions.filter(r => r.status === 'Pendente' || r.status === 'pending').length;
+            const XLS = typeof XLSX !== 'undefined' ? XLSX : null;
+            if (!XLS) { showToast('Biblioteca de planilhas não carregou. Recarregue a página.', true); return; }
 
-            const timestampToMillis = (entry) => {
-                if (!entry?.date) return 0;
-                if (typeof entry.date.seconds === 'number') return entry.date.seconds * 1000;
-                if (typeof entry.date.toMillis === 'function') return entry.date.toMillis();
-                return 0;
-            };
+            try {
+                // ── DADOS ──────────────────────────────────────────────────────
+                const totalProducts = products.length;
+                const totalUnits    = products.reduce((s, p) => s + (p.quantity || 0), 0);
+                const lowStockItems = products.filter(p => (p.quantity || 0) <= (p.minQuantity || 0));
+                const lowStockCount = lowStockItems.length;
+                const zeroCount     = products.filter(p => (p.quantity || 0) === 0).length;
+                const pendingReqs   = requisitions.filter(r => r.status === 'Pendente' || r.status === 'pending').length;
 
-            const getTopExitedItems = (days) => {
-                const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
-                const grouped = new Map();
+                const tsMs = (e) => {
+                    if (!e?.date) return 0;
+                    if (typeof e.date.seconds === 'number') return e.date.seconds * 1000;
+                    if (typeof e.date.toMillis === 'function') return e.date.toMillis();
+                    return 0;
+                };
+                const getTopExits = (days) => {
+                    const cutoff = Date.now() - days * 864e5;
+                    const map = new Map();
+                    history.filter(h => (h.type === 'Saída' || h.type === 'Saída por Requisição') && tsMs(h) >= cutoff)
+                        .forEach(h => {
+                            const k = h.productId || h.productName;
+                            const v = map.get(k) || { name: h.productName || '—', code: h.productCodeRM || h.productCode || '—', qty: 0 };
+                            v.qty += Math.abs(Number(h.quantity) || 0);
+                            map.set(k, v);
+                        });
+                    return [...map.values()].sort((a, b) => b.qty - a.qty).slice(0, 10);
+                };
+                const entQty = (days) => {
+                    const c = Date.now() - days * 864e5;
+                    return history.filter(h => (h.type === 'Entrada' || h.type === 'Ajuste Entrada') && tsMs(h) >= c)
+                        .reduce((s, h) => s + Math.abs(Number(h.quantity) || 0), 0);
+                };
+                const saiQty = (days) => {
+                    const c = Date.now() - days * 864e5;
+                    return history.filter(h => (h.type === 'Saída' || h.type === 'Saída por Requisição') && tsMs(h) >= c)
+                        .reduce((s, h) => s + Math.abs(Number(h.quantity) || 0), 0);
+                };
 
-                history
-                    .filter(h => (h.type === 'Saída' || h.type === 'Saída por Requisição') && timestampToMillis(h) >= cutoff)
-                    .forEach(h => {
-                        const key = h.productId || h.productCode || h.productCodeRM || h.productName;
-                        const previous = grouped.get(key) || {
-                            name: h.productName || 'Produto sem nome',
-                            code: h.productCodeRM || h.productCode || 'N/A',
-                            qty: 0
-                        };
-                        previous.qty += Math.abs(Number(h.quantity) || 0);
-                        grouped.set(key, previous);
+                const top3 = getTopExits(3), top7 = getTopExits(7), top30 = getTopExits(30);
+                const e7 = entQty(7), s7 = saiQty(7), e30 = entQty(30), s30 = saiQty(30);
+
+                const groupMap = new Map();
+                products.forEach(p => {
+                    const g = p.group || 'Sem Grupo';
+                    const v = groupMap.get(g) || { count: 0, units: 0, low: 0, zero: 0 };
+                    v.count++;
+                    v.units += p.quantity || 0;
+                    if ((p.quantity || 0) === 0) v.zero++;
+                    else if ((p.quantity || 0) <= (p.minQuantity || 0)) v.low++;
+                    groupMap.set(g, v);
+                });
+                const groupData = [...groupMap.entries()].sort((a, b) => b[1].units - a[1].units);
+
+                const today     = new Date().toLocaleDateString('pt-BR');
+                const hora      = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                const timestamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 16);
+                const wb        = XLS.utils.book_new();
+
+                // ── ESTILOS ────────────────────────────────────────────────────
+                const bdr = (color = 'E2E8F0') => ({
+                    top:    { style: 'thin', color: { rgb: color } },
+                    bottom: { style: 'thin', color: { rgb: color } },
+                    left:   { style: 'thin', color: { rgb: color } },
+                    right:  { style: 'thin', color: { rgb: color } }
+                });
+
+                // Títulos de seção (faixa escura)
+                const sTitle = (accentColor = '0066FF') => ({
+                    font:      { bold: true, sz: 20, color: { rgb: 'FFFFFF' } },
+                    fill:      { fgColor: { rgb: '0F172A' } },
+                    alignment: { horizontal: 'center', vertical: 'center' },
+                    border:    { bottom: { style: 'thick', color: { rgb: accentColor } } }
+                });
+                const sSub = {
+                    font:      { italic: true, sz: 10, color: { rgb: '94A3B8' } },
+                    fill:      { fgColor: { rgb: '1E293B' } },
+                    alignment: { horizontal: 'center', vertical: 'center' }
+                };
+                const sSecHdr = (rgb) => ({
+                    font:      { bold: true, sz: 11, color: { rgb: 'FFFFFF' } },
+                    fill:      { fgColor: { rgb } },
+                    alignment: { horizontal: 'left', vertical: 'center' },
+                    border:    bdr(rgb)
+                });
+                const sTH = (rgb = '1E40AF') => ({
+                    font:      { bold: true, sz: 10, color: { rgb: 'FFFFFF' } },
+                    fill:      { fgColor: { rgb } },
+                    alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+                    border:    bdr(rgb)
+                });
+                const sCell = (even, align = 'left', fgColor = '111827', bold = false) => ({
+                    font:      { bold, sz: 10, color: { rgb: fgColor } },
+                    fill:      { fgColor: { rgb: even ? 'F8FAFC' : 'FFFFFF' } },
+                    alignment: { horizontal: align, vertical: 'center' },
+                    border:    bdr()
+                });
+                const sFooter = {
+                    font:      { italic: true, sz: 9, color: { rgb: '64748B' } },
+                    fill:      { fgColor: { rgb: 'F1F5F9' } },
+                    alignment: { horizontal: 'center', vertical: 'center' },
+                    border:    { top: { style: 'medium', color: { rgb: '0066FF' } } }
+                };
+
+                // Cards de KPI: (bgColor, textColor, valueColor)
+                const kpiCard = (bg, text, val) => ({
+                    lbl: { font: { bold: true, sz: 10, color: { rgb: text } }, fill: { fgColor: { rgb: bg } }, alignment: { horizontal: 'center', vertical: 'bottom' }, border: bdr(bg) },
+                    val: { font: { bold: true, sz: 26, color: { rgb: val } }, fill: { fgColor: { rgb: bg } }, alignment: { horizontal: 'center', vertical: 'center' }, border: bdr(bg) },
+                    sub: { font: { sz: 9, italic: true, color: { rgb: text } }, fill: { fgColor: { rgb: bg } }, alignment: { horizontal: 'center', vertical: 'top' }, border: bdr(bg) }
+                });
+                const cBlue  = kpiCard('DBEAFE', '1D4ED8', '1D4ED8');
+                const cGreen = kpiCard('DCFCE7', '15803D', '15803D');
+                const cAmber = kpiCard('FEF9C3', 'A16207', 'D97706');
+                const cRed   = kpiCard('FFE4E6', 'BE123C', 'DC2626');
+
+                // ────────────────────────────────────────────────────────────────
+                // ABA 1 — PAINEL DE KPIs  (8 colunas A..H)
+                // ────────────────────────────────────────────────────────────────
+                const ws = XLS.utils.aoa_to_sheet([]);
+                ws['!cols']   = [{ wch: 22 }, { wch: 14 }, { wch: 22 }, { wch: 14 }, { wch: 22 }, { wch: 14 }, { wch: 22 }, { wch: 14 }];
+                ws['!merges'] = [];
+                ws['!rows']   = [];
+
+                let row = 0;
+                const sc  = (r, c, v, style, t = 's') => { ws[XLS.utils.encode_cell({ r, c })] = { v, t, s: style }; };
+                const scN = (r, c, v, style)           => sc(r, c, v, style, 'n');
+                const merge = (r1, c1, r2, c2)         => ws['!merges'].push({ s: { r: r1, c: c1 }, e: { r: r2, c: c2 } });
+                const hpt   = (r, h)                   => { ws['!rows'][r] = { hpt: h }; };
+
+                // Cabeçalho principal
+                sc(row, 0, 'RELATÓRIO DE KPIs — ESTOQUE UHE ESTRELA', sTitle()); merge(row, 0, row, 7); hpt(row, 44); row++;
+                sc(row, 0, `Gerado em ${today} às ${hora}  ·  Dados em tempo real`, sSub); merge(row, 0, row, 7); hpt(row, 22); row++;
+                row++; // espaço
+
+                // ── Cards de KPI (3 linhas por card: label / valor / sublabel) ──
+                const cards = [
+                    { lbl: 'TOTAL DE PRODUTOS', val: totalProducts,  sub: 'SKUs cadastrados',        card: cBlue  },
+                    { lbl: 'TOTAL DE UNIDADES',  val: totalUnits,    sub: 'Unidades em estoque',      card: cGreen },
+                    { lbl: 'ESTOQUE BAIXO',       val: lowStockCount, sub: 'Itens abaixo do mínimo',  card: cAmber },
+                    { lbl: 'REQ. PENDENTES',      val: pendingReqs,   sub: 'Aguardando atendimento',  card: cRed   },
+                ];
+                hpt(row, 24); hpt(row + 1, 44); hpt(row + 2, 20);
+                cards.forEach(({ lbl, val, sub, card }, i) => {
+                    const c = i * 2;
+                    sc(row, c, lbl, card.lbl); sc(row, c + 1, lbl, card.lbl); merge(row, c, row, c + 1);
+                    scN(row + 1, c, val, card.val); scN(row + 1, c + 1, val, card.val); merge(row + 1, c, row + 1, c + 1);
+                    sc(row + 2, c, sub, card.sub); sc(row + 2, c + 1, sub, card.sub); merge(row + 2, c, row + 2, c + 1);
+                });
+                row += 4; // 3 linhas card + 1 espaço
+
+                // ── Movimentação ──
+                sc(row, 0, '  MOVIMENTAÇÃO DE ESTOQUE', sSecHdr('1E3A5F')); merge(row, 0, row, 7); hpt(row, 26); row++;
+                ['Período', 'Entradas (Un.)', 'Saídas (Un.)', 'Saldo', '', '', '', ''].forEach((h, c) => {
+                    if (c < 4) sc(row, c, h, sTH('1E40AF'));
+                });
+                merge(row, 4, row, 7); hpt(row, 22); row++;
+
+                [{ lbl: '7 dias', e: e7, s: s7 }, { lbl: '30 dias', e: e30, s: s30 }].forEach(({ lbl, e, s }, i) => {
+                    const ev = i % 2 === 1, saldo = e - s;
+                    sc(row, 0, `Últimos ${lbl}`, sCell(ev, 'left', '111827', true));
+                    scN(row, 1, e, sCell(ev, 'center', '15803D', true));
+                    scN(row, 2, s, sCell(ev, 'center', 'B91C1C', true));
+                    scN(row, 3, saldo, sCell(ev, 'center', saldo >= 0 ? '15803D' : 'DC2626', true));
+                    merge(row, 4, row, 7); sc(row, 4, '', sCell(ev)); hpt(row, 20); row++;
+                });
+                row++; // espaço
+
+                // ── Distribuição por Grupo ──
+                sc(row, 0, '  DISTRIBUIÇÃO POR GRUPO DE MATERIAL', sSecHdr('312E81')); merge(row, 0, row, 7); hpt(row, 26); row++;
+                ['Grupo', 'SKUs', 'Unidades', 'Est. Baixo', 'Zerados', 'OK', '', ''].forEach((h, c) => {
+                    if (c < 6) sc(row, c, h, sTH('4338CA'));
+                });
+                merge(row, 6, row, 7); hpt(row, 22); row++;
+
+                groupData.forEach(([g, d], i) => {
+                    const ev = i % 2 === 1, ok = d.count - d.zero - d.low;
+                    sc(row, 0, g, sCell(ev, 'left', '111827', true));
+                    scN(row, 1, d.count, sCell(ev, 'center'));
+                    scN(row, 2, d.units, sCell(ev, 'center'));
+                    scN(row, 3, d.low,  sCell(ev, 'center', d.low  > 0 ? 'D97706' : '111827', d.low  > 0));
+                    scN(row, 4, d.zero, sCell(ev, 'center', d.zero > 0 ? 'DC2626' : '111827', d.zero > 0));
+                    scN(row, 5, ok,     sCell(ev, 'center', '15803D'));
+                    merge(row, 6, row, 7); sc(row, 6, '', sCell(ev)); hpt(row, 18); row++;
+                });
+                row++;
+
+                // ── Top Saídas ──
+                const renderTop = (title, items, secRgb, thRgb) => {
+                    sc(row, 0, `  ${title}`, sSecHdr(secRgb)); merge(row, 0, row, 7); hpt(row, 26); row++;
+                    ['#', 'Material', 'Código RM', 'Qtd. Saída', '', '', '', ''].forEach((h, c) => {
+                        if (c < 4) sc(row, c, h, sTH(thRgb));
                     });
+                    merge(row, 4, row, 7); hpt(row, 22); row++;
+                    if (!items.length) {
+                        sc(row, 0, 'Sem registros no período', sCell(false, 'center', '94A3B8'));
+                        merge(row, 0, row, 7); hpt(row, 18); row++;
+                    } else {
+                        items.forEach((item, i) => {
+                            const ev    = i % 2 === 1;
+                            const medal = ['🥇', '🥈', '🥉'][i] || `${i + 1}º`;
+                            sc(row, 0, medal,     sCell(ev, 'center', '111827', true));
+                            sc(row, 1, item.name, sCell(ev, 'left'));
+                            sc(row, 2, item.code, sCell(ev, 'center'));
+                            scN(row, 3, item.qty, sCell(ev, 'center', 'DC2626', true));
+                            merge(row, 4, row, 7); sc(row, 4, '', sCell(ev)); hpt(row, 18); row++;
+                        });
+                    }
+                    row++;
+                };
 
-                return [...grouped.values()].sort((a, b) => b.qty - a.qty).slice(0, 10);
-            };
+                renderTop('TOP SAÍDAS — ÚLTIMOS 3 DIAS',  top3,  '7F1D1D', 'B91C1C');
+                renderTop('TOP SAÍDAS — ÚLTIMOS 7 DIAS',  top7,  '7C2D12', 'C2410C');
+                renderTop('TOP SAÍDAS — ÚLTIMOS 30 DIAS', top30, '78350F', 'D97706');
 
-            const getEntriesCount = (days) => {
-                const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
-                return history.filter(h => (h.type === 'Entrada' || h.type === 'Ajuste Entrada') && timestampToMillis(h) >= cutoff)
-                    .reduce((s, h) => s + Math.abs(Number(h.quantity) || 0), 0);
-            };
-            const getExitsCount = (days) => {
-                const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
-                return history.filter(h => (h.type === 'Saída' || h.type === 'Saída por Requisição') && timestampToMillis(h) >= cutoff)
-                    .reduce((s, h) => s + Math.abs(Number(h.quantity) || 0), 0);
-            };
+                // Rodapé
+                sc(row, 0, `UHE Estrela  ·  KPI Report  ·  ${today} às ${hora}`, sFooter);
+                merge(row, 0, row, 7); hpt(row, 18); row++;
 
-            const top3Days = getTopExitedItems(3);
-            const top7Days = getTopExitedItems(7);
-            const top30Days = getTopExitedItems(30);
+                ws['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: row - 1, c: 7 } });
+                XLS.utils.book_append_sheet(wb, ws, 'Painel de KPIs');
 
-            const entries7d = getEntriesCount(7);
-            const exits7d = getExitsCount(7);
-            const entries30d = getEntriesCount(30);
-            const exits30d = getExitsCount(30);
+                // ────────────────────────────────────────────────────────────────
+                // ABA 2 — ESTOQUE BAIXO (detalhado, todos os itens)
+                // ────────────────────────────────────────────────────────────────
+                const lowSorted = [...lowStockItems].sort((a, b) => (a.quantity - a.minQuantity) - (b.quantity - b.minQuantity));
 
-            // Grupos de produtos
-            const groupMap = new Map();
-            products.forEach(p => {
-                const g = p.group || 'Sem Grupo';
-                const prev = groupMap.get(g) || { count: 0, units: 0, lowStock: 0 };
-                prev.count++;
-                prev.units += (p.quantity || 0);
-                if (p.quantity <= p.minQuantity) prev.lowStock++;
-                groupMap.set(g, prev);
-            });
-            const groupData = [...groupMap.entries()].sort((a, b) => b[1].units - a[1].units);
+                const ws2     = XLS.utils.aoa_to_sheet([]);
+                ws2['!cols']  = [{ wch: 5 }, { wch: 38 }, { wch: 14 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }];
+                ws2['!merges'] = [];
+                ws2['!rows']   = [];
 
-            const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-            const dataGerada = new Date().toLocaleString('pt-BR');
-            const timestamp = new Date().toISOString().slice(0, 10);
+                let r2 = 0;
+                const sc2  = (r, c, v, style, t = 's') => { ws2[XLS.utils.encode_cell({ r, c })] = { v, t, s: style }; };
+                const scN2 = (r, c, v, style)           => sc2(r, c, v, style, 'n');
+                const mg2  = (r1, c1, r2e, c2)          => ws2['!merges'].push({ s: { r: r1, c: c1 }, e: { r: r2e, c: c2 } });
+                const hp2  = (r, h)                      => { ws2['!rows'][r] = { hpt: h }; };
 
-            // Estilo base das células
-            const hd = 'background:#005BBF;color:#FFFFFF;font-weight:bold;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;';
-            const cd = 'border:1px solid #D0D0D0;padding:6px 8px;font-size:11px;font-family:Calibri,sans-serif;';
-            const secTitle = 'font-size:14px;font-weight:bold;color:#005BBF;padding:10px 8px 4px 8px;font-family:Calibri,sans-serif;';
+                sc2(r2, 0, `ITENS COM ESTOQUE BAIXO — UHE ESTRELA  (${lowSorted.length} itens)`, sTitle('DC2626')); mg2(r2, 0, r2, 7); hp2(r2, 44); r2++;
+                sc2(r2, 0, `Gerado em ${today} às ${hora}  ·  Ordenado por maior déficit`, sSub); mg2(r2, 0, r2, 7); hp2(r2, 22); r2++;
+                r2++;
 
-            const renderTopTable = (items, periodLabel) => {
-                if (!items.length) return `<tr><td colspan="4" style="${cd}color:#999;">Sem registros no período</td></tr>`;
-                return items.map((item, idx) => {
-                    const bg = idx % 2 === 0 ? '#FFFFFF' : '#F8F9FA';
-                    const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}º`;
-                    return `<tr>
-                        <td style="${cd}background:${bg};text-align:center;font-weight:bold;">${medal}</td>
-                        <td style="${cd}background:${bg};">${esc(item.name)}</td>
-                        <td style="${cd}background:${bg};text-align:center;">${esc(item.code)}</td>
-                        <td style="${cd}background:${bg};text-align:center;font-weight:bold;color:#B71C1C;">${item.qty}</td>
-                    </tr>`;
-                }).join('');
-            };
+                ['Nº', 'Material', 'Código RM', 'Grupo', 'Estoque', 'Mínimo', 'Déficit', 'Status'].forEach((h, c) => {
+                    sc2(r2, c, h, sTH('991B1B'));
+                });
+                hp2(r2, 24); r2++;
 
-            // Low stock items table
-            const lowStockSorted = [...lowStockItems].sort((a, b) => (a.quantity - a.minQuantity) - (b.quantity - b.minQuantity));
-            const lowStockRows = lowStockSorted.slice(0, 15).map((p, idx) => {
-                const bg = idx % 2 === 0 ? '#FFFFFF' : '#F8F9FA';
-                const deficit = (p.minQuantity || 0) - (p.quantity || 0);
-                const deficitColor = deficit > 0 ? '#B71C1C' : '#E65100';
-                return `<tr>
-                    <td style="${cd}background:${bg};">${esc(p.name)}</td>
-                    <td style="${cd}background:${bg};text-align:center;">${esc(p.codeRM || p.code || '-')}</td>
-                    <td style="${cd}background:${bg};text-align:center;">${esc(p.group || '-')}</td>
-                    <td style="${cd}background:${bg};text-align:center;">${p.quantity ?? 0}</td>
-                    <td style="${cd}background:${bg};text-align:center;">${p.minQuantity ?? 0}</td>
-                    <td style="${cd}background:${bg};text-align:center;font-weight:bold;color:${deficitColor};">${deficit > 0 ? `-${deficit}` : '0'}</td>
-                </tr>`;
-            }).join('');
+                if (!lowSorted.length) {
+                    sc2(r2, 0, '✅  Nenhum item com estoque baixo — tudo dentro dos limites!', {
+                        font: { bold: true, sz: 12, color: { rgb: '15803D' } },
+                        fill: { fgColor: { rgb: 'DCFCE7' } },
+                        alignment: { horizontal: 'center', vertical: 'center' },
+                        border: bdr('15803D')
+                    });
+                    mg2(r2, 0, r2, 7); hp2(r2, 30); r2++;
+                } else {
+                    lowSorted.forEach((p, i) => {
+                        const ev     = i % 2 === 1;
+                        const qty    = p.quantity || 0;
+                        const min    = p.minQuantity || 0;
+                        const deficit = min - qty;
+                        const status = qty === 0 ? '🔴 ZERADO' : deficit >= min * 0.5 ? '🟠 CRÍTICO' : '🟡 BAIXO';
+                        const statusC = qty === 0 ? 'B91C1C' : deficit >= min * 0.5 ? 'C2410C' : 'D97706';
 
-            // Group summary rows
-            const groupRows = groupData.map(([ g, d ], idx) => {
-                const bg = idx % 2 === 0 ? '#FFFFFF' : '#F8F9FA';
-                return `<tr>
-                    <td style="${cd}background:${bg};font-weight:bold;">${esc(g)}</td>
-                    <td style="${cd}background:${bg};text-align:center;">${d.count}</td>
-                    <td style="${cd}background:${bg};text-align:center;">${d.units.toLocaleString('pt-BR')}</td>
-                    <td style="${cd}background:${bg};text-align:center;color:${d.lowStock > 0 ? '#B71C1C' : '#333'};font-weight:${d.lowStock > 0 ? 'bold' : 'normal'};">${d.lowStock}</td>
-                </tr>`;
-            }).join('');
+                        scN2(r2, 0, i + 1,                        sCell(ev, 'center'));
+                        sc2(r2,  1, p.name || '—',                sCell(ev, 'left'));
+                        sc2(r2,  2, p.codeRM || p.code || '—',    sCell(ev, 'center'));
+                        sc2(r2,  3, p.group || '—',               sCell(ev, 'center'));
+                        scN2(r2, 4, qty,                          sCell(ev, 'center', qty === 0 ? 'DC2626' : '111827', qty === 0));
+                        scN2(r2, 5, min,                          sCell(ev, 'center'));
+                        scN2(r2, 6, deficit > 0 ? -deficit : 0,  sCell(ev, 'center', deficit > 0 ? 'DC2626' : '15803D', true));
+                        sc2(r2,  7, status,                       sCell(ev, 'center', statusC, true));
+                        hp2(r2, 18); r2++;
+                    });
+                }
 
-            const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="utf-8">
-<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
-<x:Name>KPIs Estoque</x:Name>
-<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
-</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
-</head><body>
-<table>
-    <!-- CABEÇALHO -->
-    <tr><td colspan="6" style="font-size:20px;font-weight:bold;color:#005BBF;padding:14px 8px 2px 8px;font-family:Calibri,sans-serif;">RELATÓRIO DE KPIs — ESTOQUE UHE ESTRELA</td></tr>
-    <tr><td colspan="6" style="font-size:11px;color:#555;padding:2px 8px 10px 8px;font-family:Calibri,sans-serif;">Gerado em: ${esc(dataGerada)}</td></tr>
+                sc2(r2, 0, `UHE Estrela  ·  Estoque Baixo  ·  ${today}`, sFooter);
+                mg2(r2, 0, r2, 7); hp2(r2, 18); r2++;
 
-    <!-- SEÇÃO 1: INDICADORES GERAIS -->
-    <tr><td colspan="6" style="${secTitle}border-bottom:2px solid #005BBF;">INDICADORES GERAIS</td></tr>
-    <tr><td colspan="6" style="height:4px;"></td></tr>
-    <tr>
-        <td style="${hd}text-align:center;width:200px;">Indicador</td>
-        <td style="${hd}text-align:center;width:120px;">Valor</td>
-        <td style="${hd}text-align:center;width:200px;">Indicador</td>
-        <td style="${hd}text-align:center;width:120px;">Valor</td>
-        <td colspan="2" style="border:none;"></td>
-    </tr>
-    <tr>
-        <td style="${cd}background:#E3F2FD;font-weight:bold;">Total de Produtos (SKUs)</td>
-        <td style="${cd}background:#E3F2FD;text-align:center;font-size:14px;font-weight:bold;color:#005BBF;">${totalProducts}</td>
-        <td style="${cd}background:#E8F5E9;font-weight:bold;">Total de Unidades</td>
-        <td style="${cd}background:#E8F5E9;text-align:center;font-size:14px;font-weight:bold;color:#1B5E20;">${totalUnits.toLocaleString('pt-BR')}</td>
-        <td colspan="2" style="border:none;"></td>
-    </tr>
-    <tr>
-        <td style="${cd}background:#FFF8E1;font-weight:bold;">Itens com Estoque Baixo</td>
-        <td style="${cd}background:#FFF8E1;text-align:center;font-size:14px;font-weight:bold;color:#E65100;">${lowStockCount}</td>
-        <td style="${cd}background:#FCE4EC;font-weight:bold;">Requisições Pendentes</td>
-        <td style="${cd}background:#FCE4EC;text-align:center;font-size:14px;font-weight:bold;color:#B71C1C;">${pendingReqs}</td>
-        <td colspan="2" style="border:none;"></td>
-    </tr>
-    <tr><td colspan="6" style="height:6px;"></td></tr>
+                ws2['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r2 - 1, c: 7 } });
+                XLS.utils.book_append_sheet(wb, ws2, 'Estoque Baixo');
 
-    <!-- SEÇÃO 2: MOVIMENTAÇÃO -->
-    <tr><td colspan="6" style="${secTitle}border-bottom:2px solid #005BBF;">MOVIMENTAÇÃO DE ESTOQUE</td></tr>
-    <tr><td colspan="6" style="height:4px;"></td></tr>
-    <tr>
-        <td style="${hd}text-align:center;">Período</td>
-        <td style="${hd}text-align:center;">Entradas (Un.)</td>
-        <td style="${hd}text-align:center;">Saídas (Un.)</td>
-        <td style="${hd}text-align:center;">Saldo</td>
-        <td colspan="2" style="border:none;"></td>
-    </tr>
-    <tr>
-        <td style="${cd}font-weight:bold;">Últimos 7 dias</td>
-        <td style="${cd}text-align:center;color:#1B5E20;font-weight:bold;">+${entries7d.toLocaleString('pt-BR')}</td>
-        <td style="${cd}text-align:center;color:#B71C1C;font-weight:bold;">-${exits7d.toLocaleString('pt-BR')}</td>
-        <td style="${cd}text-align:center;font-weight:bold;color:${(entries7d - exits7d) >= 0 ? '#1B5E20' : '#B71C1C'};">${(entries7d - exits7d) >= 0 ? '+' : ''}${(entries7d - exits7d).toLocaleString('pt-BR')}</td>
-        <td colspan="2" style="border:none;"></td>
-    </tr>
-    <tr>
-        <td style="${cd}background:#F8F9FA;font-weight:bold;">Últimos 30 dias</td>
-        <td style="${cd}background:#F8F9FA;text-align:center;color:#1B5E20;font-weight:bold;">+${entries30d.toLocaleString('pt-BR')}</td>
-        <td style="${cd}background:#F8F9FA;text-align:center;color:#B71C1C;font-weight:bold;">-${exits30d.toLocaleString('pt-BR')}</td>
-        <td style="${cd}background:#F8F9FA;text-align:center;font-weight:bold;color:${(entries30d - exits30d) >= 0 ? '#1B5E20' : '#B71C1C'};">${(entries30d - exits30d) >= 0 ? '+' : ''}${(entries30d - exits30d).toLocaleString('pt-BR')}</td>
-        <td colspan="2" style="border:none;"></td>
-    </tr>
-    <tr><td colspan="6" style="height:6px;"></td></tr>
+                // ── DOWNLOAD ───────────────────────────────────────────────────
+                XLS.writeFile(wb, `kpis_estoque_${timestamp}.xlsx`);
+                showToast('✅ Relatório de KPIs exportado com sucesso!');
 
-    <!-- SEÇÃO 3: DISTRIBUIÇÃO POR GRUPO -->
-    <tr><td colspan="6" style="${secTitle}border-bottom:2px solid #005BBF;">DISTRIBUIÇÃO POR GRUPO</td></tr>
-    <tr><td colspan="6" style="height:4px;"></td></tr>
-    <tr>
-        <td style="${hd}text-align:left;width:200px;">Grupo</td>
-        <td style="${hd}text-align:center;">Produtos</td>
-        <td style="${hd}text-align:center;">Unidades</td>
-        <td style="${hd}text-align:center;">Est. Baixo</td>
-        <td colspan="2" style="border:none;"></td>
-    </tr>
-    ${groupRows}
-    <tr><td colspan="6" style="height:6px;"></td></tr>
-
-    <!-- SEÇÃO 4: TOP SAÍDAS 3 DIAS -->
-    <tr><td colspan="6" style="${secTitle}border-bottom:2px solid #B71C1C;">TOP SAÍDAS — ÚLTIMOS 3 DIAS</td></tr>
-    <tr><td colspan="6" style="height:4px;"></td></tr>
-    <tr>
-        <td style="${hd}text-align:center;width:60px;background:#B71C1C;border-color:#8E1515;">#</td>
-        <td style="${hd}text-align:left;background:#B71C1C;border-color:#8E1515;">Material</td>
-        <td style="${hd}text-align:center;background:#B71C1C;border-color:#8E1515;">Código</td>
-        <td style="${hd}text-align:center;background:#B71C1C;border-color:#8E1515;">Qtd Saída</td>
-        <td colspan="2" style="border:none;"></td>
-    </tr>
-    ${renderTopTable(top3Days, '3 dias')}
-    <tr><td colspan="6" style="height:6px;"></td></tr>
-
-    <!-- SEÇÃO 5: TOP SAÍDAS 7 DIAS -->
-    <tr><td colspan="6" style="${secTitle}border-bottom:2px solid #E65100;">TOP SAÍDAS — ÚLTIMOS 7 DIAS</td></tr>
-    <tr><td colspan="6" style="height:4px;"></td></tr>
-    <tr>
-        <td style="${hd}text-align:center;width:60px;background:#E65100;border-color:#BF4400;">#</td>
-        <td style="${hd}text-align:left;background:#E65100;border-color:#BF4400;">Material</td>
-        <td style="${hd}text-align:center;background:#E65100;border-color:#BF4400;">Código</td>
-        <td style="${hd}text-align:center;background:#E65100;border-color:#BF4400;">Qtd Saída</td>
-        <td colspan="2" style="border:none;"></td>
-    </tr>
-    ${renderTopTable(top7Days, '7 dias')}
-    <tr><td colspan="6" style="height:6px;"></td></tr>
-
-    <!-- SEÇÃO 6: TOP SAÍDAS 30 DIAS -->
-    <tr><td colspan="6" style="${secTitle}border-bottom:2px solid #795900;">TOP SAÍDAS — ÚLTIMOS 30 DIAS</td></tr>
-    <tr><td colspan="6" style="height:4px;"></td></tr>
-    <tr>
-        <td style="${hd}text-align:center;width:60px;background:#795900;border-color:#5C4400;">#</td>
-        <td style="${hd}text-align:left;background:#795900;border-color:#5C4400;">Material</td>
-        <td style="${hd}text-align:center;background:#795900;border-color:#5C4400;">Código</td>
-        <td style="${hd}text-align:center;background:#795900;border-color:#5C4400;">Qtd Saída</td>
-        <td colspan="2" style="border:none;"></td>
-    </tr>
-    ${renderTopTable(top30Days, '30 dias')}
-    <tr><td colspan="6" style="height:6px;"></td></tr>
-
-    <!-- SEÇÃO 7: ITENS COM ESTOQUE BAIXO -->
-    <tr><td colspan="6" style="${secTitle}border-bottom:2px solid #E65100;">ITENS COM ESTOQUE BAIXO (Top ${Math.min(lowStockCount, 15)})</td></tr>
-    <tr><td colspan="6" style="height:4px;"></td></tr>
-    <tr>
-        <td style="${hd}text-align:left;width:240px;">Material</td>
-        <td style="${hd}text-align:center;">Código RM</td>
-        <td style="${hd}text-align:center;">Grupo</td>
-        <td style="${hd}text-align:center;">Estoque</td>
-        <td style="${hd}text-align:center;">Mínimo</td>
-        <td style="${hd}text-align:center;background:#B71C1C;border-color:#8E1515;">Déficit</td>
-    </tr>
-    ${lowStockRows || `<tr><td colspan="6" style="${cd}color:#999;text-align:center;">Nenhum item com estoque baixo</td></tr>`}
-    <tr><td colspan="6" style="height:10px;"></td></tr>
-
-    <!-- RODAPÉ -->
-    <tr><td colspan="6" style="border-top:2px solid #005BBF;padding:8px;font-size:10px;color:#999;font-family:Calibri,sans-serif;">Estoque UHE Estrela — Relatório gerado automaticamente em ${esc(dataGerada)}</td></tr>
-</table>
-</body></html>`;
-
-            const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.setAttribute("href", url);
-            link.setAttribute("download", `kpis_estoque_${timestamp}.xls`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-            showToast("Planilha de KPIs gerada com sucesso!");
+            } catch (err) {
+                console.error('Erro ao gerar KPI Excel:', err);
+                showToast(`Erro ao gerar relatório: ${err.message}`, true);
+            }
         });
 
         // Listeners da view de Sugestão de Compras
@@ -4777,6 +4808,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 showToast('Biblioteca de planilhas não carregou. Recarregue a página.', true);
                 return;
             }
+            try {
 
             const wb = XLS.utils.book_new();
             const today = new Date().toLocaleDateString('pt-BR');
@@ -4919,8 +4951,8 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             ];
             
             // Aplicar estilos ao dashboard
-            wsDash['A1'].s = titleStyle;
-            wsDash['A2'].s = subtitleStyle;
+            if (wsDash['A1']) wsDash['A1'].s = titleStyle;
+            if (wsDash['A2']) wsDash['A2'].s = subtitleStyle;
             
             // Headers de seções
             ['A6', 'A15', 'A21'].forEach(cell => {
@@ -4935,11 +4967,14 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 }
             });
 
-            // Aplicar cores aos dados do dashboard
-            for (let r = 9; r <= 13; r++) {
-                wsDash[XLS.utils.encode_cell({ r, c: 0 })].s = { ...cellBase, font: { bold: true, sz: 11 } };
-                wsDash[XLS.utils.encode_cell({ r, c: 1 })].s = { ...cellCenter, font: { bold: true, sz: 12, color: { rgb: '0066FF' } } };
-                wsDash[XLS.utils.encode_cell({ r, c: 2 })].s = cellEvenCenter;
+            // Aplicar cores aos dados do dashboard (r=8..12: 5 linhas de dados; r=13 é linha vazia sem célula)
+            for (let r = 8; r <= 12; r++) {
+                const a0 = XLS.utils.encode_cell({ r, c: 0 });
+                const a1 = XLS.utils.encode_cell({ r, c: 1 });
+                const a2 = XLS.utils.encode_cell({ r, c: 2 });
+                if (wsDash[a0]) wsDash[a0].s = { ...cellBase, font: { bold: true, sz: 11 } };
+                if (wsDash[a1]) wsDash[a1].s = { ...cellCenter, font: { bold: true, sz: 12, color: { rgb: '0066FF' } } };
+                if (wsDash[a2]) wsDash[a2].s = cellEvenCenter;
             }
 
             XLS.utils.book_append_sheet(wb, wsDash, 'Dashboard');
@@ -4977,8 +5012,8 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             wsE['!rows'] = [{ hpt: 32 }, { hpt: 20 }, { hpt: 8 }, { hpt: 28 }];
             wsE['!freeze'] = { xSplit: 0, ySplit: 4 };
             
-            wsE['A1'].s = titleStyle;
-            wsE['A2'].s = subtitleStyle;
+            if (wsE['A1']) wsE['A1'].s = titleStyle;
+            if (wsE['A2']) wsE['A2'].s = subtitleStyle;
             for (let c = 0; c < estoqueHeaders.length; c++) {
                 const addr = XLS.utils.encode_cell({ r: 3, c });
                 if (wsE[addr]) wsE[addr].s = headerStyle;
@@ -5036,8 +5071,8 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             wsEnt['!rows'] = [{ hpt: 32 }, { hpt: 20 }, { hpt: 8 }, { hpt: 28 }];
             wsEnt['!freeze'] = { xSplit: 0, ySplit: 4 };
             
-            wsEnt['A1'].s = titleGreenStyle;
-            wsEnt['A2'].s = subtitleStyle;
+            if (wsEnt['A1']) wsEnt['A1'].s = titleGreenStyle;
+            if (wsEnt['A2']) wsEnt['A2'].s = subtitleStyle;
             for (let c = 0; c < entradaHeaders.length; c++) {
                 const addr = XLS.utils.encode_cell({ r: 3, c });
                 if (wsEnt[addr]) wsEnt[addr].s = headerGreen;
@@ -5086,8 +5121,8 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             wsSai['!rows'] = [{ hpt: 32 }, { hpt: 20 }, { hpt: 8 }, { hpt: 28 }];
             wsSai['!freeze'] = { xSplit: 0, ySplit: 4 };
             
-            wsSai['A1'].s = titleRedStyle;
-            wsSai['A2'].s = subtitleStyle;
+            if (wsSai['A1']) wsSai['A1'].s = titleRedStyle;
+            if (wsSai['A2']) wsSai['A2'].s = subtitleStyle;
             for (let c = 0; c < saidaHeaders.length; c++) {
                 const addr = XLS.utils.encode_cell({ r: 3, c });
                 if (wsSai[addr]) wsSai[addr].s = headerRed;
@@ -5137,8 +5172,12 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 []
             ]);
 
-            // Adicionar alertas
-            let alertRow = groupAnalysisRows.length + 10;
+            // Calcular linha de início dinâmica:
+            // r=0 título, r=1 subtítulo, r=2 [], r=3 'RESUMO', r=4 [], r=5 headers,
+            // r=6..5+N group rows, r=6+N [], r=7+N 'ALERTAS', r=8+N []
+            const N = groupAnalysisRows.length;
+            const alertasLabelRow = 7 + N; // linha de 'ALERTAS E RECOMENDAÇÕES'
+            const alertRow = 9 + N;        // linha onde os alertas começam (após o [] em 8+N)
             const alerts = [];
             
             if (zeroCount > 0) alerts.push(`⚠️ ${zeroCount} produto(s) com estoque ZERADO - Reposição crítica necessária`);
@@ -5146,8 +5185,12 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             if (lowCount + zeroCount === 0) alerts.push(`✅ Todos os produtos com estoque dentro dos limites`);
             
             alerts.forEach((alert, idx) => {
-                wsAnalysis[XLS.utils.encode_cell({ r: alertRow + idx, c: 0 })] = { v: alert };
+                wsAnalysis[XLS.utils.encode_cell({ r: alertRow + idx, c: 0 })] = { v: alert, t: 's' };
             });
+
+            // Expandir !ref para cobrir as células de alerta adicionadas manualmente
+            const lastAlertRow = alertRow + Math.max(alerts.length - 1, 0);
+            wsAnalysis['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastAlertRow, c: 5 } });
 
             wsAnalysis['!cols'] = [
                 { wch: 28 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 }
@@ -5156,14 +5199,16 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
                 { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },
                 { s: { r: 3, c: 0 }, e: { r: 3, c: 5 } },
-                { s: { r: 9, c: 0 }, e: { r: 9, c: 5 } }
+                { s: { r: alertasLabelRow, c: 0 }, e: { r: alertasLabelRow, c: 5 } }
             ];
             wsAnalysis['!rows'] = [{ hpt: 32 }, { hpt: 20 }, { hpt: 8 }];
             
-            wsAnalysis['A1'].s = { ...titleStyle, fill: { fgColor: { rgb: '7C3AED' } }, border: { bottom: { style: 'medium', color: { rgb: '6D28D9' } } } };
-            wsAnalysis['A2'].s = subtitleStyle;
-            wsAnalysis['A4'].s = { ...headerPurple, font: { bold: true, sz: 12 } };
-            wsAnalysis['A10'].s = { ...headerPurple, font: { bold: true, sz: 12 } };
+            if (wsAnalysis['A1']) wsAnalysis['A1'].s = { ...titleStyle, fill: { fgColor: { rgb: '7C3AED' } }, border: { bottom: { style: 'medium', color: { rgb: '6D28D9' } } } };
+            if (wsAnalysis['A2']) wsAnalysis['A2'].s = subtitleStyle;
+            if (wsAnalysis['A4']) wsAnalysis['A4'].s = { ...headerPurple, font: { bold: true, sz: 12 } };
+            // Estilizar 'ALERTAS E RECOMENDAÇÕES' na linha dinâmica correta
+            const alertasLabelAddr = XLS.utils.encode_cell({ r: alertasLabelRow, c: 0 });
+            if (wsAnalysis[alertasLabelAddr]) wsAnalysis[alertasLabelAddr].s = { ...headerPurple, font: { bold: true, sz: 12 } };
             
             for (let c = 0; c < analysisHeaders.length; c++) {
                 const addr = XLS.utils.encode_cell({ r: 5, c });
@@ -5191,4 +5236,8 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             const filename = `Controle_Estoque_UHE_Estrela_${stamp}.xlsx`;
             XLS.writeFile(wb, filename);
             showToast(`✅ Planilha exportada com sucesso: ${filename}`);
+            } catch (err) {
+                console.error('Erro ao gerar planilha Excel:', err);
+                showToast(`Erro ao gerar planilha: ${err.message}`, true);
+            }
         };
