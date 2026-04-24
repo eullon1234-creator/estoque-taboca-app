@@ -1481,7 +1481,7 @@
                         <div><label class="block text-sm font-medium">Nº Requisição</label><input type="text" id="req-number" class="w-full mt-1 p-2 border border-slate-200 bg-slate-100 rounded" value="${generateNextRequisitionNumber()}" readonly></div>
                         <div><label class="block text-sm font-medium">Data</label><input type="text" class="w-full mt-1 p-2 border border-slate-200 bg-slate-100 rounded" value="${new Date().toLocaleDateString('pt-BR')}" readonly></div>
                         <div><label class="block text-sm font-medium">Requisitante</label><input type="text" id="req-requester" class="w-full mt-1 p-2 border border-slate-200 rounded focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" required></div>
-                        <div><label class="block text-sm font-medium">Líder da Equipe</label><input type="text" id="req-team-leader" class="w-full mt-1 p-2 border border-slate-200 rounded focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" required></div>
+                        <div><label class="block text-sm font-medium">Função do Funcionário</label><input type="text" id="req-team-leader" class="w-full mt-1 p-2 border border-slate-200 rounded focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" required></div>
                         <div class="md:col-span-2">
                             <label class="block text-sm font-medium">Local de Aplicação</label>
                             <div class="relative">
@@ -1725,7 +1725,7 @@
                         <div class="grid grid-cols-2 gap-x-4 gap-y-2 mb-6 text-sm">
                             <p><strong>Data:</strong> ${req.date ? new Date(req.date.seconds * 1000).toLocaleDateString('pt-BR') : '...'}</p>
                             <p><strong>Requisitante:</strong> ${req.requester}</p>
-                            <p><strong>Líder da Equipe:</strong> ${req.teamLeader || 'N/A'}</p>
+                            <p><strong>Função do Funcionário:</strong> ${req.teamLeader || 'N/A'}</p>
                             <p><strong>Obra:</strong> ${req.obra || 'N/A'}</p>
                             <p class="col-span-2"><strong>Local de Aplicação:</strong> ${req.applicationLocation}</p>
                         </div>
@@ -3265,7 +3265,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 return;
             }
 
-            let csvContent = "Data;Produto;Código RM;Cód. Interno;Grupo;Quantidade;Retirado por;Líder da Equipe;Obra;Local de Aplicação;Código do Local;Detalhes\n";
+            let csvContent = "Data;Produto;Código RM;Cód. Interno;Grupo;Quantidade;Retirado por;Função do Funcionário;Obra;Local de Aplicação;Código do Local;Detalhes\n";
             exitHistory.sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0)).forEach(h => {
                 const date = h.date ? new Date(h.date.seconds * 1000).toLocaleString('pt-BR') : 'N/A';
                 const location = locations.find(loc => loc.name === h.applicationLocation);
@@ -4993,7 +4993,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 .filter(h => ['Saída', 'Saída por Requisição', 'Ajuste Saída'].includes(h.type))
                 .sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
 
-            const saidaHeaders = ['Nº', 'Data', 'Produto', 'Código RM', 'Quantidade', 'Novo Saldo', 'Retirado Por', 'Líder', 'Local Aplicação', 'Obra', 'Registrado Por'];
+            const saidaHeaders = ['Nº', 'Data', 'Produto', 'Código RM', 'Quantidade', 'Novo Saldo', 'Retirado Por', 'Função do Funcionário', 'Local Aplicação', 'Obra', 'Registrado Por'];
             const saidaRows = saidas.map((e, i) => {
                 const dateStr = e.date ? new Date(e.date.seconds * 1000).toLocaleDateString('pt-BR') : '';
                 return [
