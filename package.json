@@ -1,6 +1,6 @@
 {
   "name": "EULLON",
-  "version": "1.9.5",
+  "version": "1.9.7",
   "description": "Aplicacao web para controle de materiais de almoxarifado, com foco em operacao rapida, rastreabilidade e reducao de faltas de estoque.",
   "main": "index.js",
   "scripts": {

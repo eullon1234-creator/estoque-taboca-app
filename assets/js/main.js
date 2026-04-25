@@ -21,6 +21,7 @@
         let products = [];
         let history = [];
         let requisitions = [];
+        let toolLoans = [];
         let locations = [];
         let appSettings = { appName: 'UHE Estrela', logoUrl: null };
         let currentProductId = null;
@@ -28,6 +29,7 @@
         let productsCollectionRef;
         let historyCollectionRef;
         let requisitionsCollectionRef;
+        let toolLoansCollectionRef;
         let locationsCollectionRef;
         let settingsDocRef;
         let usersCollectionRef;
@@ -123,6 +125,14 @@
         const rmList = document.getElementById('rm-list');
         const rmSearchInput = document.getElementById('rm-search-input');
         const noRmMessage = document.getElementById('no-rm-message');
+        const toolLoanForm = document.getElementById('tool-loan-form');
+        const toolLoanSearchInput = document.getElementById('tool-loan-search');
+        const toolLoanProductSelect = document.getElementById('tool-loan-product');
+        const toolLoansOpenList = document.getElementById('tool-loans-open-list');
+        const toolLoansReturnedList = document.getElementById('tool-loans-returned-list');
+        const noToolLoansOpenMessage = document.getElementById('no-tool-loans-open-message');
+        const noToolLoansReturnedMessage = document.getElementById('no-tool-loans-returned-message');
+        const exportToolLoansBtn = document.getElementById('export-tool-loans-btn');
         const importLocationsBtn = document.getElementById('import-locations-btn');
         const csvLocationsFileInput = document.getElementById('csv-locations-file-input');
         // --- Mapeamento de Unidades ---
@@ -545,6 +555,7 @@
             productsCollectionRef = collection(db, `${obraBase}/products`);
             historyCollectionRef = collection(db, `${obraBase}/history`);
             requisitionsCollectionRef = collection(db, `${obraBase}/requisitions`);
+            toolLoansCollectionRef = collection(db, `${obraBase}/tool_loans`);
             locationsCollectionRef = collection(db, `${obraBase}/locations`);
             settingsDocRef = doc(db, `${obraBase}/app_settings/main`);
             usersCollectionRef = collection(db, `/artifacts/${appId}/public/data/users`);
@@ -698,6 +709,7 @@
                     updateDashboard();
                     renderEntryView();
                     renderExitView();
+                    renderToolLoans();
                 }
             }, (error) => handleFirestoreError(error, 'produtos')));
 
@@ -715,6 +727,11 @@
                 if (isDataLoaded) renderRequisitions();
             }, (error) => handleFirestoreError(error, 'requisições')));
 
+            coreUnsubscribers.push(onSnapshot(toolLoansCollectionRef, (snapshot) => {
+                toolLoans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                if (isDataLoaded) renderToolLoans();
+            }, (error) => handleFirestoreError(error, 'cautelas')));
+
             coreUnsubscribers.push(onSnapshot(locationsCollectionRef, (snapshot) => {
                 locations = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 if (!isDataLoaded) {
@@ -726,6 +743,7 @@
                     renderRequisitions();
                     renderLocations();
                     renderRMView();
+                    renderToolLoans();
                 } else {
                     renderLocations();
                 }
@@ -1188,6 +1206,9 @@
                         : record.items
                 };
             }
+            if (collectionName === 'toolLoans' || collectionName === 'tool_loans') {
+                return uppercaseRecordFields(record, ['productName', 'borrower', 'role', 'observation', 'createdBy', 'returnedBy']);
+            }
             if (collectionName === 'history') {
                 return uppercaseRecordFields(record, ['productName', 'withdrawnBy', 'teamLeader', 'applicationLocation', 'performedBy', 'receivedBy', 'supplier', 'observation']);
             }
@@ -1208,6 +1229,10 @@
             '#req-requester',
             '#req-team-leader',
             '#req-application-location',
+            '#tool-loan-search',
+            '#tool-loan-borrower',
+            '#tool-loan-role',
+            '#tool-loan-observation',
             '#ep-name',
             '#ep-location',
             '#epe-name',
@@ -1412,6 +1437,80 @@
                     </td>
                 `;
                 requisitionsList.appendChild(tr);
+            });
+        };
+
+        const formatFirestoreDate = (value) => {
+            if (!value) return '...';
+            if (typeof value.seconds === 'number') return new Date(value.seconds * 1000).toLocaleString('pt-BR');
+            if (typeof value.toMillis === 'function') return new Date(value.toMillis()).toLocaleString('pt-BR');
+            return '...';
+        };
+
+        const populateToolLoanProducts = () => {
+            if (!toolLoanProductSelect) return;
+            const currentValue = toolLoanProductSelect.value;
+            const searchTerm = normalizeSearchText(toolLoanSearchInput?.value || '');
+            const tokens = searchTerm.split(/\s+/).filter(Boolean);
+            const filteredProducts = products.filter(product => {
+                if (tokens.length === 0) return true;
+                const haystack = normalizeSearchText([product.name, product.codeRM, product.code, product.location, product.group].filter(Boolean).join(' '));
+                return tokens.every(token => haystack.includes(token));
+            });
+            const sortedProducts = filteredProducts.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+            toolLoanProductSelect.innerHTML = `<option value="">${sortedProducts.length ? 'Selecione a ferramenta' : 'Nenhuma ferramenta encontrada'}</option>` + sortedProducts
+                .map(p => `<option value="${p.id}">${p.name} (${p.codeRM || p.code || 'S/C'}) - Estoque: ${p.quantity || 0}</option>`)
+                .join('');
+
+            if (currentValue && sortedProducts.some(p => p.id === currentValue)) {
+                toolLoanProductSelect.value = currentValue;
+            }
+        };
+
+        const renderToolLoans = () => {
+            populateToolLoanProducts();
+            if (!toolLoansOpenList || !toolLoansReturnedList) return;
+
+            const sortedLoans = [...toolLoans].sort((a, b) => (b.loanDate?.seconds || 0) - (a.loanDate?.seconds || 0));
+            const openLoans = sortedLoans.filter(loan => loan.status !== 'returned');
+            const returnedLoans = sortedLoans.filter(loan => loan.status === 'returned');
+
+            toolLoansOpenList.innerHTML = '';
+            toolLoansReturnedList.innerHTML = '';
+
+            noToolLoansOpenMessage?.classList.toggle('hidden', openLoans.length > 0);
+            noToolLoansReturnedMessage?.classList.toggle('hidden', returnedLoans.length > 0);
+            if (openLoans.length === 0 && isDataLoaded && noToolLoansOpenMessage) {
+                noToolLoansOpenMessage.innerHTML = '<p class="text-lg">Nenhuma ferramenta em aberto.</p>';
+            }
+            if (returnedLoans.length === 0 && isDataLoaded && noToolLoansReturnedMessage) {
+                noToolLoansReturnedMessage.innerHTML = '<p class="text-lg">Nenhuma devolução registrada.</p>';
+            }
+
+            openLoans.forEach(loan => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 transition-colors duration-150';
+                tr.innerHTML = `
+                    <td class="p-3 text-sm text-slate-600">${formatFirestoreDate(loan.loanDate)}</td>
+                    <td class="p-3"><p class="font-semibold text-slate-800">${loan.productName || ''}</p><p class="text-sm text-slate-500">${loan.productCodeRM || loan.productCode || 'N/A'}</p></td>
+                    <td class="p-3 text-center font-bold text-slate-800">${loan.quantity || 0}</td>
+                    <td class="p-3"><p class="font-semibold text-slate-700">${loan.borrower || ''}</p><p class="text-sm text-slate-500">${loan.role || ''}</p></td>
+                    <td class="p-3 text-center"><button data-id="${loan.id}" class="return-tool-loan-btn bg-green-600 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-green-700 transition">Devolvido</button></td>
+                `;
+                toolLoansOpenList.appendChild(tr);
+            });
+
+            returnedLoans.slice(0, 100).forEach(loan => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 transition-colors duration-150';
+                tr.innerHTML = `
+                    <td class="p-3 text-sm text-slate-600">${formatFirestoreDate(loan.returnDate)}</td>
+                    <td class="p-3"><p class="font-semibold text-slate-800">${loan.productName || ''}</p><p class="text-sm text-slate-500">${loan.productCodeRM || loan.productCode || 'N/A'}</p></td>
+                    <td class="p-3 text-center font-bold text-slate-800">${loan.quantity || 0}</td>
+                    <td class="p-3 text-slate-700">${loan.borrower || ''}</td>
+                `;
+                toolLoansReturnedList.appendChild(tr);
             });
         };
 
@@ -2344,6 +2443,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             if (viewId === 'exit-log-view') renderExitLog(exitsSearchInput.value);
             if (viewId === 'rm-view') renderRMView(rmSearchInput.value); 
             if (viewId === 'dashboard-view') updateDashboard();
+            if (viewId === 'tool-loans-view') renderToolLoans();
             if (viewId === 'compras-view') {
                 const sel = document.getElementById('compras-period-select');
                 renderComprasView(sel ? parseInt(sel.value) : 15);
@@ -2534,6 +2634,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             products = [];
             history = [];
             requisitions = [];
+            toolLoans = [];
             locations = [];
             loginScreen.classList.remove('hidden');
             appContainer.classList.add('hidden');
@@ -2564,6 +2665,63 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 renderProducts();
             });
         }
+
+        toolLoanForm?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!hasPermission('create')) {
+                showToast('🔒 Você não tem permissão para cautelar ferramentas', true);
+                return;
+            }
+
+            const productId = toolLoanProductSelect.value;
+            const quantity = parseInt(document.getElementById('tool-loan-quantity').value);
+            const borrower = toUpperText(document.getElementById('tool-loan-borrower').value);
+            const role = toUpperText(document.getElementById('tool-loan-role').value);
+            const observation = toUpperText(document.getElementById('tool-loan-observation').value);
+            const product = products.find(p => p.id === productId);
+
+            if (!productId || !product || isNaN(quantity) || quantity <= 0 || !borrower) {
+                showToast('Preencha ferramenta, quantidade e nome corretamente.', true);
+                return;
+            }
+            if ((product.quantity || 0) < quantity) {
+                showToast(`Estoque insuficiente para ${product.name}. Disponível: ${product.quantity || 0}`, true);
+                return;
+            }
+
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Salvando...';
+
+            try {
+                const newQuantity = (product.quantity || 0) - quantity;
+                const batch = writeBatch(db);
+                batch.update(doc(productsCollectionRef, productId), { quantity: newQuantity, updatedAt: serverTimestamp() });
+                batch.set(doc(toolLoansCollectionRef), {
+                    productId,
+                    productName: product.name,
+                    productCode: product.code || '',
+                    productCodeRM: product.codeRM || '',
+                    quantity,
+                    borrower,
+                    role: role || null,
+                    observation: observation || null,
+                    status: 'open',
+                    loanDate: serverTimestamp(),
+                    createdBy: toUpperText(currentUser?.displayName || 'Anônimo')
+                });
+                await batch.commit();
+                toolLoanForm.reset();
+                document.getElementById('tool-loan-quantity').value = '1';
+                showToast('Ferramenta cautelada e estoque atualizado.');
+            } catch (error) {
+                console.error('Erro ao cautelar ferramenta:', error);
+                showToast(`Erro ao cautelar: ${error.message}`, true);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Cautelar';
+            }
+        });
         
         productList.addEventListener('click', async (e) => {
             const button = e.target.closest('button');
@@ -3066,6 +3224,44 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             if (e.target.classList.contains('copy-btn')) {
                 copyToClipboard(e.target.dataset.copyText);
             }
+            const returnToolLoanBtn = e.target.closest('.return-tool-loan-btn');
+            if (returnToolLoanBtn) {
+                const loanId = returnToolLoanBtn.dataset.id;
+                const loan = toolLoans.find(item => item.id === loanId);
+                if (!loan || loan.status === 'returned') return;
+                if (!hasPermission('update')) {
+                    showToast('🔒 Você não tem permissão para devolver cautelas', true);
+                    return;
+                }
+
+                showConfirmationModal(
+                    'Devolver Ferramenta',
+                    `Confirmar devolução de ${loan.quantity} unidade(s) de ${loan.productName}?`,
+                    async () => {
+                        const product = products.find(p => p.id === loan.productId);
+                        if (!product) {
+                            showToast('Produto não encontrado no estoque. Atualize o app e tente novamente.', true);
+                            return;
+                        }
+
+                        try {
+                            const batch = writeBatch(db);
+                            const newQuantity = (product.quantity || 0) + (loan.quantity || 0);
+                            batch.update(doc(productsCollectionRef, loan.productId), { quantity: newQuantity, updatedAt: serverTimestamp() });
+                            batch.update(doc(toolLoansCollectionRef, loan.id), {
+                                status: 'returned',
+                                returnDate: serverTimestamp(),
+                                returnedBy: toUpperText(currentUser?.displayName || 'Anônimo')
+                            });
+                            await batch.commit();
+                            showToast('Ferramenta devolvida ao estoque.');
+                        } catch (error) {
+                            console.error('Erro ao devolver ferramenta:', error);
+                            showToast(`Erro ao devolver: ${error.message}`, true);
+                        }
+                    }
+                );
+            }
         });
 
         document.body.addEventListener('change', e => {
@@ -3122,6 +3318,194 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                     }
                 );
             }
+        });
+
+        exportToolLoansBtn?.addEventListener('click', () => {
+            const XLS = typeof XLSX !== 'undefined' ? XLSX : null;
+            if (!XLS) { showToast('Biblioteca de planilhas não carregou. Recarregue a página.', true); return; }
+            if (toolLoans.length === 0) { showToast('Nenhuma cautela registrada para exportar.', true); return; }
+
+            const today     = new Date().toLocaleDateString('pt-BR');
+            const hora      = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            const stamp     = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 16);
+            const wb        = XLS.utils.book_new();
+
+            // ── ESTILOS ───────────────────────────────────────────────────────────
+            const bdr = (color = 'CBD5E1') => ({
+                top:    { style: 'thin', color: { rgb: color } },
+                bottom: { style: 'thin', color: { rgb: color } },
+                left:   { style: 'thin', color: { rgb: color } },
+                right:  { style: 'thin', color: { rgb: color } }
+            });
+            const sTitle = (accent) => ({
+                font:      { bold: true, sz: 18, color: { rgb: 'FFFFFF' } },
+                fill:      { fgColor: { rgb: '0F172A' } },
+                alignment: { horizontal: 'center', vertical: 'center' },
+                border:    { bottom: { style: 'thick', color: { rgb: accent } } }
+            });
+            const sSub = {
+                font:      { italic: true, sz: 10, color: { rgb: '94A3B8' } },
+                fill:      { fgColor: { rgb: '1E293B' } },
+                alignment: { horizontal: 'center', vertical: 'center' }
+            };
+            const sSecHdr = (rgb) => ({
+                font:      { bold: true, sz: 11, color: { rgb: 'FFFFFF' } },
+                fill:      { fgColor: { rgb } },
+                alignment: { horizontal: 'left', vertical: 'center' },
+                border:    bdr(rgb)
+            });
+            const sTH = (rgb) => ({
+                font:      { bold: true, sz: 10, color: { rgb: 'FFFFFF' } },
+                fill:      { fgColor: { rgb } },
+                alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+                border:    bdr(rgb)
+            });
+            const sCell = (even, align = 'left', color = '1E293B', bold = false) => ({
+                font:      { sz: 10, color: { rgb: color }, bold },
+                fill:      { fgColor: { rgb: even ? 'F8FAFC' : 'FFFFFF' } },
+                alignment: { horizontal: align, vertical: 'center' },
+                border:    bdr()
+            });
+            const sBadgeOpen = {
+                font:  { bold: true, sz: 10, color: { rgb: 'D97706' } },
+                fill:  { fgColor: { rgb: 'FEF9C3' } },
+                alignment: { horizontal: 'center', vertical: 'center' },
+                border: bdr('D97706')
+            };
+            const sBadgeDone = {
+                font:  { bold: true, sz: 10, color: { rgb: '15803D' } },
+                fill:  { fgColor: { rgb: 'DCFCE7' } },
+                alignment: { horizontal: 'center', vertical: 'center' },
+                border: bdr('15803D')
+            };
+            const sKpiLbl = (bg, fg) => ({
+                font:      { bold: true, sz: 10, color: { rgb: fg } },
+                fill:      { fgColor: { rgb: bg } },
+                alignment: { horizontal: 'center', vertical: 'bottom' },
+                border:    bdr(bg)
+            });
+            const sKpiVal = (bg, fg) => ({
+                font:      { bold: true, sz: 28, color: { rgb: fg } },
+                fill:      { fgColor: { rgb: bg } },
+                alignment: { horizontal: 'center', vertical: 'center' },
+                border:    bdr(bg)
+            });
+            const sFooter = {
+                font:      { italic: true, sz: 9, color: { rgb: '64748B' } },
+                fill:      { fgColor: { rgb: 'F1F5F9' } },
+                alignment: { horizontal: 'center', vertical: 'center' },
+                border:    { top: { style: 'medium', color: { rgb: 'F59E0B' } } }
+            };
+
+            const buildSheet = (loans, accent, titulo) => {
+                const ws     = XLS.utils.aoa_to_sheet([]);
+                const COLS   = 10;
+                ws['!cols']  = [
+                    { wch: 14 }, { wch: 22 }, { wch: 18 }, { wch: 16 },
+                    { wch: 14 }, { wch: 12 }, { wch: 8 },
+                    { wch: 22 }, { wch: 18 }, { wch: 30 }
+                ];
+                ws['!merges'] = [];
+                ws['!rows']   = [];
+                let row = 0;
+
+                const sc  = (r, c, v, style, t = 's') => { ws[XLS.utils.encode_cell({ r, c })] = { v, t, s: style }; };
+                const scN = (r, c, v, style)           => sc(r, c, v, style, 'n');
+                const merge = (r1, c1, r2, c2)         => ws['!merges'].push({ s: { r: r1, c: c1 }, e: { r: r2, c: c2 } });
+
+                // ── CABEÇALHO ─────────────────────────────────────────────────────
+                ws['!rows'].push({ hpt: 46 });
+                for (let c = 0; c < COLS; c++) sc(row, c, titulo, sTitle(accent));
+                merge(row, 0, row, COLS - 1);
+                row++;
+
+                ws['!rows'].push({ hpt: 20 });
+                const subtxt = `Emitido em ${today} às ${hora}  •  Total: ${loans.length} cautela(s)`;
+                for (let c = 0; c < COLS; c++) sc(row, c, subtxt, sSub);
+                merge(row, 0, row, COLS - 1);
+                row++;
+
+                // ── KPIs ──────────────────────────────────────────────────────────
+                row++; // espaço
+                ws['!rows'].push({ hpt: 6 }, { hpt: 30 }, { hpt: 34 }, { hpt: 18 });
+                const openCnt     = loans.filter(l => l.status !== 'returned').length;
+                const returnedCnt = loans.filter(l => l.status === 'returned').length;
+                const totalQty    = loans.reduce((s, l) => s + (l.quantity || 0), 0);
+                const uniqueTools = new Set(loans.map(l => l.productName)).size;
+
+                const cards = [
+                    { bg: 'FEF9C3', fg: 'D97706', lbl: 'EM ABERTO',      val: openCnt },
+                    { bg: 'DCFCE7', fg: '15803D', lbl: 'DEVOLVIDAS',     val: returnedCnt },
+                    { bg: 'DBEAFE', fg: '1D4ED8', lbl: 'TOTAL DE ITENS', val: totalQty },
+                    { bg: 'F3E8FF', fg: '7E22CE', lbl: 'FERRAMENTAS',    val: uniqueTools }
+                ];
+                // Rótulos KPI (colunas 0,2,5,7 — agrupados em pares)
+                const kpiCols = [[0, 1], [2, 3], [5, 6], [7, 8]];
+                kpiCols.forEach(([c1, c2], i) => {
+                    const { bg, fg, lbl, val } = cards[i];
+                    for (let c = c1; c <= c2; c++) {
+                        sc(row,   c, lbl, sKpiLbl(bg, fg));
+                        scN(row+1, c, val, sKpiVal(bg, fg));
+                    }
+                    merge(row,   c1, row,   c2);
+                    merge(row+1, c1, row+1, c2);
+                });
+                row += 2;
+                row++; // espaço
+
+                // ── SEÇÃO LABEL ───────────────────────────────────────────────────
+                ws['!rows'].push({ hpt: 22 });
+                for (let c = 0; c < COLS; c++) sc(row, c, `  REGISTRO DE CAUTELAS — ${titulo.toUpperCase()}`, sSecHdr(accent));
+                merge(row, 0, row, COLS - 1);
+                row++;
+
+                // ── CABEÇALHO DA TABELA ───────────────────────────────────────────
+                ws['!rows'].push({ hpt: 28 });
+                const headers = ['STATUS', 'FERRAMENTA', 'DATA CAUTELA', 'DATA DEVOLUÇÃO',
+                                 'CÓD. RM', 'CÓD. INTERNO', 'QTD', 'PESSOA', 'FUNÇÃO', 'OBSERVAÇÃO'];
+                headers.forEach((h, c) => sc(row, c, h, sTH(accent)));
+                row++;
+
+                // ── LINHAS DE DADOS ───────────────────────────────────────────────
+                const sorted = [...loans].sort((a, b) => (b.loanDate?.seconds || 0) - (a.loanDate?.seconds || 0));
+                sorted.forEach((loan, idx) => {
+                    const even    = idx % 2 === 0;
+                    const isOpen  = loan.status !== 'returned';
+                    ws['!rows'].push({ hpt: 20 });
+
+                    sc (row, 0, isOpen ? 'EM ABERTO' : 'DEVOLVIDA', isOpen ? sBadgeOpen : sBadgeDone);
+                    sc (row, 1, loan.productName || '', sCell(even, 'left', '1E293B', true));
+                    sc (row, 2, formatFirestoreDate(loan.loanDate), sCell(even, 'center'));
+                    sc (row, 3, isOpen ? '—' : formatFirestoreDate(loan.returnDate), sCell(even, 'center'));
+                    sc (row, 4, loan.productCodeRM || '', sCell(even, 'center'));
+                    sc (row, 5, loan.productCode || '', sCell(even, 'center'));
+                    scN(row, 6, loan.quantity || 0, { ...sCell(even, 'center'), font: { bold: true, sz: 10, color: { rgb: '1D4ED8' } } });
+                    sc (row, 7, loan.borrower || '', sCell(even, 'left', '1E293B', true));
+                    sc (row, 8, loan.role || '', sCell(even));
+                    sc (row, 9, loan.observation || '', sCell(even));
+                    row++;
+                });
+
+                // ── RODAPÉ ────────────────────────────────────────────────────────
+                row++;
+                ws['!rows'].push({ hpt: 18 });
+                const footerTxt = `EULLON  •  Ferramentaria  •  Gerado em ${today} ${hora}`;
+                for (let c = 0; c < COLS; c++) sc(row, c, footerTxt, sFooter);
+                merge(row, 0, row, COLS - 1);
+
+                ws['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: row, c: COLS - 1 } });
+                return ws;
+            };
+
+            const openLoans     = toolLoans.filter(l => l.status !== 'returned');
+            const returnedLoans = toolLoans.filter(l => l.status === 'returned');
+
+            XLS.utils.book_append_sheet(wb, buildSheet(openLoans,     'F59E0B', 'Em Aberto'),  'Em Aberto');
+            XLS.utils.book_append_sheet(wb, buildSheet(returnedLoans, '16A34A', 'Devolvidas'), 'Devolvidas');
+            XLS.utils.book_append_sheet(wb, buildSheet([...toolLoans],'1D4ED8', 'Todas'),      'Todas');
+
+            XLS.writeFile(wb, `cautelas_${stamp}.xlsx`);
+            showToast('Relatório de cautelas exportado.');
         });
 
         importBtn.addEventListener('click', () => csvFileInput.click());
@@ -3978,6 +4362,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         });
         exitsSearchInput.addEventListener('input', (e) => renderExitLog(e.target.value));
         rmSearchInput.addEventListener('input', (e) => renderRMView(e.target.value));
+        toolLoanSearchInput?.addEventListener('input', populateToolLoanProducts);
         
         backupBtn.addEventListener('click', async () => {
              try {
@@ -3987,6 +4372,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                     history,
                     locations,
                     requisitions,
+                    toolLoans,
                     settings: appSettings
                 };
 
@@ -4031,7 +4417,8 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                             try {
                                 const collectionsToWipe = [
                                     productsCollectionRef, historyCollectionRef, 
-                                    locationsCollectionRef, requisitionsCollectionRef
+                                    locationsCollectionRef, requisitionsCollectionRef,
+                                    toolLoansCollectionRef
                                 ];
 
                                 for (const collRef of collectionsToWipe) {
@@ -4058,7 +4445,8 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                                     products: productsCollectionRef,
                                     history: historyCollectionRef,
                                     locations: locationsCollectionRef,
-                                    requisitions: requisitionsCollectionRef
+                                    requisitions: requisitionsCollectionRef,
+                                    toolLoans: toolLoansCollectionRef
                                 };
                                 
                                 for(const key in collectionsToRestore) {
