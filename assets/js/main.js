@@ -1207,7 +1207,7 @@
             '#entry-observation',
             '#req-requester',
             '#req-team-leader',
-            '#req-location-search',
+            '#req-application-location',
             '#ep-name',
             '#ep-location',
             '#epe-name',
@@ -1565,12 +1565,7 @@
                         <div><label class="block text-sm font-medium">Função do Funcionário</label><input type="text" id="req-team-leader" class="w-full mt-1 p-2 border border-slate-200 rounded focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" required></div>
                         <div class="md:col-span-2">
                             <label class="block text-sm font-medium">Local de Aplicação</label>
-                            <div class="relative">
-                                <input type="text" id="req-location-search" class="w-full mt-1 p-2 border border-slate-200 rounded focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" placeholder="Pesquisar local ou apelido..." autocomplete="off">
-                                <div id="req-location-results" class="absolute z-10 w-full bg-white border rounded mt-1 max-h-48 overflow-y-auto hidden shadow-lg">
-                                </div>
-                            </div>
-                            <input type="hidden" id="req-application-location" name="req-application-location" required>
+                            <input type="text" id="req-application-location" name="req-application-location" class="w-full mt-1 p-2 border border-slate-200 rounded focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" placeholder="Digite o local de aplicação" autocomplete="off" required>
                         </div>
                         <div class="md:col-span-2">
                             <label class="block text-sm font-medium">Obra</label>
@@ -1596,66 +1591,8 @@
             document.getElementById('generic-modal').classList.replace('max-w-md', 'max-w-4xl');
             openModal('generic-modal');
 
-            const reqLocationSearch = document.getElementById('req-location-search');
-            const reqLocationResults = document.getElementById('req-location-results');
-            const reqApplicationLocation = document.getElementById('req-application-location');
             const reqItemsContainer = document.getElementById('req-items-container');
             const reqItemSearch = document.getElementById('req-item-search');
-
-            const renderLocationResults = (searchTerm = '') => {
-                reqLocationResults.innerHTML = '';
-                const lowerSearchTerm = searchTerm.toLowerCase();
-                let filteredLocations = [];
-
-                const allSortedLocations = [...locations].sort((a, b) => a.name.localeCompare(b.name));
-
-                if (!searchTerm) {
-                    filteredLocations = allSortedLocations.map(loc => ({...loc, match: loc.name}));
-                } else {
-                    allSortedLocations.forEach(loc => {
-                        const lowerName = loc.name.toLowerCase();
-                        if (lowerName.includes(lowerSearchTerm)) {
-                            filteredLocations.push({...loc, match: loc.name});
-                            return; 
-                        }
-                        if (loc.aliases) {
-                            const matchingAlias = loc.aliases.find(alias => alias.toLowerCase().includes(lowerSearchTerm));
-                            if (matchingAlias) {
-                                filteredLocations.push({...loc, match: `Apelido: ${matchingAlias}`});
-                            }
-                        }
-                    });
-                }
-
-                if (filteredLocations.length > 0) {
-                    filteredLocations.forEach(loc => {
-                        const resultItem = document.createElement('div');
-                        resultItem.className = 'p-2 hover:bg-indigo-100 cursor-pointer';
-                        resultItem.dataset.value = loc.name;
-                        resultItem.innerHTML = `
-                            <p class="font-semibold text-slate-800">${loc.name}</p>
-                            ${loc.match !== loc.name ? `<p class="text-sm text-slate-500">${loc.match}</p>` : ''}
-                        `;
-                        resultItem.addEventListener('mousedown', () => {
-                            reqLocationSearch.value = loc.name;
-                            reqApplicationLocation.value = loc.name;
-                            reqLocationResults.classList.add('hidden');
-                        });
-                        reqLocationResults.appendChild(resultItem);
-                    });
-                } else {
-                    reqLocationResults.innerHTML = '<div class="p-2 text-slate-500">Nenhum local encontrado.</div>';
-                }
-                reqLocationResults.classList.remove('hidden');
-            };
-
-            reqLocationSearch.addEventListener('focus', () => renderLocationResults(reqLocationSearch.value));
-            reqLocationSearch.addEventListener('input', () => renderLocationResults(reqLocationSearch.value));
-            reqLocationSearch.addEventListener('blur', () => {
-                setTimeout(() => {
-                    reqLocationResults.classList.add('hidden');
-                }, 150);
-            });
 
             const normalizeSearchText = (value = '') => {
                 return String(value)
