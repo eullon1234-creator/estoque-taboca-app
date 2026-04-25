@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eullon-v1.9.4';
+const CACHE_NAME = 'eullon-v1.9.5';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -35,13 +35,18 @@ self.addEventListener('fetch', event => {
     if (event.request.method !== 'GET') return;
 
     const url = new URL(event.request.url);
+    if (url.origin !== self.location.origin) {
+        event.respondWith(fetch(event.request));
+        return;
+    }
+
     const shouldPreferNetwork = event.request.mode === 'navigate' || url.searchParams.has('v') || url.searchParams.has('atualizar');
 
     event.respondWith(
         (shouldPreferNetwork ? fetch(event.request).then(response => {
             if (response && response.status === 200 && response.type !== 'opaque') {
                 const responseClone = response.clone();
-                caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
+                caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone)).catch(() => {});
             }
             return response;
         }).catch(() => caches.match(event.request)) : caches.match(event.request)).then(cached => {
@@ -51,7 +56,7 @@ self.addEventListener('fetch', event => {
                     return response;
                 }
                 const responseClone = response.clone();
-                caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
+                caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone)).catch(() => {});
                 return response;
             });
         })

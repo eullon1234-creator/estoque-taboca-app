@@ -2847,62 +2847,57 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 };
 
                 try {
-                    const historyEntries = [];
-                    await runTransaction(db, async (transaction) => {
-                        const productRefs = Array.from(itemsMap.keys()).map(id => doc(productsCollectionRef, id));
-                        const productDocs = await Promise.all(productRefs.map(ref => transaction.get(ref)));
-                        
-                        for (let i = 0; i < productDocs.length; i++) {
-                            const productDoc = productDocs[i];
-                            const productId = productRefs[i].id;
-                            const requestedQuantity = itemsMap.get(productId).quantity;
+                    const batch = writeBatch(db);
 
-                            if (!productDoc.exists()) throw new Error(`Produto não encontrado no banco de dados.`);
-                            
-                            const productData = productDoc.data();
-                            if (productData.quantity < requestedQuantity) throw new Error(`Estoque insuficiente para ${productData.name}.`);
-                            
-                            const newQuantity = productData.quantity - requestedQuantity;
-                            transaction.update(productDoc.ref, { quantity: newQuantity });
-                            
-                            newReqData.items.push({
-                                productId,
-                                productName: productData.name,
-                                productCode: productData.code,
-                                productCodeRM: productData.codeRM,
-                                quantity: requestedQuantity
-                            });
+                    itemsMap.forEach(({ quantity: requestedQuantity }, productId) => {
+                        const productData = products.find(p => p.id === productId);
+                        if (!productData) throw new Error(`Produto não encontrado na tela. Atualize o app e tente novamente.`);
+                        if ((productData.quantity || 0) < requestedQuantity) throw new Error(`Estoque insuficiente para ${productData.name}.`);
 
-                            historyEntries.push({
-                                productId,
-                                productData,
-                                type: 'Saída por Requisição',
-                                quantity: requestedQuantity,
-                                newTotal: newQuantity,
-                                details: {
-                                    withdrawnBy: newReqData.requester,
-                                    teamLeader: newReqData.teamLeader,
-                                    applicationLocation: newReqData.applicationLocation,
-                                    obra: newReqData.obra,
-                                    details: `Requisição Nº ${newReqData.number}`
-                                }
-                            });
-                        }
-                        transaction.set(doc(requisitionsCollectionRef), newReqData);
+                        const newQuantity = (productData.quantity || 0) - requestedQuantity;
+                        batch.update(doc(productsCollectionRef, productId), { quantity: newQuantity, updatedAt: serverTimestamp() });
+
+                        newReqData.items.push({
+                            productId,
+                            productName: productData.name,
+                            productCode: productData.code,
+                            productCodeRM: productData.codeRM,
+                            quantity: requestedQuantity
+                        });
+
+                        batch.set(doc(historyCollectionRef), {
+                            productId,
+                            productCode: productData.code || 'N/A',
+                            productCodeRM: productData.codeRM || 'N/A',
+                            productName: toUpperText(productData.name || 'Produto Excluído'),
+                            type: 'Saída por Requisição',
+                            quantity: requestedQuantity,
+                            newTotal: newQuantity,
+                            withdrawnBy: newReqData.requester,
+                            teamLeader: newReqData.teamLeader,
+                            applicationLocation: newReqData.applicationLocation,
+                            obra: newReqData.obra,
+                            details: `Requisição Nº ${newReqData.number}`,
+                            rmProcessed: false,
+                            date: serverTimestamp(),
+                            performedBy: toUpperText(currentUser?.displayName || 'Anônimo'),
+                            timestamp: serverTimestamp()
+                        });
                     });
 
-                    for(const entry of historyEntries) {
-                        const { productId, type, quantity, newTotal, details, productData } = entry;
-                         await addHistoryEntry(productId, type, quantity, newTotal, details, productData);
-                    }
+                    batch.set(doc(requisitionsCollectionRef), newReqData);
+                    await batch.commit();
                     
                     selectedProductIds.clear();
                     showToast("Requisição criada e estoque atualizado!");
                     closeModal('generic-modal');
 
                 } catch (error) {
-                    console.error("Erro na transação da requisição: ", error);
-                    showToast(`Erro: ${error.message}`, true);
+                    console.error("Erro ao finalizar requisição: ", error);
+                    const message = error.code === 'resource-exhausted'
+                        ? 'Limite temporário do Firebase atingido. Aguarde alguns minutos e tente novamente.'
+                        : error.message;
+                    showToast(`Erro: ${message}`, true);
                 } finally {
                     button.disabled = false;
                     button.textContent = 'Salvar e Baixar Estoque';
