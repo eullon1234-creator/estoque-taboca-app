@@ -793,16 +793,16 @@
                     productId,
                     productCode: product?.code || 'N/A',
                     productCodeRM: product?.codeRM || 'N/A',
-                    productName: product?.name || 'Produto Excluído',
+                    productName: toUpperText(product?.name || 'Produto Excluído'),
                     type, quantity: Math.abs(quantity), newTotal,
-                    withdrawnBy: details.withdrawnBy || null,
-                    teamLeader: details.teamLeader || null,
-                    applicationLocation: details.applicationLocation || null,
+                    withdrawnBy: toUpperOrNull(details.withdrawnBy),
+                    teamLeader: toUpperOrNull(details.teamLeader),
+                    applicationLocation: toUpperOrNull(details.applicationLocation),
                     obra: details.obra || null,
                     details: details.details || null,
                     rmProcessed: false,
                     date: serverTimestamp(),
-                    performedBy: currentUser?.displayName || 'Anônimo', // 🔍 Auditoria: usuário que realizou ação
+                    performedBy: toUpperText(currentUser?.displayName || 'Anônimo'), // 🔍 Auditoria: usuário que realizou ação
                     timestamp: serverTimestamp() // 🔍 Auditoria: timestamp preciso
                 });
             } catch (error) {
@@ -1149,6 +1149,87 @@
                 .toLowerCase()
                 .trim();
         };
+
+        const toUpperText = (value = '') => String(value ?? '').trim().toLocaleUpperCase('pt-BR');
+        const toUpperOrNull = (value = '') => {
+            const normalized = toUpperText(value);
+            return normalized || null;
+        };
+        const parseUpperAliases = (value = '') => String(value || '')
+            .split(',')
+            .map(alias => toUpperText(alias))
+            .filter(Boolean);
+
+        const uppercaseRecordFields = (record = {}, fields = []) => {
+            const normalized = { ...record };
+            fields.forEach(field => {
+                if (normalized[field] !== undefined && normalized[field] !== null) {
+                    normalized[field] = toUpperText(normalized[field]);
+                }
+            });
+            return normalized;
+        };
+
+        const normalizeRecordForUppercase = (collectionName, record = {}) => {
+            if (collectionName === 'products' || collectionName === 'estrela_products') {
+                return uppercaseRecordFields(record, ['name', 'location', 'createdBy', 'updatedBy']);
+            }
+            if (collectionName === 'locations') {
+                return {
+                    ...uppercaseRecordFields(record, ['name']),
+                    aliases: Array.isArray(record.aliases) ? record.aliases.map(alias => toUpperText(alias)).filter(Boolean) : record.aliases
+                };
+            }
+            if (collectionName === 'requisitions') {
+                return {
+                    ...uppercaseRecordFields(record, ['requester', 'teamLeader', 'applicationLocation']),
+                    items: Array.isArray(record.items)
+                        ? record.items.map(item => uppercaseRecordFields(item, ['productName']))
+                        : record.items
+                };
+            }
+            if (collectionName === 'history') {
+                return uppercaseRecordFields(record, ['productName', 'withdrawnBy', 'teamLeader', 'applicationLocation', 'performedBy', 'receivedBy', 'supplier', 'observation']);
+            }
+            return record;
+        };
+
+        const uppercaseInputSelector = [
+            '#product-name',
+            '#product-location',
+            '#edit-product-name',
+            '#edit-product-location',
+            '#location-name',
+            '#location-aliases',
+            '#edit-location-name',
+            '#edit-location-aliases',
+            '#entry-supplier',
+            '#entry-observation',
+            '#req-requester',
+            '#req-team-leader',
+            '#req-location-search',
+            '#ep-name',
+            '#ep-location',
+            '#epe-name',
+            '#epe-location',
+            '#estrela-entry-supplier',
+            '#estrela-entry-received-by',
+            '#estrela-entry-obs',
+            '#estrela-exit-who',
+            '#estrela-exit-leader',
+            '#estrela-exit-location',
+            '#estrela-exit-obs'
+        ].join(',');
+
+        document.body.addEventListener('input', (e) => {
+            if (!e.target.matches?.(uppercaseInputSelector)) return;
+            const start = e.target.selectionStart;
+            const end = e.target.selectionEnd;
+            e.target.value = e.target.value.toLocaleUpperCase('pt-BR');
+            if (typeof e.target.setSelectionRange === 'function' && start !== null && end !== null) {
+                e.target.setSelectionRange(start, end);
+            }
+        });
 
         const buildProductSearchText = (p) => {
             return [p.name, p.codeRM, p.code, p.location, p.group, p.unit].filter(Boolean).join(' ');
@@ -2657,16 +2738,16 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             const newProduct = {
                 code: document.getElementById('product-code').value.trim(),
                 codeRM: document.getElementById('product-code-rm').value.trim(),
-                name: document.getElementById('product-name').value.trim(),
+                name: toUpperText(document.getElementById('product-name').value),
                 unit: document.getElementById('product-unit').value,
                 group: document.getElementById('product-group').value,
                 quantity: parseInt(document.getElementById('product-quantity').value),
                 minQuantity: parseInt(document.getElementById('product-min-quantity').value),
-                location: document.getElementById('product-location').value.trim(),
+                location: toUpperText(document.getElementById('product-location').value),
                 observation: '',
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
-                createdBy: currentUser?.displayName || currentUser?.uid || 'Anônimo'
+                createdBy: toUpperText(currentUser?.displayName || currentUser?.uid || 'Anônimo')
             };
 
             // 🔒 VALIDAÇÕES CRÍTICAS
@@ -2820,9 +2901,9 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 
                 const newReqData = {
                     number: document.getElementById('req-number').value,
-                    requester: document.getElementById('req-requester').value.trim(),
-                    teamLeader: document.getElementById('req-team-leader').value.trim(),
-                    applicationLocation: document.getElementById('req-application-location').value,
+                    requester: toUpperText(document.getElementById('req-requester').value),
+                    teamLeader: toUpperText(document.getElementById('req-team-leader').value),
+                    applicationLocation: toUpperText(document.getElementById('req-application-location').value),
                     obra: document.getElementById('req-obra').value,
                     items: [], 
                     date: serverTimestamp()
@@ -2898,15 +2979,15 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 const newQuantity = parseInt(document.getElementById('edit-product-quantity').value);
                 const updatedData = {
                     codeRM: document.getElementById('edit-product-code-rm').value.trim(),
-                    name: document.getElementById('edit-product-name').value.trim(),
+                    name: toUpperText(document.getElementById('edit-product-name').value),
                     unit: document.getElementById('edit-product-unit').value,
                     group: document.getElementById('edit-product-group').value,
                     quantity: newQuantity,
                     minQuantity: parseInt(document.getElementById('edit-product-min-quantity').value),
-                    location: document.getElementById('edit-product-location').value.trim(),
+                    location: toUpperText(document.getElementById('edit-product-location').value),
                     observation: document.getElementById('edit-product-observation').value.trim(),
                     updatedAt: serverTimestamp(), // 🔍 Auditoria: timestamp de atualização
-                    updatedBy: currentUser?.displayName || currentUser?.uid || 'Anônimo' // 🔍 Auditoria: quem atualizou
+                    updatedBy: toUpperText(currentUser?.displayName || currentUser?.uid || 'Anônimo') // 🔍 Auditoria: quem atualizou
                 };
                 try {
                     await updateDoc(productRef, updatedData);
@@ -2944,10 +3025,9 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             }
             if (e.target.id === 'add-location-form') {
                 e.preventDefault();
-                const name = document.getElementById('location-name').value.trim();
+                const name = toUpperText(document.getElementById('location-name').value);
                 const code = document.getElementById('location-code').value.trim();
-                const aliasesInput = document.getElementById('location-aliases').value.trim();
-                const aliases = aliasesInput ? aliasesInput.split(',').map(a => a.trim()).filter(Boolean) : [];
+                const aliases = parseUpperAliases(document.getElementById('location-aliases').value);
 
                 if (!name) { showToast("O nome do local é obrigatório.", true); return; }
                 try {
@@ -2963,10 +3043,9 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 e.preventDefault();
                 const id = document.getElementById('edit-location-id').value;
                 const locationRef = doc(locationsCollectionRef, id);
-                const aliasesInput = document.getElementById('edit-location-aliases').value.trim();
-                const aliases = aliasesInput ? aliasesInput.split(',').map(a => a.trim()).filter(Boolean) : [];
+                const aliases = parseUpperAliases(document.getElementById('edit-location-aliases').value);
                 const updatedData = {
-                    name: document.getElementById('edit-location-name').value.trim(),
+                    name: toUpperText(document.getElementById('edit-location-name').value),
                     code: document.getElementById('edit-location-code').value.trim(),
                     aliases: aliases
                 };
@@ -2984,9 +3063,9 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 const productId = document.getElementById('entry-product-select').value;
                 const quantity = parseInt(document.getElementById('entry-quantity').value);
                 const nfNumber = document.getElementById('entry-nf').value.trim();
-                const supplier = document.getElementById('entry-supplier').value.trim();
-                const observation = document.getElementById('entry-observation').value.trim();
-                const receivedBy = currentUser?.displayName || currentUser?.uid || 'Sistema';
+                const supplier = toUpperText(document.getElementById('entry-supplier').value);
+                const observation = toUpperText(document.getElementById('entry-observation').value);
+                const receivedBy = toUpperText(currentUser?.displayName || currentUser?.uid || 'Sistema');
 
                 if (!productId || !nfNumber || isNaN(quantity) || quantity <= 0) {
                     showToast("Por favor, preencha todos os campos obrigatórios corretamente.", true);
@@ -3138,7 +3217,10 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                         if (codeRM && name) {
                             const newProd = {
                                 code: (nextCode++).toString(),
-                                codeRM, name, unit, location,
+                                codeRM,
+                                name: toUpperText(name),
+                                unit,
+                                location: toUpperText(location),
                                 group: group || 'Outros',
                                 quantity: parseInt(quantity) || 0,
                                 minQuantity: parseInt(minQuantity) || 0,
@@ -3193,7 +3275,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
 
                         if (name) {
                             const newLoc = {
-                                name: name,
+                                name: toUpperText(name),
                                 code: code || ''
                             };
                             const docRef = doc(locationsCollectionRef);
@@ -4052,7 +4134,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                                         restoreTimestamps(backupData[key]).forEach(item => {
                                             const docRef = item.id ? doc(collectionsToRestore[key], item.id) : doc(collectionsToRestore[key]);
                                             const { id, ...data } = item;
-                                            restoreBatch.set(docRef, data);
+                                            restoreBatch.set(docRef, normalizeRecordForUppercase(key, data));
                                         });
                                     }
                                 }
@@ -4400,7 +4482,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
 
                 document.getElementById('estrela-add-form').addEventListener('submit', async (e) => {
                     e.preventDefault();
-                    const name = document.getElementById('ep-name').value.trim();
+                    const name = toUpperText(document.getElementById('ep-name').value);
                     if (!name) return showToast('Informe o nome do produto.', true);
                     try {
                         await addDoc(estrelaProductsRef, {
@@ -4411,9 +4493,9 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                             unit: document.getElementById('ep-unit').value,
                             quantity: parseInt(document.getElementById('ep-qty').value) || 0,
                             minQuantity: parseInt(document.getElementById('ep-min').value) || 0,
-                            location: document.getElementById('ep-location').value.trim(),
+                            location: toUpperText(document.getElementById('ep-location').value),
                             createdAt: serverTimestamp(),
-                            createdBy: currentUser?.displayName || 'Anônimo'
+                            createdBy: toUpperText(currentUser?.displayName || 'Anônimo')
                         });
                         showToast('⭐ Produto cadastrado na UHE Estrela!');
                         closeGenericModal();
@@ -4491,15 +4573,15 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 ev.preventDefault();
                 try {
                     await updateDoc(doc(estrelaProductsRef, id), {
-                        name: document.getElementById('epe-name').value.trim(),
+                        name: toUpperText(document.getElementById('epe-name').value),
                         codeRM: document.getElementById('epe-code-rm').value.trim(),
                         group: document.getElementById('epe-group').value,
                         unit: document.getElementById('epe-unit').value,
                         quantity: parseInt(document.getElementById('epe-qty').value) || 0,
                         minQuantity: parseInt(document.getElementById('epe-min').value) || 0,
-                        location: document.getElementById('epe-location').value.trim(),
+                        location: toUpperText(document.getElementById('epe-location').value),
                         updatedAt: serverTimestamp(),
-                        updatedBy: currentUser?.displayName || 'Anônimo'
+                        updatedBy: toUpperText(currentUser?.displayName || 'Anônimo')
                     });
                     showToast('⭐ Produto atualizado!');
                     closeGenericModal();
@@ -4550,7 +4632,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 const productId = document.getElementById('estrela-entry-product').value;
                 const qty = parseInt(document.getElementById('estrela-entry-qty').value) || 0;
                 const entryDate = document.getElementById('estrela-entry-date').value;
-                const supplier = document.getElementById('estrela-entry-supplier').value.trim();
+                const supplier = toUpperText(document.getElementById('estrela-entry-supplier').value);
                 const nf = document.getElementById('estrela-entry-nf').value.trim();
 
                 if (!productId) return showToast('Selecione um produto.', true);
@@ -4574,10 +4656,10 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                         supplier,
                         nf,
                         unitPrice: document.getElementById('estrela-entry-price').value || null,
-                        receivedBy: document.getElementById('estrela-entry-received-by').value.trim() || null,
-                        observation: document.getElementById('estrela-entry-obs').value.trim() || null,
+                        receivedBy: toUpperOrNull(document.getElementById('estrela-entry-received-by').value),
+                        observation: toUpperOrNull(document.getElementById('estrela-entry-obs').value),
                         date: serverTimestamp(),
-                        registeredBy: currentUser?.displayName || 'Anônimo'
+                        registeredBy: toUpperText(currentUser?.displayName || 'Anônimo')
                     });
                     showToast(`⭐ Entrada registrada: +${qty} ${product.name}`);
                     estrelaEntryForm.reset();
@@ -4599,9 +4681,9 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 const productId = document.getElementById('estrela-exit-product').value;
                 const qty = parseInt(document.getElementById('estrela-exit-qty').value) || 0;
                 const exitDate = document.getElementById('estrela-exit-date').value;
-                const who = document.getElementById('estrela-exit-who').value.trim();
-                const leader = document.getElementById('estrela-exit-leader').value.trim();
-                const appLocation = document.getElementById('estrela-exit-location').value.trim();
+                const who = toUpperText(document.getElementById('estrela-exit-who').value);
+                const leader = toUpperText(document.getElementById('estrela-exit-leader').value);
+                const appLocation = toUpperText(document.getElementById('estrela-exit-location').value);
 
                 if (!productId) return showToast('Selecione um produto.', true);
                 if (qty <= 0) return showToast('Quantidade deve ser maior que zero.', true);
@@ -4627,9 +4709,9 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                         leader,
                         applicationLocation: appLocation,
                         os: document.getElementById('estrela-exit-os').value.trim() || null,
-                        observation: document.getElementById('estrela-exit-obs').value.trim() || null,
+                        observation: toUpperOrNull(document.getElementById('estrela-exit-obs').value),
                         date: serverTimestamp(),
-                        registeredBy: currentUser?.displayName || 'Anônimo'
+                        registeredBy: toUpperText(currentUser?.displayName || 'Anônimo')
                     });
                     showToast(`⭐ Saída registrada: -${qty} ${product.name}`);
                     estrelaExitForm.reset();
