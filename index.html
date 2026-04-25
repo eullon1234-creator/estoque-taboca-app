@@ -77,6 +77,10 @@
                     <span class="material-symbols-outlined" style="font-size:18px;">download_for_offline</span>
                     <span class="hidden sm:inline">Instalar</span>
                 </button>
+                <button id="app-update-btn" class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition hover:scale-105" style="background:rgba(0,102,255,0.06); color:#0066FF;" title="Atualizar app e limpar cache">
+                    <span class="material-symbols-outlined" style="font-size:18px;">sync</span>
+                    <span class="hidden sm:inline">Atualizar</span>
+                </button>
                 <button id="settings-btn" class="p-2.5 rounded-xl transition hover:scale-105" style="background:rgba(0,102,255,0.06); color:#0066FF;" title="Configurações">
                     <span class="material-symbols-outlined" style="font-size:22px;">settings</span>
                 </button>
@@ -919,6 +923,7 @@
         // Botão de instalação PWA
         let _pwaPrompt = null;
         const installBtn = document.getElementById('pwa-install-btn');
+        const updateBtn = document.getElementById('app-update-btn');
 
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
@@ -942,6 +947,30 @@
             installBtn.classList.add('hidden');
             installBtn.classList.remove('flex');
             _pwaPrompt = null;
+        });
+
+        updateBtn?.addEventListener('click', async () => {
+            updateBtn.disabled = true;
+            updateBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">sync</span><span class="hidden sm:inline">Atualizando...</span>';
+
+            try {
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    await Promise.all(cacheNames.map(cacheName => caches.delete(cacheName)));
+                }
+
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(registrations.map(async registration => {
+                        await registration.update().catch(() => {});
+                        return registration.unregister();
+                    }));
+                }
+            } finally {
+                const refreshUrl = new URL(window.location.href);
+                refreshUrl.searchParams.set('atualizar', Date.now().toString());
+                window.location.replace(refreshUrl.toString());
+            }
         });
     </script>
 </body>
