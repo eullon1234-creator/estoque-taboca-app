@@ -1343,18 +1343,19 @@
                 const tr = document.createElement('tr');
                 tr.className = `hover:bg-slate-50 transition-colors duration-150`;
                 tr.innerHTML = `
-                    <td class="p-4 text-center"><input type="checkbox" class="product-checkbox h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600" data-id="${p.id}" ${isChecked ? 'checked' : ''}></td>
-                    <td class="p-4 align-top">
-                        <p class="font-bold text-slate-800">${p.name}</p>
-                        <p class="text-sm text-slate-500">Cód. RM: <span class="font-medium">${p.codeRM || 'N/A'}</span></p>
+                    <td class="p-3 sm:p-4 text-center"><input type="checkbox" class="product-checkbox h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600" data-id="${p.id}" ${isChecked ? 'checked' : ''}></td>
+                    <td class="p-3 sm:p-4 align-top">
+                        <p class="font-bold text-slate-800 text-sm sm:text-base leading-tight">${p.name}</p>
+                        <p class="text-xs text-slate-500 mt-0.5">RM: <span class="font-medium">${p.codeRM || 'N/A'}</span></p>
                         <p class="text-xs text-slate-400">SKU: ${p.code}</p>
+                        <p class="text-xs text-slate-500 sm:hidden mt-0.5">${p.location || ''}</p>
                     </td>
-                    <td class="p-4 align-top text-slate-600">${p.group || 'N/A'}</td>
-                    <td class="p-4 align-top text-slate-600">${p.unit || 'N/A'}</td>
-                    <td class="p-4 align-top"><div class="flex items-center gap-2"><p class="text-lg font-bold text-slate-800">${p.quantity}</p>${isLowStock ? '<span class="px-2 py-0.5 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full ml-1">Baixo</span>' : ''}</div></td>
-                    <td class="p-4 align-top text-slate-600">${p.minQuantity}</td>
-                    <td class="p-4 align-top text-slate-600">${p.location}</td>
-                    <td class="p-4 align-top text-center"><div class="flex justify-center items-center gap-1"><button data-id="${p.id}" class="history-btn text-slate-500 hover:text-purple-600 p-2 rounded-full hover:bg-purple-100 transition" title="Histórico"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></button><button data-id="${p.id}" class="edit-btn text-slate-500 hover:text-blue-600 p-2 rounded-full hover:bg-blue-100 transition" title="Editar"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button><button data-id="${p.id}" class="delete-btn text-slate-500 hover:text-red-600 p-2 rounded-full hover:bg-red-100 transition" title="Excluir"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button></div></td>`;
+                    <td class="p-3 sm:p-4 align-top text-slate-600 text-sm hidden md:table-cell">${p.group || 'N/A'}</td>
+                    <td class="p-3 sm:p-4 align-top text-slate-600 text-sm hidden md:table-cell">${p.unit || 'N/A'}</td>
+                    <td class="p-3 sm:p-4 align-top"><div class="flex flex-col sm:flex-row sm:items-center gap-1"><p class="text-base sm:text-lg font-bold text-slate-800">${p.quantity}</p>${isLowStock ? '<span class="px-1.5 py-0.5 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">Baixo</span>' : ''}</div></td>
+                    <td class="p-3 sm:p-4 align-top text-slate-600 text-sm hidden sm:table-cell">${p.minQuantity}</td>
+                    <td class="p-3 sm:p-4 align-top text-slate-600 text-sm hidden sm:table-cell">${p.location}</td>
+                    <td class="p-3 sm:p-4 align-top text-center"><div class="flex justify-center items-center gap-0.5 sm:gap-1"><button data-id="${p.id}" class="history-btn text-slate-500 hover:text-purple-600 p-1.5 sm:p-2 rounded-full hover:bg-purple-100 transition" title="Histórico"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></button><button data-id="${p.id}" class="edit-btn text-slate-500 hover:text-blue-600 p-1.5 sm:p-2 rounded-full hover:bg-blue-100 transition" title="Editar"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button><button data-id="${p.id}" class="delete-btn text-slate-500 hover:text-red-600 p-1.5 sm:p-2 rounded-full hover:bg-red-100 transition" title="Excluir"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button></div></td>`;
                 productList.appendChild(tr);
             });
 
@@ -1473,8 +1474,8 @@
             if (!toolLoansOpenList || !toolLoansReturnedList) return;
 
             const sortedLoans = [...toolLoans].sort((a, b) => (b.loanDate?.seconds || 0) - (a.loanDate?.seconds || 0));
-            const openLoans = sortedLoans.filter(loan => loan.status !== 'returned');
-            const returnedLoans = sortedLoans.filter(loan => loan.status === 'returned');
+            const openLoans     = sortedLoans.filter(loan => loan.status !== 'returned' && loan.status !== 'damaged');
+            const returnedLoans = sortedLoans.filter(loan => loan.status === 'returned' || loan.status === 'damaged');
 
             toolLoansOpenList.innerHTML = '';
             toolLoansReturnedList.innerHTML = '';
@@ -1496,7 +1497,10 @@
                     <td class="p-3"><p class="font-semibold text-slate-800">${loan.productName || ''}</p><p class="text-sm text-slate-500">${loan.productCodeRM || loan.productCode || 'N/A'}</p></td>
                     <td class="p-3 text-center font-bold text-slate-800">${loan.quantity || 0}</td>
                     <td class="p-3"><p class="font-semibold text-slate-700">${loan.borrower || ''}</p><p class="text-sm text-slate-500">${loan.role || ''}</p></td>
-                    <td class="p-3 text-center"><button data-id="${loan.id}" class="return-tool-loan-btn bg-green-600 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-green-700 transition">Devolvido</button></td>
+                    <td class="p-3 text-center">
+                        <button data-id="${loan.id}" class="return-tool-loan-btn bg-green-600 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-green-700 transition">Devolvido</button>
+                        <button data-id="${loan.id}" class="damaged-tool-loan-btn bg-red-600 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-red-700 transition ml-1">D. Danificado</button>
+                    </td>
                 `;
                 toolLoansOpenList.appendChild(tr);
             });
@@ -1504,9 +1508,13 @@
             returnedLoans.slice(0, 100).forEach(loan => {
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-slate-50 transition-colors duration-150';
+                const isDamaged = loan.status === 'damaged';
+                const badge = isDamaged
+                    ? `<span class="ml-1 inline-block px-1.5 py-0.5 rounded text-xs font-bold" style="background:#fee2e2;color:#b91c1c;">DANIFICADA</span>`
+                    : `<span class="ml-1 inline-block px-1.5 py-0.5 rounded text-xs font-bold" style="background:#dcfce7;color:#15803d;">DEVOLVIDA</span>`;
                 tr.innerHTML = `
                     <td class="p-3 text-sm text-slate-600">${formatFirestoreDate(loan.returnDate)}</td>
-                    <td class="p-3"><p class="font-semibold text-slate-800">${loan.productName || ''}</p><p class="text-sm text-slate-500">${loan.productCodeRM || loan.productCode || 'N/A'}</p></td>
+                    <td class="p-3"><p class="font-semibold text-slate-800">${loan.productName || ''}${badge}</p><p class="text-sm text-slate-500">${loan.productCodeRM || loan.productCode || 'N/A'}</p></td>
                     <td class="p-3 text-center font-bold text-slate-800">${loan.quantity || 0}</td>
                     <td class="p-3 text-slate-700">${loan.borrower || ''}</td>
                 `;
@@ -2225,6 +2233,205 @@
         };
 
 
+        // ══════════════════════════════════════════════════════════════════
+        // PLAQUINHAS — listagem, seleção e geração de PDF
+        // ══════════════════════════════════════════════════════════════════
+        const updatePlaquesCounter = () => {
+            const checked = document.querySelectorAll('.plaque-check:checked').length;
+            const counter = document.getElementById('plaques-counter');
+            const genBtn  = document.getElementById('generate-plaques-btn');
+            const preBtn  = document.getElementById('preview-plaques-btn');
+            if (counter) counter.textContent = `${checked} selecionado(s)`;
+            [genBtn, preBtn].forEach(btn => {
+                if (!btn) return;
+                btn.disabled = checked === 0;
+                btn.style.opacity = checked === 0 ? '0.5' : '1';
+            });
+        };
+
+        const renderPlaquesView = () => {
+            const list       = document.getElementById('plaques-product-list');
+            const noMsg      = document.getElementById('no-plaques-message');
+            const totalCount = document.getElementById('plaques-total-count');
+            if (!list) return;
+            list.innerHTML = '';
+
+            if (products.length === 0) {
+                noMsg?.classList.remove('hidden');
+                if (totalCount) totalCount.textContent = '0 produtos';
+                updatePlaquesCounter();
+                return;
+            }
+            noMsg?.classList.add('hidden');
+            if (totalCount) totalCount.textContent = `${products.length} produto(s)`;
+
+            const sorted = [...products].sort((a, b) =>
+                (a.name || '').localeCompare(b.name || '', 'pt-BR'));
+
+            sorted.forEach(p => {
+                const isLow  = (p.quantity || 0) <= (p.minQuantity || 0);
+                const qtyClr = isLow ? 'background:#fee2e2;color:#b91c1c;' : 'background:#dcfce7;color:#15803d;';
+                const safeName = (p.name || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                const safeRM   = (p.codeRM || '').replace(/"/g, '&quot;');
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-blue-50/30 transition-colors cursor-pointer';
+                tr.innerHTML = `
+                    <td class="p-3">
+                        <input type="checkbox" class="plaque-check h-4 w-4 rounded border-slate-300 accent-blue-600"
+                            data-id="${p.id}" data-name="${safeName}" data-rm="${safeRM}">
+                    </td>
+                    <td class="p-3 font-semibold text-slate-800 text-sm">${p.name || '—'}</td>
+                    <td class="p-3 text-slate-500 text-sm font-mono">${p.codeRM || '—'}</td>
+                    <td class="p-3 text-center">
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold" style="${qtyClr}">${p.quantity ?? 0}</span>
+                    </td>
+                    <td class="p-3 text-center text-xs text-slate-400">${p.minQuantity ?? 0}</td>`;
+                tr.addEventListener('click', e => {
+                    if (e.target.tagName === 'INPUT') return;
+                    const chk = tr.querySelector('.plaque-check');
+                    chk.checked = !chk.checked;
+                    updatePlaquesCounter();
+                });
+                list.appendChild(tr);
+            });
+
+            // select-all wiring
+            const selectAll = document.getElementById('plaques-select-all');
+            if (selectAll) {
+                selectAll.checked = false;
+                selectAll.onchange = () => {
+                    document.querySelectorAll('.plaque-check').forEach(c => c.checked = selectAll.checked);
+                    updatePlaquesCounter();
+                };
+            }
+            list.addEventListener('change', updatePlaquesCounter);
+            updatePlaquesCounter();
+        };
+
+        // Carrega o logo GEL como base64 uma única vez para uso no PDF
+        let _gelLogoBase64 = null;
+        const loadGelLogo = () => new Promise(resolve => {
+            if (_gelLogoBase64) { resolve(_gelLogoBase64); return; }
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                try {
+                    const canvas = document.createElement('canvas');
+                    canvas.width  = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    canvas.getContext('2d').drawImage(img, 0, 0);
+                    _gelLogoBase64 = canvas.toDataURL('image/png');
+                    resolve(_gelLogoBase64);
+                } catch { resolve(null); }
+            };
+            img.onerror = () => resolve(null);
+            img.src = 'assets/img/logo-gel.png?v=1';
+        });
+
+        const buildPlaquesPDF = async () => {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+
+            const perPage = parseInt(document.querySelector('input[name="plaques-per-page"]:checked')?.value || '10');
+            const rows    = perPage === 10 ? 5 : 4;
+            const cols    = 2;
+
+            // ── Dimensões da página A4 ────────────────────────────────────
+            const pageW   = 210, pageH = 297;
+            const marginX = 10,  marginY = 10;
+            const gapX    = 5,   gapY   = 4;
+
+            // cardW ≈ 92.5mm  |  cardH ≈ 52.2mm (10/pág) ou 65.75mm (8/pág)
+            // → proporção ~1.77:1 para 10/pág — bem retangular (paisagem)
+            const cardW = (pageW - marginX * 2 - gapX * (cols - 1)) / cols;
+            const cardH = (pageH - marginY * 2 - gapY * (rows - 1)) / rows;
+
+            const selected = [...document.querySelectorAll('.plaque-check:checked')];
+            if (selected.length === 0) return null;
+
+            // Pré-carrega o logo uma vez
+            const logoB64    = await loadGelLogo();
+            const logoAspect = 414 / 259;   // proporção original da imagem GEL
+            const logoH      = 10;           // altura do logo em mm
+            const logoW      = logoH * logoAspect;  // ≈ 16mm
+            const logoPadR   = 2.5;          // margem direita interna
+            const logoPadT   = 2;            // margem superior interna
+
+            selected.forEach((chk, i) => {
+                const posOnPage = i % perPage;
+                if (i > 0 && posOnPage === 0) doc.addPage();
+
+                const col = posOnPage % cols;
+                const row = Math.floor(posOnPage / cols);
+                const x   = marginX + col * (cardW + gapX);
+                const y   = marginY + row * (cardH + gapY);
+
+                const name = chk.dataset.name || '';
+                const rm   = chk.dataset.rm   || '';
+
+                // ── Fundo branco + borda cinza ────────────────────────────
+                doc.setFillColor(255, 255, 255);
+                doc.setDrawColor(180, 180, 180);
+                doc.setLineWidth(0.3);
+                doc.roundedRect(x, y, cardW, cardH, 2, 2, 'FD');
+
+                // ── Logo GEL — canto superior esquerdo ───────────────────
+                if (logoB64) {
+                    const lx = x + logoPadR;
+                    const ly = y + logoPadT;
+                    doc.addImage(logoB64, 'PNG', lx, ly, logoW, logoH);
+                }
+
+                // ── Nome do produto ───────────────────────────────────────
+                // Área disponível: largura total (o nome pode passar por baixo do logo)
+                const len      = name.length;
+                const fontSize = len > 45 ? 6.5 : len > 35 ? 7.5 : len > 24 ? 9 : len > 14 ? 11 : 12;
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(fontSize);
+                doc.setTextColor(15, 23, 42);
+
+                const nameMaxW  = cardW - 8;
+                const nameLines = doc.splitTextToSize(name, nameMaxW);
+                const lineH     = fontSize * 0.38;
+                const blockH    = nameLines.length * lineH;
+
+                // Centro vertical na área entre topo do card e linha do RM
+                const nameAreaTop    = y + 3;
+                const nameAreaBottom = rm ? y + cardH - 8.5 : y + cardH - 3;
+                const nameAreaH      = nameAreaBottom - nameAreaTop;
+                const nameStartY     = nameAreaTop + (nameAreaH - blockH) / 2 + lineH;
+
+                doc.text(nameLines, x + cardW / 2, nameStartY, { align: 'center', lineHeightFactor: 1.3 });
+
+                // ── Código RM — rodapé ────────────────────────────────────
+                if (rm) {
+                    doc.setDrawColor(210, 215, 225);
+                    doc.setLineWidth(0.2);
+                    doc.line(x + 4, y + cardH - 8.5, x + cardW - 4, y + cardH - 8.5);
+
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(7);
+                    doc.setTextColor(100, 116, 139);
+                    doc.text(`RM: ${rm}`, x + cardW / 2, y + cardH - 4.2, { align: 'center' });
+                }
+            });
+
+            return doc;
+        };
+
+        document.getElementById('generate-plaques-btn')?.addEventListener('click', async () => {
+            const doc = await buildPlaquesPDF();
+            if (doc) {
+                doc.save('plaquinhas_estoque.pdf');
+                showToast('PDF de plaquinhas gerado com sucesso!');
+            }
+        });
+
+        document.getElementById('preview-plaques-btn')?.addEventListener('click', async () => {
+            const doc = await buildPlaquesPDF();
+            if (doc) window.open(doc.output('bloburl'), '_blank');
+        });
+
         const renderComprasView = (periodDays = 15) => {
             const now = Date.now();
             const cutoff = now - periodDays * 864e5;
@@ -2444,6 +2651,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             if (viewId === 'rm-view') renderRMView(rmSearchInput.value); 
             if (viewId === 'dashboard-view') updateDashboard();
             if (viewId === 'tool-loans-view') renderToolLoans();
+            if (viewId === 'plaques-view') renderPlaquesView();
             if (viewId === 'compras-view') {
                 const sel = document.getElementById('compras-period-select');
                 renderComprasView(sel ? parseInt(sel.value) : 15);
@@ -3228,7 +3436,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             if (returnToolLoanBtn) {
                 const loanId = returnToolLoanBtn.dataset.id;
                 const loan = toolLoans.find(item => item.id === loanId);
-                if (!loan || loan.status === 'returned') return;
+                if (!loan || loan.status === 'returned' || loan.status === 'damaged') return;
                 if (!hasPermission('update')) {
                     showToast('🔒 Você não tem permissão para devolver cautelas', true);
                     return;
@@ -3258,6 +3466,35 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                         } catch (error) {
                             console.error('Erro ao devolver ferramenta:', error);
                             showToast(`Erro ao devolver: ${error.message}`, true);
+                        }
+                    }
+                );
+            }
+
+            const damagedToolLoanBtn = e.target.closest('.damaged-tool-loan-btn');
+            if (damagedToolLoanBtn) {
+                const loanId = damagedToolLoanBtn.dataset.id;
+                const loan = toolLoans.find(item => item.id === loanId);
+                if (!loan || loan.status === 'returned' || loan.status === 'damaged') return;
+                if (!hasPermission('update')) {
+                    showToast('🔒 Você não tem permissão para registrar dano', true);
+                    return;
+                }
+
+                showConfirmationModal(
+                    'Registrar Ferramenta Danificada',
+                    `A ferramenta "${loan.productName}" será marcada como danificada e NÃO voltará ao estoque. Confirmar?`,
+                    async () => {
+                        try {
+                            await updateDoc(doc(toolLoansCollectionRef, loan.id), {
+                                status: 'damaged',
+                                returnDate: serverTimestamp(),
+                                returnedBy: toUpperText(currentUser?.displayName || 'Anônimo')
+                            });
+                            showToast('Ferramenta registrada como danificada. Estoque não alterado.');
+                        } catch (error) {
+                            console.error('Erro ao registrar dano:', error);
+                            showToast(`Erro ao registrar: ${error.message}`, true);
                         }
                     }
                 );
@@ -3428,15 +3665,16 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 // ── KPIs ──────────────────────────────────────────────────────────
                 row++; // espaço
                 ws['!rows'].push({ hpt: 6 }, { hpt: 30 }, { hpt: 34 }, { hpt: 18 });
-                const openCnt     = loans.filter(l => l.status !== 'returned').length;
+                const openCnt     = loans.filter(l => l.status !== 'returned' && l.status !== 'damaged').length;
                 const returnedCnt = loans.filter(l => l.status === 'returned').length;
+                const damagedCnt  = loans.filter(l => l.status === 'damaged').length;
                 const totalQty    = loans.reduce((s, l) => s + (l.quantity || 0), 0);
                 const uniqueTools = new Set(loans.map(l => l.productName)).size;
 
                 const cards = [
                     { bg: 'FEF9C3', fg: 'D97706', lbl: 'EM ABERTO',      val: openCnt },
                     { bg: 'DCFCE7', fg: '15803D', lbl: 'DEVOLVIDAS',     val: returnedCnt },
-                    { bg: 'DBEAFE', fg: '1D4ED8', lbl: 'TOTAL DE ITENS', val: totalQty },
+                    { bg: 'FFE4E6', fg: 'BE123C', lbl: 'DANIFICADAS',    val: damagedCnt },
                     { bg: 'F3E8FF', fg: '7E22CE', lbl: 'FERRAMENTAS',    val: uniqueTools }
                 ];
                 // Rótulos KPI (colunas 0,2,5,7 — agrupados em pares)
@@ -3469,11 +3707,19 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 // ── LINHAS DE DADOS ───────────────────────────────────────────────
                 const sorted = [...loans].sort((a, b) => (b.loanDate?.seconds || 0) - (a.loanDate?.seconds || 0));
                 sorted.forEach((loan, idx) => {
-                    const even    = idx % 2 === 0;
-                    const isOpen  = loan.status !== 'returned';
+                    const even      = idx % 2 === 0;
+                    const isOpen    = loan.status !== 'returned' && loan.status !== 'damaged';
+                    const isDamaged = loan.status === 'damaged';
                     ws['!rows'].push({ hpt: 20 });
+                    const sBadgeStatus = isDamaged ? {
+                        font:  { bold: true, sz: 10, color: { rgb: 'BE123C' } },
+                        fill:  { fgColor: { rgb: 'FFE4E6' } },
+                        alignment: { horizontal: 'center', vertical: 'center' },
+                        border: bdr('BE123C')
+                    } : isOpen ? sBadgeOpen : sBadgeDone;
+                    const statusLabel = isDamaged ? 'DANIFICADA' : isOpen ? 'EM ABERTO' : 'DEVOLVIDA';
 
-                    sc (row, 0, isOpen ? 'EM ABERTO' : 'DEVOLVIDA', isOpen ? sBadgeOpen : sBadgeDone);
+                    sc (row, 0, statusLabel, sBadgeStatus);
                     sc (row, 1, loan.productName || '', sCell(even, 'left', '1E293B', true));
                     sc (row, 2, formatFirestoreDate(loan.loanDate), sCell(even, 'center'));
                     sc (row, 3, isOpen ? '—' : formatFirestoreDate(loan.returnDate), sCell(even, 'center'));
@@ -3497,11 +3743,13 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 return ws;
             };
 
-            const openLoans     = toolLoans.filter(l => l.status !== 'returned');
+            const openLoans     = toolLoans.filter(l => l.status !== 'returned' && l.status !== 'damaged');
             const returnedLoans = toolLoans.filter(l => l.status === 'returned');
+            const damagedLoans  = toolLoans.filter(l => l.status === 'damaged');
 
             XLS.utils.book_append_sheet(wb, buildSheet(openLoans,     'F59E0B', 'Em Aberto'),  'Em Aberto');
             XLS.utils.book_append_sheet(wb, buildSheet(returnedLoans, '16A34A', 'Devolvidas'), 'Devolvidas');
+            XLS.utils.book_append_sheet(wb, buildSheet(damagedLoans,  'DC2626', 'Danificadas'),'Danificadas');
             XLS.utils.book_append_sheet(wb, buildSheet([...toolLoans],'1D4ED8', 'Todas'),      'Todas');
 
             XLS.writeFile(wb, `cautelas_${stamp}.xlsx`);
