@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eullon-v1.9.9';
+const CACHE_NAME = 'eullon-v2.0.0';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',

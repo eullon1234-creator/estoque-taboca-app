@@ -732,6 +732,13 @@
                 if (isDataLoaded) {
                     renderToolLoans();
                     if (currentViewId === 'dashboard-view') updateDashboard();
+                    // Atualiza badge de cautelas em aberto em qualquer view
+                    const openCount = toolLoans.filter(l => l.status !== 'returned' && l.status !== 'damaged').length;
+                    [document.getElementById('nav-tool-loans-badge'), document.getElementById('drawer-tool-loans-badge')].forEach(badge => {
+                        if (!badge) return;
+                        if (openCount > 0) { badge.textContent = openCount > 99 ? '99+' : openCount; badge.classList.remove('hidden'); }
+                        else { badge.classList.add('hidden'); }
+                    });
                 }
             }, (error) => handleFirestoreError(error, 'cautelas')));
 
@@ -951,6 +958,18 @@
                 if (!badge) return;
                 if (pendingReqs > 0) {
                     badge.textContent = pendingReqs > 99 ? '99+' : pendingReqs;
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
+            });
+
+            // Atualizar badge de cautelas em aberto (sidebar + drawer)
+            const openToolLoansCount = toolLoans.filter(l => l.status !== 'returned' && l.status !== 'damaged').length;
+            [document.getElementById('nav-tool-loans-badge'), document.getElementById('drawer-tool-loans-badge')].forEach(badge => {
+                if (!badge) return;
+                if (openToolLoansCount > 0) {
+                    badge.textContent = openToolLoansCount > 99 ? '99+' : openToolLoansCount;
                     badge.classList.remove('hidden');
                 } else {
                     badge.classList.add('hidden');
@@ -2367,26 +2386,44 @@
             const rows    = perPage === 10 ? 5 : 4;
             const cols    = 2;
 
-            // ── Dimensões da página A4 ────────────────────────────────────
+            // ── Dimensões A4 ──────────────────────────────────────────────
             const pageW   = 210, pageH = 297;
             const marginX = 10,  marginY = 10;
             const gapX    = 5,   gapY   = 4;
-
             // cardW ≈ 92.5mm  |  cardH ≈ 52.2mm (10/pág) ou 65.75mm (8/pág)
-            // → proporção ~1.77:1 para 10/pág — bem retangular (paisagem)
             const cardW = (pageW - marginX * 2 - gapX * (cols - 1)) / cols;
             const cardH = (pageH - marginY * 2 - gapY * (rows - 1)) / rows;
 
             const selected = [...document.querySelectorAll('.plaque-check:checked')];
             if (selected.length === 0) return null;
 
-            // Pré-carrega o logo uma vez
+            // ── Pré-carrega logo e QR codes em paralelo ───────────────────
             const logoB64    = await loadGelLogo();
-            const logoAspect = 414 / 259;   // proporção original da imagem GEL
-            const logoH      = 10;           // altura do logo em mm
+            const logoAspect = 414 / 259;
+            const logoH      = 10;
             const logoW      = logoH * logoAspect;  // ≈ 16mm
-            const logoPadR   = 2.5;          // margem direita interna
-            const logoPadT   = 2;            // margem superior interna
+            const logoPadR   = 2.5;
+            const logoPadT   = 2;
+
+            // Gera QR code para cada produto (codifica o RM ou nome)
+            const hasQRLib = typeof QRCode !== 'undefined' && typeof QRCode.toDataURL === 'function';
+            const qrCache  = {};
+            if (hasQRLib) {
+                for (const chk of selected) {
+                    const qrText = chk.dataset.rm || chk.dataset.name || '';
+                    if (qrText && !qrCache[qrText]) {
+                        try {
+                            qrCache[qrText] = await QRCode.toDataURL(qrText, {
+                                width: 128, margin: 1,
+                                color: { dark: '#0F172A', light: '#FFFFFF' }
+                            });
+                        } catch { qrCache[qrText] = null; }
+                    }
+                }
+            }
+
+            const footerH = 10; // mm — área do rodapé (RM + QR)
+            const qrSize  = 8;  // mm — tamanho do QR no PDF
 
             selected.forEach((chk, i) => {
                 const posOnPage = i % perPage;
@@ -2397,8 +2434,10 @@
                 const x   = marginX + col * (cardW + gapX);
                 const y   = marginY + row * (cardH + gapY);
 
-                const name = chk.dataset.name || '';
-                const rm   = chk.dataset.rm   || '';
+                const name    = chk.dataset.name || '';
+                const rm      = chk.dataset.rm   || '';
+                const qrText  = rm || name;
+                const qrB64   = qrCache[qrText] || null;
 
                 // ── Fundo branco + borda cinza ────────────────────────────
                 doc.setFillColor(255, 255, 255);
@@ -2408,13 +2447,10 @@
 
                 // ── Logo GEL — canto superior esquerdo ───────────────────
                 if (logoB64) {
-                    const lx = x + logoPadR;
-                    const ly = y + logoPadT;
-                    doc.addImage(logoB64, 'PNG', lx, ly, logoW, logoH);
+                    doc.addImage(logoB64, 'PNG', x + logoPadR, y + logoPadT, logoW, logoH);
                 }
 
-                // ── Nome do produto ───────────────────────────────────────
-                // Área disponível: largura total (o nome pode passar por baixo do logo)
+                // ── Nome do produto (auto-size) ───────────────────────────
                 const len      = name.length;
                 const fontSize = len > 45 ? 6.5 : len > 35 ? 7.5 : len > 24 ? 9 : len > 14 ? 11 : 12;
                 doc.setFont('helvetica', 'bold');
@@ -2426,24 +2462,41 @@
                 const lineH     = fontSize * 0.38;
                 const blockH    = nameLines.length * lineH;
 
-                // Centro vertical na área entre topo do card e linha do RM
                 const nameAreaTop    = y + 3;
-                const nameAreaBottom = rm ? y + cardH - 8.5 : y + cardH - 3;
+                const nameAreaBottom = (rm || qrB64) ? y + cardH - footerH - 1 : y + cardH - 3;
                 const nameAreaH      = nameAreaBottom - nameAreaTop;
                 const nameStartY     = nameAreaTop + (nameAreaH - blockH) / 2 + lineH;
 
                 doc.text(nameLines, x + cardW / 2, nameStartY, { align: 'center', lineHeightFactor: 1.3 });
 
-                // ── Código RM — rodapé ────────────────────────────────────
-                if (rm) {
+                // ── Rodapé: separador + RM (esquerda) + QR (direita) ─────
+                if (rm || qrB64) {
+                    const sepY = y + cardH - footerH;
+
+                    // Linha separadora
                     doc.setDrawColor(210, 215, 225);
                     doc.setLineWidth(0.2);
-                    doc.line(x + 4, y + cardH - 8.5, x + cardW - 4, y + cardH - 8.5);
+                    doc.line(x + 3, sepY, x + cardW - 3, sepY);
 
-                    doc.setFont('helvetica', 'normal');
-                    doc.setFontSize(7);
-                    doc.setTextColor(100, 116, 139);
-                    doc.text(`RM: ${rm}`, x + cardW / 2, y + cardH - 4.2, { align: 'center' });
+                    // Código RM — alinhado à esquerda no rodapé
+                    if (rm) {
+                        doc.setFont('helvetica', 'normal');
+                        doc.setFontSize(7);
+                        doc.setTextColor(100, 116, 139);
+                        // Se há QR, limita texto para não sobrepor; senão centraliza
+                        if (qrB64) {
+                            doc.text(`RM: ${rm}`, x + 4, y + cardH - (footerH / 2) + 1, { align: 'left' });
+                        } else {
+                            doc.text(`RM: ${rm}`, x + cardW / 2, y + cardH - (footerH / 2) + 1, { align: 'center' });
+                        }
+                    }
+
+                    // QR Code — canto inferior direito do rodapé
+                    if (qrB64) {
+                        const qrX = x + cardW - qrSize - 1;
+                        const qrY = y + cardH - qrSize - 1;
+                        doc.addImage(qrB64, 'PNG', qrX, qrY, qrSize, qrSize);
+                    }
                 }
             });
 
