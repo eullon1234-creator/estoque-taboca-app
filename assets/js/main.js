@@ -729,7 +729,10 @@
 
             coreUnsubscribers.push(onSnapshot(toolLoansCollectionRef, (snapshot) => {
                 toolLoans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                if (isDataLoaded) renderToolLoans();
+                if (isDataLoaded) {
+                    renderToolLoans();
+                    if (currentViewId === 'dashboard-view') updateDashboard();
+                }
             }, (error) => handleFirestoreError(error, 'cautelas')));
 
             coreUnsubscribers.push(onSnapshot(locationsCollectionRef, (snapshot) => {
@@ -834,6 +837,31 @@
             const totalUnits = products.reduce((sum, p) => sum + (p.quantity || 0), 0);
             const lowStockItems = products.filter(p => p.quantity <= p.minQuantity).length;
             const pendingReqs = requisitions.filter(r => r.status === 'Pendente' || r.status === 'pending').length;
+
+            // Cautelas abertas do dia
+            const todayStr = new Date().toLocaleDateString('pt-BR');
+            const todayLoans = toolLoans.filter(loan => {
+                if (!loan.loanDate) return false;
+                const ms = typeof loan.loanDate.seconds === 'number'
+                    ? loan.loanDate.seconds * 1000
+                    : (typeof loan.loanDate.toMillis === 'function' ? loan.loanDate.toMillis() : 0);
+                return ms > 0 && new Date(ms).toLocaleDateString('pt-BR') === todayStr;
+            });
+            const renderTodayLoans = () => {
+                if (todayLoans.length === 0) {
+                    return `<p class="text-xs mt-1" style="color:#727785;">Nenhuma cautela registrada hoje.</p>`;
+                }
+                return `<div class="mt-2 space-y-1.5">
+                    ${todayLoans.map(l => `
+                        <div class="flex items-start gap-2 px-2 py-1.5 rounded-lg" style="background:#f8f9fa;">
+                            <span class="material-symbols-outlined shrink-0 mt-0.5" style="font-size:15px; color:#795900; font-variation-settings:'FILL' 1,'wght' 400;">construction</span>
+                            <div class="min-w-0">
+                                <p class="text-xs font-bold truncate" style="color:#191c1d;">${l.borrower || '—'}</p>
+                                <p class="text-xs truncate" style="color:#727785;">${l.productName || '—'}</p>
+                            </div>
+                        </div>`).join('')}
+                </div>`;
+            };
 
             const timestampToMillis = (entry) => {
                 if (!entry?.date) return 0;
@@ -962,13 +990,16 @@
                     <p class="text-3xl font-bold tracking-tight" style="color:#191c1d;">${lowStockItems}</p>
                     <p class="text-xs font-semibold tracking-tight mt-0.5" style="color:#727785;">Itens com Estoque Baixo</p>
                 </div>
-                <!-- KPI: Requisições Pendentes -->
-                <div class="bg-surface-container-lowest p-5 rounded-2xl tonal-elevation dashboard-reveal" style="animation-delay: 0.2s;">
-                    <div class="p-2.5 rounded-xl w-fit mb-3" style="background:rgba(0,91,191,0.08);">
-                        <span class="material-symbols-outlined" style="font-size:22px; color:#005bbf; font-variation-settings:'FILL' 0,'wght' 400;">assignment_late</span>
+                <!-- KPI: Cautelas do Dia -->
+                <div class="bg-surface-container-lowest p-5 rounded-2xl tonal-elevation dashboard-reveal" style="animation-delay: 0.2s; border-bottom: 3px solid #d97706;">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="p-2 rounded-xl" style="background:rgba(121,89,0,0.1);">
+                            <span class="material-symbols-outlined" style="font-size:20px; color:#795900; font-variation-settings:'FILL' 1,'wght' 400;">construction</span>
+                        </div>
+                        <span class="text-xs font-extrabold px-2 py-0.5 rounded-full" style="background:rgba(217,119,6,0.12); color:#92400e;">${todayLoans.length}</span>
                     </div>
-                    <p class="text-3xl font-bold tracking-tight" style="color:#191c1d;">${pendingReqs}</p>
-                    <p class="text-xs font-semibold tracking-tight mt-0.5" style="color:#727785;">Req. Pendentes</p>
+                    <p class="text-xs font-bold uppercase tracking-wide" style="color:#795900;">Cautelas do Dia</p>
+                    ${renderTodayLoans()}
                 </div>
                 <!-- Ranking: Mais Saíram (3 dias) -->
                 <div class="bg-surface-container-lowest p-5 rounded-2xl tonal-elevation dashboard-reveal" style="animation-delay: 0.26s;">
