@@ -719,6 +719,7 @@
                     updateDashboard();
                     renderExitLog(exitsSearchInput.value);
                     renderRMView(rmSearchInput.value);
+                    tryOpenPlaqueDeepLink();
                 }
             }, (error) => handleFirestoreError(error, 'histórico')));
 
@@ -754,6 +755,7 @@
                     renderLocations();
                     renderRMView();
                     renderToolLoans();
+                    setTimeout(() => tryOpenPlaqueDeepLink(), 1200);
                 } else {
                     renderLocations();
                 }
@@ -2058,6 +2060,139 @@
             document.getElementById('generic-modal').classList.replace('max-w-md', 'max-w-4xl');
             openModal('generic-modal');
         };
+
+        /** Link aberto ao escanear o QR da plaquinha (mesma origem + ?p=productId) */
+        const buildProductPlaqueUrl = (productId) => {
+            if (!productId) return `${window.location.origin}${window.location.pathname || '/'}`;
+            const u = new URL(window.location.href);
+            u.search = '';
+            u.hash = '';
+            u.searchParams.set('p', productId);
+            return u.toString();
+        };
+
+        let _plaqueDeepLinkConsumed = false;
+        const tryOpenPlaqueDeepLink = () => {
+            if (_plaqueDeepLinkConsumed) return;
+            let pid;
+            try { pid = new URLSearchParams(window.location.search).get('p'); } catch { return; }
+            if (!pid || !isDataLoaded) return;
+            const product = products.find(p => p.id === pid);
+            if (!product) {
+                if (products.length > 0) {
+                    _plaqueDeepLinkConsumed = true;
+                    showToast('Produto não encontrado. Verifique o link da plaquinha.', true);
+                    try {
+                        const u = new URL(window.location.href);
+                        u.searchParams.delete('p');
+                        const q = u.searchParams.toString();
+                        history.replaceState(null, '', u.pathname + (q ? `?${q}` : '') + (u.hash || ''));
+                    } catch (e) { /* noop */ }
+                }
+                return;
+            }
+            _plaqueDeepLinkConsumed = true;
+            showPlaqueInfoModal(product);
+            try {
+                const u = new URL(window.location.href);
+                u.searchParams.delete('p');
+                const q = u.searchParams.toString();
+                const newUrl = u.pathname + (q ? `?${q}` : '') + (u.hash || '');
+                history.replaceState(null, '', newUrl);
+            } catch (e) { console.warn('replaceState p:', e); }
+        };
+
+        const showPlaqueInfoModal = (product) => {
+            if (!product) return;
+            const appLink = buildProductPlaqueUrl(product.id);
+            const productHistory = history
+                .filter(h => h.productId === product.id)
+                .sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0))
+                .slice(0, 50);
+
+            let historyItemsHTML = '';
+            if (productHistory.length > 0) {
+                productHistory.forEach(h => {
+                    let details = '';
+                    let colorClass = '';
+                    switch (h.type) {
+                        case 'Entrada': case 'Ajuste Entrada':
+                            colorClass = 'border-green-500'; details = `<strong>+${h.quantity}</strong> unidades. Estoque: <strong>${h.newTotal}</strong>.`; break;
+                        case 'Saída': case 'Saída por Requisição':
+                            colorClass = 'border-red-500'; details = `<strong>-${h.quantity}</strong> unidades. ${h.withdrawnBy ? `Retirado: <strong>${h.withdrawnBy}</strong>. ` : ''}Estoque: <strong>${h.newTotal}</strong>.`; break;
+                        case 'Ajuste Saída':
+                            colorClass = 'border-yellow-500'; details = `<strong>-${h.quantity}</strong> ajuste. Estoque: <strong>${h.newTotal}</strong>.`; break;
+                        case 'Criação': case 'Importação':
+                            colorClass = 'border-blue-500'; details = `Cadastro: <strong>${h.quantity}</strong> unidades.`; break;
+                        case 'Edição':
+                            colorClass = 'border-purple-500'; details = `Alteração de cadastro.`; break;
+                        default:
+                            colorClass = 'border-slate-400'; details = String(h.type || '—');
+                    }
+                    historyItemsHTML += `
+                        <div class="p-3 bg-slate-50 rounded-lg border-l-4 ${colorClass}">
+                            <p class="font-semibold text-slate-800">${h.type || '—'}</p>
+                            <p class="text-sm text-slate-700">${details}</p>
+                            <p class="text-xs text-slate-500 mt-1">${h.date ? new Date(h.date.seconds * 1000).toLocaleString('pt-BR') : '—'}</p>
+                        </div>`;
+                });
+            } else {
+                historyItemsHTML = '<p class="text-slate-500 text-center py-4">Nenhum histórico de movimentação para este produto.</p>';
+            }
+
+            const isLow = (product.quantity || 0) <= (product.minQuantity || 0);
+            const content = `
+                <div class="flex justify-between items-start gap-2">
+                    <div class="min-w-0">
+                        <p class="text-xs font-bold uppercase tracking-wide text-indigo-600">Ficha do produto</p>
+                        <h2 class="text-xl sm:text-2xl font-bold text-slate-800 break-words">${product.name || '—'}</h2>
+                        <p class="text-sm text-slate-600 mt-1">RM: <span class="font-mono font-semibold">${product.codeRM || '—'}</span> · SKU: <span class="font-mono">${product.code || '—'}</span></p>
+                    </div>
+                    <button type="button" class="close-modal-btn p-2 -mt-1 text-slate-400 hover:text-slate-700 text-2xl flex-shrink-0" aria-label="Fechar">&times;</button>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
+                    <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                        <p class="text-xs text-slate-500">Estoque atual</p>
+                        <p class="text-lg font-extrabold text-slate-900">${product.quantity ?? 0}</p>
+                    </div>
+                    <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                        <p class="text-xs text-slate-500">Estoque mínimo</p>
+                        <p class="text-lg font-extrabold text-slate-900">${product.minQuantity ?? 0}</p>
+                    </div>
+                    <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                        <p class="text-xs text-slate-500">Unidade</p>
+                        <p class="text-sm font-bold text-slate-800 truncate">${product.unit || '—'}</p>
+                    </div>
+                    <div class="p-3 rounded-xl ${isLow ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'} border col-span-2 sm:col-span-1">
+                        <p class="text-xs text-slate-500">Local</p>
+                        <p class="text-sm font-bold text-slate-800 break-words">${product.location || '—'}</p>
+                    </div>
+                </div>
+                <div class="mt-4 p-3 rounded-xl bg-indigo-50/80 border border-indigo-100">
+                    <p class="text-xs font-bold text-indigo-800 mb-2">Acesso ao app (o QR da plaquinha leva a este endereço)</p>
+                    <a id="plaque-app-link" href="#" class="text-sm text-indigo-600 font-semibold break-all underline">Abrir ficha do produto no app</a>
+                    <p class="text-xs text-slate-500 mt-2">Toque no link no celular para abrir o app. Se estiver deslogado, faça login; em seguida abra o link de novo (ou use o leitor de QR da plaquinha após o login).</p>
+                </div>
+                <div class="mt-4 flex flex-wrap gap-2">
+                    <button type="button" id="plaque-go-inventory" class="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700">Ver na lista de estoque</button>
+                </div>
+                <h3 class="text-sm font-bold text-slate-800 mt-6 mb-2">Histórico de entradas e saídas</h3>
+                <div class="max-h-72 overflow-y-auto space-y-2 pr-1">${historyItemsHTML}</div>
+            `;
+            const gm = document.getElementById('generic-modal');
+            gm.innerHTML = content;
+            gm.classList.replace('max-w-md', 'max-w-4xl');
+            const appA = document.getElementById('plaque-app-link');
+            if (appA) appA.href = appLink;
+            openModal('generic-modal');
+            document.getElementById('plaque-go-inventory')?.addEventListener('click', () => {
+                closeModal('generic-modal');
+                searchInput.value = product.name || '';
+                currentPage = 1;
+                switchView('inventory-view');
+                renderProducts();
+            });
+        };
         
         const showSettingsModal = () => {
             const logoPreviewSrc = appSettings.logoUrl || 'https://placehold.co/200x60/e2e8f0/475569?text=Sem+Logo';
@@ -2378,6 +2513,32 @@
             img.src = 'assets/img/logo-gel.png?v=1';
         });
 
+        // qrcode (npm) — o antigo <script> do jsdelivr apontava para arquivo inexistente (404).
+        // Carregamos via import dinâmico (main.js é ES module).
+        let _qrcodeLib = undefined;
+        const loadQRCodeLib = async () => {
+            if (_qrcodeLib !== undefined) return _qrcodeLib;
+            const urls = [
+                'https://esm.sh/qrcode@1.5.3',
+                'https://esm.run/qrcode@1.5.3',
+                'https://cdn.skypack.dev/qrcode@1.5.3'
+            ];
+            for (const url of urls) {
+                try {
+                    const m = await import(url);
+                    const lib = m.default || m;
+                    if (lib && typeof lib.toDataURL === 'function') {
+                        _qrcodeLib = lib;
+                        return _qrcodeLib;
+                    }
+                } catch (e) {
+                    console.warn('QR lib import falhou:', url, e);
+                }
+            }
+            _qrcodeLib = null;
+            return null;
+        };
+
         const buildPlaquesPDF = async () => {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
@@ -2405,25 +2566,34 @@
             const logoPadR   = 2.5;
             const logoPadT   = 2;
 
-            // Gera QR code para cada produto (codifica o RM ou nome)
-            const hasQRLib = typeof QRCode !== 'undefined' && typeof QRCode.toDataURL === 'function';
-            const qrCache  = {};
-            if (hasQRLib) {
+            // QR = link do app com ?p=productId (abre ficha, estoque, histórico)
+            const QR = await loadQRCodeLib();
+            const qrCache = {};
+            if (QR) {
                 for (const chk of selected) {
-                    const qrText = chk.dataset.rm || chk.dataset.name || '';
-                    if (qrText && !qrCache[qrText]) {
+                    const pid = chk.getAttribute('data-id') || '';
+                    if (!pid) continue;
+                    const plaqueUrl = buildProductPlaqueUrl(pid);
+                    if (!qrCache[plaqueUrl]) {
                         try {
-                            qrCache[qrText] = await QRCode.toDataURL(qrText, {
-                                width: 128, margin: 1,
+                            qrCache[plaqueUrl] = await QR.toDataURL(plaqueUrl, {
+                                width: 400,
+                                margin: 0,
+                                errorCorrectionLevel: 'M',
                                 color: { dark: '#0F172A', light: '#FFFFFF' }
                             });
-                        } catch { qrCache[qrText] = null; }
+                        } catch (e) {
+                            console.warn('toDataURL QR falhou:', e);
+                            qrCache[plaqueUrl] = null;
+                        }
                     }
                 }
+            } else {
+                console.warn('Biblioteca qrcode não disponível — plaquinhas sem QR.');
             }
 
-            const footerH = 10; // mm — área do rodapé (RM + QR)
-            const qrSize  = 8;  // mm — tamanho do QR no PDF
+            const footerH = 15;  // mm — rodapé (RM + QR maior)
+            const qrSize  = 12.5; // mm — QR no PDF
 
             selected.forEach((chk, i) => {
                 const posOnPage = i % perPage;
@@ -2434,10 +2604,11 @@
                 const x   = marginX + col * (cardW + gapX);
                 const y   = marginY + row * (cardH + gapY);
 
-                const name    = chk.dataset.name || '';
-                const rm      = chk.dataset.rm   || '';
-                const qrText  = rm || name;
-                const qrB64   = qrCache[qrText] || null;
+                const name   = chk.getAttribute('data-name') || '';
+                const rm     = chk.getAttribute('data-rm') || '';
+                const pid    = chk.getAttribute('data-id') || '';
+                const plaqueUrl = pid ? buildProductPlaqueUrl(pid) : '';
+                const qrB64  = plaqueUrl ? (qrCache[plaqueUrl] || null) : null;
 
                 // ── Fundo branco + borda cinza ────────────────────────────
                 doc.setFillColor(255, 255, 255);
@@ -2463,14 +2634,14 @@
                 const blockH    = nameLines.length * lineH;
 
                 const nameAreaTop    = y + 3;
-                const nameAreaBottom = (rm || qrB64) ? y + cardH - footerH - 1 : y + cardH - 3;
+                const nameAreaBottom = (rm || plaqueUrl) ? y + cardH - footerH - 1 : y + cardH - 3;
                 const nameAreaH      = nameAreaBottom - nameAreaTop;
                 const nameStartY     = nameAreaTop + (nameAreaH - blockH) / 2 + lineH;
 
                 doc.text(nameLines, x + cardW / 2, nameStartY, { align: 'center', lineHeightFactor: 1.3 });
 
                 // ── Rodapé: separador + RM (esquerda) + QR (direita) ─────
-                if (rm || qrB64) {
+                if (rm || plaqueUrl) {
                     const sepY = y + cardH - footerH;
 
                     // Linha separadora
@@ -2478,24 +2649,43 @@
                     doc.setLineWidth(0.2);
                     doc.line(x + 3, sepY, x + cardW - 3, sepY);
 
-                    // Código RM — alinhado à esquerda no rodapé
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(6.5);
+                    doc.setTextColor(100, 116, 139);
+                    // RM + linha “escaneie p/ ficha no app”
                     if (rm) {
-                        doc.setFont('helvetica', 'normal');
+                        doc.setFont('helvetica', 'bold');
                         doc.setFontSize(7);
-                        doc.setTextColor(100, 116, 139);
-                        // Se há QR, limita texto para não sobrepor; senão centraliza
                         if (qrB64) {
-                            doc.text(`RM: ${rm}`, x + 4, y + cardH - (footerH / 2) + 1, { align: 'left' });
+                            doc.text(`RM: ${rm}`, x + 4, y + cardH - footerH + 3.2, { align: 'left' });
                         } else {
                             doc.text(`RM: ${rm}`, x + cardW / 2, y + cardH - (footerH / 2) + 1, { align: 'center' });
                         }
+                    }
+                    if (qrB64) {
+                        doc.setFont('helvetica', 'normal');
+                        doc.setFontSize(5.5);
+                        doc.setTextColor(140, 140, 140);
+                        const note = 'Escaneie o QR p/ ficha, estoques e histórico no app';
+                        const noteW = cardW - qrSize - 8;
+                        const noteLines = doc.splitTextToSize(note, noteW);
+                        doc.text(noteLines, x + 4, y + cardH - footerH + (rm ? 6.2 : 3.2), { lineHeightFactor: 1.15 });
                     }
 
                     // QR Code — canto inferior direito do rodapé
                     if (qrB64) {
                         const qrX = x + cardW - qrSize - 1;
                         const qrY = y + cardH - qrSize - 1;
-                        doc.addImage(qrB64, 'PNG', qrX, qrY, qrSize, qrSize);
+                        try {
+                            doc.addImage(qrB64, 'PNG', qrX, qrY, qrSize, qrSize);
+                        } catch (e) {
+                            const b64 = qrB64.replace(/^data:image\/\w+;base64,/, '');
+                            try {
+                                doc.addImage(b64, 'PNG', qrX, qrY, qrSize, qrSize);
+                            } catch (e2) {
+                                console.warn('addImage QR no PDF:', e, e2);
+                            }
+                        }
                     }
                 }
             });
