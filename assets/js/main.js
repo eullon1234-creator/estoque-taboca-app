@@ -2566,17 +2566,22 @@
             const logoPadR   = 2.5;
             const logoPadT   = 2;
 
-            // QR = link do app com ?p=productId (abre ficha, estoque, histórico)
+            // QR = texto curto (lido direto no leitor, sem abrir app)
             const QR = await loadQRCodeLib();
             const qrCache = {};
             if (QR) {
                 for (const chk of selected) {
                     const pid = chk.getAttribute('data-id') || '';
                     if (!pid) continue;
-                    const plaqueUrl = buildProductPlaqueUrl(pid);
-                    if (!qrCache[plaqueUrl]) {
+                    const p = (Array.isArray(products) ? products : []).find(pp => pp?.id === pid) || null;
+
+                    const qty  = Number.isFinite(Number(p?.quantity)) ? Number(p.quantity) : 0;
+                    const min  = Number.isFinite(Number(p?.minQuantity)) ? Number(p.minQuantity) : 0;
+                    const qrText = `ATUAL: ${qty}\nMIN: ${min}`;
+
+                    if (!qrCache[qrText]) {
                         try {
-                            qrCache[plaqueUrl] = await QR.toDataURL(plaqueUrl, {
+                            qrCache[qrText] = await QR.toDataURL(qrText, {
                                 width: 400,
                                 margin: 0,
                                 errorCorrectionLevel: 'M',
@@ -2584,7 +2589,7 @@
                             });
                         } catch (e) {
                             console.warn('toDataURL QR falhou:', e);
-                            qrCache[plaqueUrl] = null;
+                            qrCache[qrText] = null;
                         }
                     }
                 }
@@ -2607,8 +2612,14 @@
                 const name   = chk.getAttribute('data-name') || '';
                 const rm     = chk.getAttribute('data-rm') || '';
                 const pid    = chk.getAttribute('data-id') || '';
-                const plaqueUrl = pid ? buildProductPlaqueUrl(pid) : '';
-                const qrB64  = plaqueUrl ? (qrCache[plaqueUrl] || null) : null;
+                const p = (Array.isArray(products) ? products : []).find(pp => pp?.id === pid) || null;
+
+                const resolvedRm   = (p?.codeRM || rm || p?.code || '').toString().trim();
+                const qty          = Number.isFinite(Number(p?.quantity)) ? Number(p.quantity) : 0;
+                const min          = Number.isFinite(Number(p?.minQuantity)) ? Number(p.minQuantity) : 0;
+                const qrText = `ATUAL: ${qty}\nMIN: ${min}`;
+
+                const qrB64  = qrText ? (qrCache[qrText] || null) : null;
 
                 // ── Fundo branco + borda cinza ────────────────────────────
                 doc.setFillColor(255, 255, 255);
@@ -2634,14 +2645,14 @@
                 const blockH    = nameLines.length * lineH;
 
                 const nameAreaTop    = y + 3;
-                const nameAreaBottom = (rm || plaqueUrl) ? y + cardH - footerH - 1 : y + cardH - 3;
+                const nameAreaBottom = (resolvedRm || qrText) ? y + cardH - footerH - 1 : y + cardH - 3;
                 const nameAreaH      = nameAreaBottom - nameAreaTop;
                 const nameStartY     = nameAreaTop + (nameAreaH - blockH) / 2 + lineH;
 
                 doc.text(nameLines, x + cardW / 2, nameStartY, { align: 'center', lineHeightFactor: 1.3 });
 
                 // ── Rodapé: separador + RM (esquerda) + QR (direita) ─────
-                if (rm || plaqueUrl) {
+                if (resolvedRm || qrText) {
                     const sepY = y + cardH - footerH;
 
                     // Linha separadora
@@ -2653,23 +2664,23 @@
                     doc.setFontSize(6.5);
                     doc.setTextColor(100, 116, 139);
                     // RM + linha “escaneie p/ ficha no app”
-                    if (rm) {
+                    if (resolvedRm) {
                         doc.setFont('helvetica', 'bold');
                         doc.setFontSize(7);
                         if (qrB64) {
-                            doc.text(`RM: ${rm}`, x + 4, y + cardH - footerH + 3.2, { align: 'left' });
+                            doc.text(`RM: ${resolvedRm}`, x + 4, y + cardH - footerH + 3.2, { align: 'left' });
                         } else {
-                            doc.text(`RM: ${rm}`, x + cardW / 2, y + cardH - (footerH / 2) + 1, { align: 'center' });
+                            doc.text(`RM: ${resolvedRm}`, x + cardW / 2, y + cardH - (footerH / 2) + 1, { align: 'center' });
                         }
                     }
                     if (qrB64) {
                         doc.setFont('helvetica', 'normal');
                         doc.setFontSize(5.5);
                         doc.setTextColor(140, 140, 140);
-                        const note = 'Escaneie o QR p/ ficha, estoques e histórico no app';
+                        const note = 'Escaneie o QR p/ ver informações (sem abrir o app)';
                         const noteW = cardW - qrSize - 8;
                         const noteLines = doc.splitTextToSize(note, noteW);
-                        doc.text(noteLines, x + 4, y + cardH - footerH + (rm ? 6.2 : 3.2), { lineHeightFactor: 1.15 });
+                        doc.text(noteLines, x + 4, y + cardH - footerH + (resolvedRm ? 6.2 : 3.2), { lineHeightFactor: 1.15 });
                     }
 
                     // QR Code — canto inferior direito do rodapé
