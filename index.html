@@ -1140,34 +1140,37 @@
         </div>
     </div>
 
-    <!-- Sugestões: posição em main.css (#feedback-widget) para aparecer mesmo sem rebuild do Tailwind -->
-    <div id="feedback-widget">
-        <div id="feedback-panel" class="hidden w-full rounded-2xl border shadow-lg p-4" style="background:rgba(255,255,255,0.97);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-color:rgba(0,0,0,0.08);box-shadow:0 12px 40px rgba(0,0,0,0.1);">
-            <div class="flex items-start justify-between gap-2 mb-3">
-                <div>
-                    <p class="text-sm font-bold text-slate-800">Sugerir melhoria</p>
-                    <p class="text-xs text-slate-500 mt-0.5 leading-snug">Uma ideia ou problema — resposta opcional.</p>
-                </div>
-                <button type="button" id="feedback-close" class="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 shrink-0" title="Fechar" aria-label="Fechar">
-                    <span class="material-symbols-outlined" style="font-size:22px;">close</span>
-                </button>
-            </div>
-            <form id="feedback-form" class="space-y-3">
-                <textarea id="feedback-message" name="feedback-message" rows="4" maxlength="2000" required class="w-full text-sm p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 resize-y text-slate-800" style="min-height:96px" placeholder="Ex.: filtrar por… / o passo X confunde porque…"></textarea>
-                <p class="text-slate-400 leading-relaxed" style="font-size:11px;line-height:1.45">Enviamos a tela atual, obra e usuário (se logado) só para contexto técnico.</p>
-                <button type="submit" id="feedback-submit" class="w-full py-2.5 rounded-xl text-sm font-bold text-white transition shadow-sm" style="background:linear-gradient(135deg, #0066FF, #4F46E5);">Enviar sugestão</button>
-            </form>
-        </div>
-        <button type="button" id="feedback-fab" class="flex items-center justify-center w-11 h-11 rounded-full transition hover:scale-105 active:scale-95 border" style="background:rgba(255,255,255,0.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-color:rgba(0,0,0,0.06);box-shadow:0 4px 16px rgba(0,0,0,0.08);color:#4F46E5;" title="Sugerir melhoria" aria-label="Abrir sugestão de melhoria" aria-expanded="false" aria-controls="feedback-panel">
-            <span class="material-symbols-outlined" style="font-size:24px;">lightbulb</span>
-        </button>
-    </div>
-
     </div> <!-- Fim do app-container -->
 
-    <footer class="text-center text-sm text-slate-500 py-4 mt-12">
-        Criado por Eullon — <span style="font-weight:600; color:#9ca3af;">EULLON 2.0.2</span>
+    <footer class="mt-12 border-t border-slate-200/80 bg-slate-50/80">
+        <div class="max-w-7xl mx-auto px-4 py-5 flex flex-col items-center gap-3">
+            <button type="button" id="feedback-footer-btn" class="inline-flex items-center justify-center gap-2 w-full max-w-sm sm:max-w-md px-5 py-3 rounded-xl text-sm font-bold transition active:scale-95 hover:shadow-md" style="background:#fff;border:1px solid rgba(0,102,255,0.28);color:#0066FF;box-shadow:0 2px 10px rgba(0,0,0,0.06);" title="Abrir formulário de sugestão" aria-expanded="false" aria-controls="feedback-panel">
+                <span class="material-symbols-outlined" style="font-size:22px;">lightbulb</span>
+                Sugerir melhoria no app
+            </button>
+            <p class="text-center text-sm text-slate-500 m-0">
+                Criado por Eullon — <span style="font-weight:600; color:#9ca3af;">EULLON 2.0.2</span>
+            </p>
+        </div>
     </footer>
+
+    <div id="feedback-backdrop" class="hidden fixed inset-0" style="z-index:59;background:rgba(15,23,42,0.45);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);" aria-hidden="true"></div>
+    <div id="feedback-panel" class="hidden rounded-2xl border shadow-2xl p-4" style="z-index:60;background:rgba(255,255,255,0.98);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-color:rgba(0,0,0,0.08);box-shadow:0 24px 64px rgba(0,0,0,0.18);">
+        <div class="flex items-start justify-between gap-2 mb-3">
+            <div>
+                <p class="text-sm font-bold text-slate-800">Sugerir melhoria</p>
+                <p class="text-xs text-slate-500 mt-0.5 leading-snug">Uma ideia ou problema — resposta opcional.</p>
+            </div>
+            <button type="button" id="feedback-close" class="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 shrink-0" title="Fechar" aria-label="Fechar">
+                <span class="material-symbols-outlined" style="font-size:22px;">close</span>
+            </button>
+        </div>
+        <form id="feedback-form" class="space-y-3">
+            <textarea id="feedback-message" name="feedback-message" rows="4" maxlength="2000" required class="w-full text-sm p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 resize-y text-slate-800" style="min-height:96px" placeholder="Ex.: filtrar por… / o passo X confunde porque…"></textarea>
+            <p class="text-slate-400 leading-relaxed" style="font-size:11px;line-height:1.45">Enviamos a tela atual, obra e usuário (se logado) só para contexto técnico.</p>
+            <button type="submit" id="feedback-submit" class="w-full py-2.5 rounded-xl text-sm font-bold text-white transition shadow-sm" style="background:linear-gradient(135deg, #0066FF, #4F46E5);">Enviar sugestão</button>
+        </form>
+    </div>
 
     <script type="module" src="assets/js/main.js?v=2.0.2"></script>
 

@@ -143,9 +143,9 @@
         const toolLoansFilterReturnedStatus = document.getElementById('tool-loans-filter-returned-status');
         const importLocationsBtn = document.getElementById('import-locations-btn');
         const csvLocationsFileInput = document.getElementById('csv-locations-file-input');
-        const feedbackFab = document.getElementById('feedback-fab');
+        const feedbackFooterBtn = document.getElementById('feedback-footer-btn');
+        const feedbackBackdrop = document.getElementById('feedback-backdrop');
         const feedbackPanel = document.getElementById('feedback-panel');
-        const feedbackWidget = document.getElementById('feedback-widget');
         const feedbackForm = document.getElementById('feedback-form');
         const feedbackMessage = document.getElementById('feedback-message');
         // --- Mapeamento de Unidades ---
@@ -3206,9 +3206,13 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         loginUsernameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loginPasswordInput.focus(); });
 
         const setFeedbackPanelOpen = (open) => {
-            if (!feedbackPanel || !feedbackFab) return;
+            if (!feedbackPanel) return;
             feedbackPanel.classList.toggle('hidden', !open);
-            feedbackFab.setAttribute('aria-expanded', open ? 'true' : 'false');
+            feedbackBackdrop?.classList.toggle('hidden', !open);
+            if (feedbackBackdrop) feedbackBackdrop.setAttribute('aria-hidden', open ? 'false' : 'true');
+            feedbackFooterBtn?.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (open) document.body.style.overflow = 'hidden';
+            else document.body.style.overflow = '';
         };
 
         logoutBtn.addEventListener('click', () => {
@@ -3417,18 +3421,15 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         toolLoansListFilterProduct?.addEventListener('input', () => renderToolLoans());
         toolLoansFilterReturnedStatus?.addEventListener('change', () => renderToolLoans());
 
-        feedbackFab?.addEventListener('click', (ev) => {
+        feedbackFooterBtn?.addEventListener('click', (ev) => {
             ev.stopPropagation();
             const willOpen = feedbackPanel?.classList.contains('hidden');
             setFeedbackPanelOpen(!!willOpen);
         });
+        feedbackBackdrop?.addEventListener('click', () => setFeedbackPanelOpen(false));
         document.getElementById('feedback-close')?.addEventListener('click', () => setFeedbackPanelOpen(false));
         document.addEventListener('keydown', (ev) => {
             if (ev.key === 'Escape') setFeedbackPanelOpen(false);
-        });
-        document.addEventListener('click', (ev) => {
-            if (!feedbackWidget || feedbackPanel?.classList.contains('hidden')) return;
-            if (!feedbackWidget.contains(ev.target)) setFeedbackPanelOpen(false);
         });
         feedbackForm?.addEventListener('submit', async (ev) => {
             ev.preventDefault();
