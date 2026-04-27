@@ -22,6 +22,7 @@
         let history = [];
         let requisitions = [];
         let toolLoans = [];
+        let toolLoanQueue = [];
         let locations = [];
         let appSettings = { appName: 'UHE Estrela', logoUrl: null };
         let currentProductId = null;
@@ -133,6 +134,13 @@
         const noToolLoansOpenMessage = document.getElementById('no-tool-loans-open-message');
         const noToolLoansReturnedMessage = document.getElementById('no-tool-loans-returned-message');
         const exportToolLoansBtn = document.getElementById('export-tool-loans-btn');
+        const toolLoanAddQueueBtn = document.getElementById('tool-loan-add-queue-btn');
+        const toolLoanQueueBody = document.getElementById('tool-loan-queue-body');
+        const toolLoanQueueEmpty = document.getElementById('tool-loan-queue-empty');
+        const toolLoanSubmitLabel = document.getElementById('tool-loan-submit-label');
+        const toolLoansListFilterBorrower = document.getElementById('tool-loans-list-filter-borrower');
+        const toolLoansListFilterProduct = document.getElementById('tool-loans-list-filter-product');
+        const toolLoansFilterReturnedStatus = document.getElementById('tool-loans-filter-returned-status');
         const importLocationsBtn = document.getElementById('import-locations-btn');
         const csvLocationsFileInput = document.getElementById('csv-locations-file-input');
         // --- Mapeamento de Unidades ---
@@ -1513,7 +1521,11 @@
             const sortedProducts = filteredProducts.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
             toolLoanProductSelect.innerHTML = `<option value="">${sortedProducts.length ? 'Selecione a ferramenta' : 'Nenhuma ferramenta encontrada'}</option>` + sortedProducts
-                .map(p => `<option value="${p.id}">${p.name} (${p.codeRM || p.code || 'S/C'}) - Estoque: ${p.quantity || 0}</option>`)
+                .map(p => {
+                    const reserved = toolLoanQueue.filter(l => l.productId === p.id).reduce((s, l) => s + l.quantity, 0);
+                    const disp = Math.max(0, (p.quantity || 0) - reserved);
+                    return `<option value="${p.id}">${p.name} (${p.codeRM || p.code || 'S/C'}) — Disp.: ${disp}</option>`;
+                })
                 .join('');
 
             if (currentValue && sortedProducts.some(p => p.id === currentValue)) {
@@ -1521,13 +1533,78 @@
             }
         };
 
+        const getToolLoansListFilterTokens = (el) => {
+            const raw = el?.value || '';
+            return normalizeSearchText(raw).split(/\s+/).filter(Boolean);
+        };
+
+        const loanMatchesListFilters = (loan, borrowerTokens, productTokens) => {
+            if (borrowerTokens.length) {
+                const bh = normalizeSearchText([loan.borrower, loan.role].filter(Boolean).join(' '));
+                if (!borrowerTokens.every(t => bh.includes(t))) return false;
+            }
+            if (productTokens.length) {
+                const ph = normalizeSearchText([loan.productName, loan.productCodeRM, loan.productCode].filter(Boolean).join(' '));
+                if (!productTokens.every(t => ph.includes(t))) return false;
+            }
+            return true;
+        };
+
+        const getToolLoanQueueQtyForProduct = (productId) =>
+            toolLoanQueue.filter(l => l.productId === productId).reduce((s, l) => s + l.quantity, 0);
+
+        const renderToolLoanQueue = () => {
+            if (!toolLoanQueueBody) return;
+            toolLoanQueueBody.innerHTML = '';
+            toolLoanQueue.forEach((line, idx) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50';
+                tr.innerHTML = `
+                    <td class="p-2 pl-3 font-medium text-slate-800">${line.productName || ''}</td>
+                    <td class="p-2 text-slate-600 text-xs">${line.productCodeRM || line.productCode || '—'}</td>
+                    <td class="p-2 text-center font-bold text-slate-800">${line.quantity}</td>
+                    <td class="p-2 text-center">
+                        <button type="button" data-queue-idx="${idx}" class="tool-loan-queue-remove text-red-600 hover:bg-red-50 p-1 rounded" title="Remover da lista">
+                            <span class="material-symbols-outlined align-middle" style="font-size:20px;">close</span>
+                        </button>
+                    </td>`;
+                toolLoanQueueBody.appendChild(tr);
+            });
+            if (toolLoanQueueEmpty) {
+                toolLoanQueueEmpty.classList.toggle('hidden', toolLoanQueue.length > 0);
+            }
+            if (toolLoanSubmitLabel) {
+                if (toolLoanQueue.length > 1) {
+                    toolLoanSubmitLabel.textContent = `Cautelar ${toolLoanQueue.length} itens`;
+                } else if (toolLoanQueue.length === 1) {
+                    toolLoanSubmitLabel.textContent = 'Cautelar 1 item';
+                } else {
+                    toolLoanSubmitLabel.textContent = 'Cautelar';
+                }
+            }
+            populateToolLoanProducts();
+        };
+
         const renderToolLoans = () => {
             populateToolLoanProducts();
             if (!toolLoansOpenList || !toolLoansReturnedList) return;
 
+            const borrowerTokens = getToolLoansListFilterTokens(toolLoansListFilterBorrower);
+            const productTokens = getToolLoansListFilterTokens(toolLoansListFilterProduct);
+            const returnedStatus = toolLoansFilterReturnedStatus?.value || 'all';
+            const hasListFilters = borrowerTokens.length > 0 || productTokens.length > 0 || returnedStatus !== 'all';
+
             const sortedLoans = [...toolLoans].sort((a, b) => (b.loanDate?.seconds || 0) - (a.loanDate?.seconds || 0));
-            const openLoans     = sortedLoans.filter(loan => loan.status !== 'returned' && loan.status !== 'damaged');
-            const returnedLoans = sortedLoans.filter(loan => loan.status === 'returned' || loan.status === 'damaged');
+            let openLoans = sortedLoans.filter(loan => loan.status !== 'returned' && loan.status !== 'damaged');
+            let returnedLoans = sortedLoans.filter(loan => loan.status === 'returned' || loan.status === 'damaged');
+
+            openLoans = openLoans.filter(loan => loanMatchesListFilters(loan, borrowerTokens, productTokens));
+            returnedLoans = returnedLoans.filter(loan => loanMatchesListFilters(loan, borrowerTokens, productTokens));
+            if (returnedStatus === 'returned') {
+                returnedLoans = returnedLoans.filter(l => l.status === 'returned');
+            } else if (returnedStatus === 'damaged') {
+                returnedLoans = returnedLoans.filter(l => l.status === 'damaged');
+            }
 
             toolLoansOpenList.innerHTML = '';
             toolLoansReturnedList.innerHTML = '';
@@ -1535,10 +1612,14 @@
             noToolLoansOpenMessage?.classList.toggle('hidden', openLoans.length > 0);
             noToolLoansReturnedMessage?.classList.toggle('hidden', returnedLoans.length > 0);
             if (openLoans.length === 0 && isDataLoaded && noToolLoansOpenMessage) {
-                noToolLoansOpenMessage.innerHTML = '<p class="text-lg">Nenhuma ferramenta em aberto.</p>';
+                noToolLoansOpenMessage.innerHTML = hasListFilters
+                    ? '<p class="text-lg">Nenhuma cautela em aberto com esses filtros.</p>'
+                    : '<p class="text-lg">Nenhuma ferramenta em aberto.</p>';
             }
             if (returnedLoans.length === 0 && isDataLoaded && noToolLoansReturnedMessage) {
-                noToolLoansReturnedMessage.innerHTML = '<p class="text-lg">Nenhuma devolução registrada.</p>';
+                noToolLoansReturnedMessage.innerHTML = hasListFilters
+                    ? '<p class="text-lg">Nenhum registro na coluna devolvidas com esses filtros.</p>'
+                    : '<p class="text-lg">Nenhuma devolução registrada.</p>';
             }
 
             openLoans.forEach(loan => {
@@ -2935,7 +3016,10 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             if (viewId === 'exit-log-view') renderExitLog(exitsSearchInput.value);
             if (viewId === 'rm-view') renderRMView(rmSearchInput.value); 
             if (viewId === 'dashboard-view') updateDashboard();
-            if (viewId === 'tool-loans-view') renderToolLoans();
+            if (viewId === 'tool-loans-view') {
+                renderToolLoanQueue();
+                renderToolLoans();
+            }
             if (viewId === 'plaques-view') renderPlaquesView();
             if (viewId === 'compras-view') {
                 const sel = document.getElementById('compras-period-select');
@@ -3128,6 +3212,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             history = [];
             requisitions = [];
             toolLoans = [];
+            toolLoanQueue = [];
             locations = [];
             loginScreen.classList.remove('hidden');
             appContainer.classList.add('hidden');
@@ -3166,55 +3251,158 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 return;
             }
 
-            const productId = toolLoanProductSelect.value;
-            const quantity = parseInt(document.getElementById('tool-loan-quantity').value);
             const borrower = toUpperText(document.getElementById('tool-loan-borrower').value);
             const role = toUpperText(document.getElementById('tool-loan-role').value);
             const observation = toUpperText(document.getElementById('tool-loan-observation').value);
-            const product = products.find(p => p.id === productId);
-
-            if (!productId || !product || isNaN(quantity) || quantity <= 0 || !borrower) {
-                showToast('Preencha ferramenta, quantidade e nome corretamente.', true);
-                return;
-            }
-            if ((product.quantity || 0) < quantity) {
-                showToast(`Estoque insuficiente para ${product.name}. Disponível: ${product.quantity || 0}`, true);
+            if (!borrower) {
+                showToast('Informe o nome de quem pegou.', true);
                 return;
             }
 
-            const submitBtn = e.target.querySelector('button[type="submit"]');
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Salvando...';
-
-            try {
-                const newQuantity = (product.quantity || 0) - quantity;
-                const batch = writeBatch(db);
-                batch.update(doc(productsCollectionRef, productId), { quantity: newQuantity, updatedAt: serverTimestamp() });
-                batch.set(doc(toolLoansCollectionRef), {
+            let linesToProcess = [];
+            if (toolLoanQueue.length > 0) {
+                linesToProcess = toolLoanQueue.map((l) => ({ ...l }));
+            } else {
+                const productId = toolLoanProductSelect?.value;
+                const quantity = parseInt(document.getElementById('tool-loan-quantity').value, 10);
+                const product = products.find(p => p.id === productId);
+                if (!productId || !product || isNaN(quantity) || quantity <= 0) {
+                    showToast('Adicione itens à lista ou selecione uma ferramenta e quantidade.', true);
+                    return;
+                }
+                if ((product.quantity || 0) < quantity) {
+                    showToast(`Estoque insuficiente para ${product.name}. Disponível: ${product.quantity || 0}`, true);
+                    return;
+                }
+                linesToProcess = [{
                     productId,
                     productName: product.name,
                     productCode: product.code || '',
                     productCodeRM: product.codeRM || '',
-                    quantity,
-                    borrower,
-                    role: role || null,
-                    observation: observation || null,
-                    status: 'open',
-                    loanDate: serverTimestamp(),
-                    createdBy: toUpperText(currentUser?.displayName || 'Anônimo')
+                    quantity
+                }];
+            }
+
+            const qtyByProduct = {};
+            linesToProcess.forEach((l) => {
+                qtyByProduct[l.productId] = (qtyByProduct[l.productId] || 0) + l.quantity;
+            });
+            for (const pid of Object.keys(qtyByProduct)) {
+                const p = products.find((x) => x.id === pid);
+                if (!p || (p.quantity || 0) < qtyByProduct[pid]) {
+                    showToast(`Estoque insuficiente ou item indisponível: ${p?.name || pid}`, true);
+                    return;
+                }
+            }
+
+            const submitBtn = document.getElementById('tool-loan-submit-btn') || e.target.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            if (toolLoanSubmitLabel) toolLoanSubmitLabel.textContent = 'Salvando...';
+
+            try {
+                const projectedQty = {};
+                linesToProcess.forEach((l) => {
+                    if (projectedQty[l.productId] === undefined) {
+                        const pr = products.find((p) => p.id === l.productId);
+                        projectedQty[l.productId] = pr ? (pr.quantity || 0) : 0;
+                    }
+                    projectedQty[l.productId] -= l.quantity;
                 });
+                for (const pid of Object.keys(projectedQty)) {
+                    if (projectedQty[pid] < 0) {
+                        showToast('Estoque insuficiente para concluir todas as linhas. Atualize a lista e tente de novo.', true);
+                        return;
+                    }
+                }
+
+                const batch = writeBatch(db);
+                const createdBy = toUpperText(currentUser?.displayName || 'Anônimo');
+                const productIdsUpdated = new Set();
+                for (const line of linesToProcess) {
+                    if (!productIdsUpdated.has(line.productId)) {
+                        batch.update(doc(productsCollectionRef, line.productId), {
+                            quantity: projectedQty[line.productId],
+                            updatedAt: serverTimestamp()
+                        });
+                        productIdsUpdated.add(line.productId);
+                    }
+                    batch.set(doc(toolLoansCollectionRef), {
+                        productId: line.productId,
+                        productName: line.productName,
+                        productCode: line.productCode || '',
+                        productCodeRM: line.productCodeRM || '',
+                        quantity: line.quantity,
+                        borrower,
+                        role: role || null,
+                        observation: observation || null,
+                        status: 'open',
+                        loanDate: serverTimestamp(),
+                        createdBy
+                    });
+                }
                 await batch.commit();
                 toolLoanForm.reset();
                 document.getElementById('tool-loan-quantity').value = '1';
-                showToast('Ferramenta cautelada e estoque atualizado.');
+                toolLoanQueue = [];
+                renderToolLoanQueue();
+                const n = linesToProcess.length;
+                showToast(n > 1 ? `${n} cautelas registradas e estoque atualizado.` : 'Ferramenta cautelada e estoque atualizado.');
             } catch (error) {
                 console.error('Erro ao cautelar ferramenta:', error);
                 showToast(`Erro ao cautelar: ${error.message}`, true);
             } finally {
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Cautelar';
+                renderToolLoanQueue();
             }
         });
+
+        toolLoanQueueBody?.addEventListener('click', (ev) => {
+            const btn = ev.target.closest('.tool-loan-queue-remove');
+            if (!btn) return;
+            const idx = parseInt(btn.getAttribute('data-queue-idx'), 10);
+            if (Number.isNaN(idx)) return;
+            toolLoanQueue.splice(idx, 1);
+            renderToolLoanQueue();
+        });
+
+        toolLoanAddQueueBtn?.addEventListener('click', () => {
+            if (!hasPermission('create')) {
+                showToast('🔒 Você não tem permissão para cautelar ferramentas', true);
+                return;
+            }
+            const productId = toolLoanProductSelect?.value;
+            const quantity = parseInt(document.getElementById('tool-loan-quantity')?.value, 10);
+            const product = products.find((p) => p.id === productId);
+            if (!productId || !product || !quantity || quantity < 1) {
+                showToast('Selecione a ferramenta e uma quantidade válida.', true);
+                return;
+            }
+            const existingInQueue = getToolLoanQueueQtyForProduct(productId);
+            const avail = (product.quantity || 0) - existingInQueue;
+            if (quantity > avail) {
+                showToast(`Estoque insuficiente para ${product.name}. Disponível: ${avail} (considerando a lista).`, true);
+                return;
+            }
+            const existingIdx = toolLoanQueue.findIndex((l) => l.productId === productId);
+            if (existingIdx >= 0) {
+                toolLoanQueue[existingIdx].quantity += quantity;
+            } else {
+                toolLoanQueue.push({
+                    productId,
+                    productName: product.name,
+                    productCode: product.code || '',
+                    productCodeRM: product.codeRM || '',
+                    quantity
+                });
+            }
+            renderToolLoanQueue();
+            document.getElementById('tool-loan-quantity').value = '1';
+            showToast('Item adicionado à lista.');
+        });
+
+        toolLoansListFilterBorrower?.addEventListener('input', () => renderToolLoans());
+        toolLoansListFilterProduct?.addEventListener('input', () => renderToolLoans());
+        toolLoansFilterReturnedStatus?.addEventListener('change', () => renderToolLoans());
         
         productList.addEventListener('click', async (e) => {
             const button = e.target.closest('button');
