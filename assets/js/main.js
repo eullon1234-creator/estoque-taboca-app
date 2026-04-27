@@ -143,6 +143,11 @@
         const toolLoansFilterReturnedStatus = document.getElementById('tool-loans-filter-returned-status');
         const importLocationsBtn = document.getElementById('import-locations-btn');
         const csvLocationsFileInput = document.getElementById('csv-locations-file-input');
+        const feedbackFab = document.getElementById('feedback-fab');
+        const feedbackPanel = document.getElementById('feedback-panel');
+        const feedbackWidget = document.getElementById('feedback-widget');
+        const feedbackForm = document.getElementById('feedback-form');
+        const feedbackMessage = document.getElementById('feedback-message');
         // --- Mapeamento de Unidades ---
         const unitMap = {
             'pc': 'Peça', 'pç': 'Peça',
@@ -3200,9 +3205,17 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         loginPasswordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
         loginUsernameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loginPasswordInput.focus(); });
 
+        const setFeedbackPanelOpen = (open) => {
+            if (!feedbackPanel || !feedbackFab) return;
+            feedbackPanel.classList.toggle('hidden', !open);
+            feedbackFab.setAttribute('aria-expanded', open ? 'true' : 'false');
+        };
+
         logoutBtn.addEventListener('click', () => {
             stopEstrelaListeners();
             stopCoreListeners();
+            setFeedbackPanelOpen(false);
+            feedbackForm?.reset();
             localStorage.removeItem('appUser');
             currentUser = null;
             userRole = null;
@@ -3403,7 +3416,57 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         toolLoansListFilterBorrower?.addEventListener('input', () => renderToolLoans());
         toolLoansListFilterProduct?.addEventListener('input', () => renderToolLoans());
         toolLoansFilterReturnedStatus?.addEventListener('change', () => renderToolLoans());
-        
+
+        feedbackFab?.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            const willOpen = feedbackPanel?.classList.contains('hidden');
+            setFeedbackPanelOpen(!!willOpen);
+        });
+        document.getElementById('feedback-close')?.addEventListener('click', () => setFeedbackPanelOpen(false));
+        document.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Escape') setFeedbackPanelOpen(false);
+        });
+        document.addEventListener('click', (ev) => {
+            if (!feedbackWidget || feedbackPanel?.classList.contains('hidden')) return;
+            if (!feedbackWidget.contains(ev.target)) setFeedbackPanelOpen(false);
+        });
+        feedbackForm?.addEventListener('submit', async (ev) => {
+            ev.preventDefault();
+            const msg = (feedbackMessage?.value || '').trim();
+            if (msg.length < 5) {
+                showToast('Escreva pelo menos 5 caracteres.', true);
+                return;
+            }
+            const submitBtn = document.getElementById('feedback-submit');
+            if (!submitBtn) return;
+            submitBtn.disabled = true;
+            try {
+                await addDoc(collection(db, `/artifacts/${appId}/public/data/suggestions`), {
+                    message: msg,
+                    createdAt: serverTimestamp(),
+                    viewId: currentViewId || null,
+                    viewTitle: (currentViewTitle?.textContent || '').trim() || null,
+                    userDisplay: currentUser?.displayName || null,
+                    userUid: currentUser?.uid || null,
+                    obraId: currentObraId || null,
+                    userAgent: (navigator.userAgent || '').slice(0, 400),
+                    appVersion: '2.0.2'
+                });
+                feedbackForm.reset();
+                setFeedbackPanelOpen(false);
+                showToast('Obrigado! Sua sugestão foi registrada.');
+            } catch (err) {
+                console.error(err);
+                if (err.code === 'permission-denied') {
+                    showToast('Permissão negada no Firebase. Peça ao admin para liberar gravação em suggestions.', true);
+                } else {
+                    showToast('Não foi possível enviar agora. Tente de novo.', true);
+                }
+            } finally {
+                submitBtn.disabled = false;
+            }
+        });
+
         productList.addEventListener('click', async (e) => {
             const button = e.target.closest('button');
             if (button) {
