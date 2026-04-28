@@ -1,6 +1,6 @@
 // Importações do Firebase SDK
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, doc, addDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp, runTransaction, writeBatch, Timestamp, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, addDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, onSnapshot, serverTimestamp, runTransaction, writeBatch, Timestamp, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Configuração do Firebase ---
         const firebaseConfig = {
@@ -13,6 +13,8 @@
         };
 
         const appId = 'ferramentaria-estoque'; // ID único para organizar os dados no Firestore
+        /** PIN só para evitar exclusão acidental no estoque (não é segurança forte). */
+        const STOCK_DELETE_PIN = '0000';
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         // Sem Firebase Auth — autenticação gerenciada pelo próprio app
@@ -532,6 +534,110 @@
             openModal('generic-modal');
             document.getElementById('confirm-ok').onclick = () => { onConfirm(); closeModal('generic-modal'); };
             document.getElementById('confirm-cancel').onclick = () => closeModal('generic-modal');
+        };
+
+        /** Confirmação de exclusão no estoque com PIN anti-clique acidental. */
+        const showStockDeleteConfirmationModal = (title, message, onConfirm) => {
+            const content = `
+                <h2 class="text-2xl font-bold mb-4">${title}</h2>
+                <p class="text-slate-600 mb-4">${message}</p>
+                <p class="text-sm text-slate-500 mb-2">Digite o PIN para confirmar.</p>
+                <input type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" id="stock-delete-pin-input" maxlength="8" class="w-full p-3 border border-slate-200 rounded-lg text-lg tracking-widest text-center font-mono mb-6 focus:ring-2 focus:ring-red-500/40 focus:border-red-500" placeholder="PIN">
+                <div class="flex justify-end gap-4">
+                    <button type="button" id="stock-delete-cancel" class="px-6 py-2 bg-slate-200 text-slate-800 rounded-lg font-semibold hover:bg-slate-300 transition">Cancelar</button>
+                    <button type="button" id="stock-delete-ok" class="px-6 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition">Excluir</button>
+                </div>
+            `;
+            document.getElementById('generic-modal').innerHTML = content;
+            openModal('generic-modal');
+            const pinInput = document.getElementById('stock-delete-pin-input');
+            pinInput?.focus();
+            document.getElementById('stock-delete-ok').onclick = () => {
+                const pin = (pinInput?.value || '').trim();
+                if (pin !== STOCK_DELETE_PIN) {
+                    showToast('PIN incorreto.', true);
+                    return;
+                }
+                onConfirm();
+                closeModal('generic-modal');
+            };
+            document.getElementById('stock-delete-cancel').onclick = () => closeModal('generic-modal');
+        };
+
+        /** Canvas de assinatura para tablet/desktop; retorna { clear, hasInk, toDataURL }. */
+        const setupSignaturePad = (canvas, clearButton) => {
+            if (!canvas) return null;
+            const ctx = canvas.getContext('2d');
+            const W = 560;
+            const H = 160;
+            canvas.width = W;
+            canvas.height = H;
+            canvas.style.width = '100%';
+            canvas.style.maxWidth = '560px';
+            canvas.style.height = '160px';
+            canvas.style.touchAction = 'none';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, W, H);
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 2.25;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            canvas.dataset.hasInk = '0';
+
+            let drawing = false;
+            const getPoint = (e) => {
+                const r = canvas.getBoundingClientRect();
+                const t = e.touches && e.touches[0];
+                const clientX = t ? t.clientX : e.clientX;
+                const clientY = t ? t.clientY : e.clientY;
+                return {
+                    x: ((clientX - r.left) / r.width) * canvas.width,
+                    y: ((clientY - r.top) / r.height) * canvas.height
+                };
+            };
+            const start = (e) => {
+                if (e.cancelable) e.preventDefault();
+                drawing = true;
+                const { x, y } = getPoint(e);
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+            };
+            const move = (e) => {
+                if (!drawing) return;
+                if (e.cancelable) e.preventDefault();
+                const { x, y } = getPoint(e);
+                ctx.lineTo(x, y);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                canvas.dataset.hasInk = '1';
+            };
+            const end = () => { drawing = false; };
+
+            canvas.addEventListener('mousedown', start);
+            canvas.addEventListener('mousemove', move);
+            canvas.addEventListener('mouseup', end);
+            canvas.addEventListener('mouseleave', end);
+            canvas.addEventListener('touchstart', start, { passive: false });
+            canvas.addEventListener('touchmove', move, { passive: false });
+            canvas.addEventListener('touchend', end);
+            canvas.addEventListener('touchcancel', end);
+
+            const clear = () => {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                canvas.dataset.hasInk = '0';
+            };
+            clearButton?.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                clear();
+            });
+
+            return {
+                clear,
+                hasInk: () => canvas.dataset.hasInk === '1',
+                toDataURL: () => canvas.toDataURL('image/jpeg', 0.85)
+            };
         };
 
         const updateAppSettingsUI = (settings) => {
@@ -1234,6 +1340,67 @@
         };
 
         const toUpperText = (value = '') => String(value ?? '').trim().toLocaleUpperCase('pt-BR');
+
+        /** Só http/https; evita javascript: e lixo no src de <img>. */
+        const sanitizeProductImageUrl = (raw) => {
+            const t = String(raw ?? '').trim();
+            if (!t) return null;
+            try {
+                const u = new URL(t);
+                if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+                return u.toString();
+            } catch {
+                return null;
+            }
+        };
+
+        const escapeHtmlAttr = (s) => String(s ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+
+        const updateProductPhotoPreview = (inputId, wrapId, imgId) => {
+            const inp = document.getElementById(inputId);
+            const wrap = document.getElementById(wrapId);
+            const img = document.getElementById(imgId);
+            if (!inp || !wrap || !img) return;
+            const u = sanitizeProductImageUrl(inp.value);
+            if (!u) {
+                wrap.classList.add('hidden');
+                img.removeAttribute('src');
+                return;
+            }
+            img.onload = () => { wrap.classList.remove('hidden'); };
+            img.onerror = () => {
+                img.removeAttribute('src');
+                wrap.classList.add('hidden');
+            };
+            img.referrerPolicy = 'no-referrer';
+            img.decoding = 'async';
+            img.src = u;
+        };
+
+        const openProductImageLightbox = (url) => {
+            const safe = sanitizeProductImageUrl(url);
+            if (!safe) return;
+            const root = document.getElementById('product-image-lightbox');
+            const img = document.getElementById('product-image-lightbox-img');
+            if (!root || !img) return;
+            img.referrerPolicy = 'no-referrer';
+            img.src = safe;
+            root.classList.remove('hidden');
+            root.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+        };
+
+        const closeProductImageLightbox = () => {
+            const root = document.getElementById('product-image-lightbox');
+            const img = document.getElementById('product-image-lightbox-img');
+            if (img) img.removeAttribute('src');
+            root?.classList.add('hidden');
+            root?.setAttribute('aria-hidden', 'true');
+            document.body.style.overflow = '';
+        };
         const toUpperOrNull = (value = '') => {
             const normalized = toUpperText(value);
             return normalized || null;
@@ -1405,15 +1572,29 @@
             paginatedProducts.forEach(p => {
                 const isLowStock = p.quantity <= p.minQuantity;
                 const isChecked = selectedProductIds.has(p.id);
+                const safeImg = sanitizeProductImageUrl(p.imageUrl);
+                const thumbBlock = safeImg
+                    ? `<button type="button" class="product-thumb-lightbox shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-lg border border-slate-200 bg-slate-100 overflow-hidden relative flex items-center justify-center p-0 cursor-zoom-in hover:ring-2 hover:ring-indigo-400/60 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition" data-image-url="${escapeHtmlAttr(safeImg)}" title="Ver foto maior" aria-label="Ampliar foto do produto">
+                        <img src="${escapeHtmlAttr(safeImg)}" alt="" width="80" height="80" class="pointer-events-none w-full h-full object-cover" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.classList.add('hidden');this.nextElementSibling.classList.remove('hidden');">
+                        <span class="material-symbols-outlined pointer-events-none text-slate-300 text-4xl hidden" style="font-variation-settings:'FILL' 0;">broken_image</span>
+                       </button>`
+                    : `<div class="shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-lg border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-slate-300" title="Sem foto">
+                        <span class="material-symbols-outlined text-3xl">image</span>
+                       </div>`;
                 const tr = document.createElement('tr');
                 tr.className = `hover:bg-slate-50 transition-colors duration-150`;
                 tr.innerHTML = `
                     <td class="p-3 sm:p-4 text-center"><input type="checkbox" class="product-checkbox h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600" data-id="${p.id}" ${isChecked ? 'checked' : ''}></td>
                     <td class="p-3 sm:p-4 align-top">
-                        <p class="font-bold text-slate-800 text-sm sm:text-base leading-tight">${p.name}</p>
-                        <p class="text-xs text-slate-500 mt-0.5">RM: <span class="font-medium">${p.codeRM || 'N/A'}</span></p>
-                        <p class="text-xs text-slate-400">SKU: ${p.code}</p>
-                        <p class="text-xs text-slate-500 sm:hidden mt-0.5">${p.location || ''}</p>
+                        <div class="flex gap-3 items-start">
+                            ${thumbBlock}
+                            <div class="min-w-0 flex-1">
+                                <p class="font-bold text-slate-800 text-sm sm:text-base leading-tight">${p.name}</p>
+                                <p class="text-xs text-slate-500 mt-0.5">RM: <span class="font-medium">${p.codeRM || 'N/A'}</span></p>
+                                <p class="text-xs text-slate-400">SKU: ${p.code}</p>
+                                <p class="text-xs text-slate-500 sm:hidden mt-0.5">${p.location || ''}</p>
+                            </div>
+                        </div>
                     </td>
                     <td class="p-3 sm:p-4 align-top text-slate-600 text-sm hidden md:table-cell">${p.group || 'N/A'}</td>
                     <td class="p-3 sm:p-4 align-top text-slate-600 text-sm hidden md:table-cell">${p.unit || 'N/A'}</td>
@@ -1820,6 +2001,21 @@
                             </select>
                         </div>
                     </div>
+                    <div class="mt-4 space-y-4">
+                        <p class="text-sm text-slate-600">Assinaturas eletrônicas (obrigatórias) — use dedo ou caneta no tablet.</p>
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <div class="border border-slate-200 rounded-lg p-3 bg-white">
+                                <p class="text-sm font-semibold text-slate-800 mb-2">Requisitante</p>
+                                <canvas id="req-signature-requester-canvas" class="rounded border border-slate-300 bg-white w-full block"></canvas>
+                                <button type="button" id="req-signature-requester-clear" class="mt-2 text-sm text-indigo-600 font-semibold hover:text-indigo-800">Limpar</button>
+                            </div>
+                            <div class="border border-slate-200 rounded-lg p-3 bg-white">
+                                <p class="text-sm font-semibold text-slate-800 mb-2">Almoxarife</p>
+                                <canvas id="req-signature-storekeeper-canvas" class="rounded border border-slate-300 bg-white w-full block"></canvas>
+                                <button type="button" id="req-signature-storekeeper-clear" class="mt-2 text-sm text-indigo-600 font-semibold hover:text-indigo-800">Limpar</button>
+                            </div>
+                        </div>
+                    </div>
                     <h3 class="font-semibold mt-6 mb-2">Itens</h3>
                     <div class="mb-2">
                         <input type="text" id="req-item-search" class="w-full p-2 border border-slate-200 rounded" placeholder="Pesquisar item (nome, código, local, grupo)...">
@@ -1954,11 +2150,22 @@
             } else {
                 addReqItem();
             }
+
+            requestAnimationFrame(() => {
+                setupSignaturePad(document.getElementById('req-signature-requester-canvas'), document.getElementById('req-signature-requester-clear'));
+                setupSignaturePad(document.getElementById('req-signature-storekeeper-canvas'), document.getElementById('req-signature-storekeeper-clear'));
+            });
         };
 
         const showViewRequisitionModal = (reqIds) => {
             const reqs = requisitions.filter(r => reqIds.includes(r.id));
             if (reqs.length === 0) return;
+
+            const escHtml = (s) => String(s ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
 
             let allContentHTML = '';
             reqs.forEach((req, index) => {
@@ -2002,16 +2209,17 @@
                             </thead>
                             <tbody>${itemsHTML}</tbody>
                         </table>
-                         <div class="mt-16 text-sm">
-                              <div class="flex justify-around items-end">
-                                  <div class="text-center">
-                                      <p class="border-t border-black pt-1 px-12">Assinatura Requisitante</p>
+                         <div class="mt-12 text-sm">
+                              <div class="flex flex-wrap justify-center gap-10 items-end">
+                                  <div class="text-center" style="min-width:200px;max-width:48%;">
+                                      ${req.requesterSignatureJpeg ? `<img src="${req.requesterSignatureJpeg.replace(/"/g, '&quot;')}" alt="" style="max-height:100px;object-fit:contain;display:block;margin:0 auto 8px;">` : '<div style="height:80px;"></div>'}
+                                      <p class="border-t border-black pt-1 px-4">Assinatura requisitante</p>
+                                      <p class="text-xs text-slate-600 mt-1">${escHtml(req.requester || '')}</p>
                                   </div>
-                                  <div class="text-center">
-                                      <p class="border-t border-black pt-1 px-12">Assinatura Líder</p>
-                                  </div>
-                                  <div class="text-center">
-                                      <p class="border-t border-black pt-1 px-12">Assinatura Almoxarifado</p>
+                                  <div class="text-center" style="min-width:200px;max-width:48%;">
+                                      ${req.storekeeperSignatureJpeg ? `<img src="${req.storekeeperSignatureJpeg.replace(/"/g, '&quot;')}" alt="" style="max-height:100px;object-fit:contain;display:block;margin:0 auto 8px;">` : '<div style="height:80px;"></div>'}
+                                      <p class="border-t border-black pt-1 px-4">Assinatura almoxarife</p>
+                                      <p class="text-xs text-slate-600 mt-1">${escHtml(req.storekeeperSignedBy || '—')}</p>
                                   </div>
                               </div>
                          </div>
@@ -2080,6 +2288,14 @@
                         <div><label class="block text-sm font-medium text-slate-600">Unidade</label><select id="edit-product-unit" class="w-full mt-1 p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500">${unitOptions}</select></div>
                         <div><label class="block text-sm font-medium text-slate-600">Quantidade Atual</label><input type="number" id="edit-product-quantity" class="w-full mt-1 p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" value="${p.quantity}" required min="0"></div>
                         <div><label class="block text-sm font-medium text-slate-600">Qtd. Mínima</label><input type="number" id="edit-product-min-quantity" class="w-full mt-1 p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" value="${p.minQuantity}" required min="0"></div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-slate-600">URL da foto (opcional)</label>
+                            <input type="url" id="edit-product-photo-url" class="w-full mt-1 p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" placeholder="https://..." value="${escapeHtmlAttr(p.imageUrl || '')}">
+                            <p class="text-xs text-slate-500 mt-1">HTTPS recomendado. Se não carregar, o site pode bloquear hotlink.</p>
+                            <div id="edit-photo-preview-wrap" class="mt-2 hidden">
+                                <img id="edit-photo-preview" alt="Prévia" class="max-h-28 rounded-lg border border-slate-200 object-contain bg-slate-50">
+                            </div>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-slate-600">Observação</label>
@@ -2093,6 +2309,7 @@
             `;
             document.getElementById('generic-modal').innerHTML = content;
             openModal('generic-modal');
+            updateProductPhotoPreview('edit-product-photo-url', 'edit-photo-preview-wrap', 'edit-photo-preview');
         };
 
         const showHistoryModal = () => {
@@ -3219,6 +3436,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             stopEstrelaListeners();
             stopCoreListeners();
             setFeedbackPanelOpen(false);
+            closeProductImageLightbox();
             feedbackForm?.reset();
             localStorage.removeItem('appUser');
             currentUser = null;
@@ -3469,6 +3687,13 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         });
 
         productList.addEventListener('click', async (e) => {
+            const thumbBtn = e.target.closest('.product-thumb-lightbox');
+            if (thumbBtn) {
+                const url = thumbBtn.getAttribute('data-image-url');
+                openProductImageLightbox(url);
+                return;
+            }
+
             const button = e.target.closest('button');
             if (button) {
                 currentProductId = button.dataset.id;
@@ -3489,7 +3714,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                         showToast('🔒 Você não tem permissão para excluir produtos', true);
                         return;
                     }
-                    showConfirmationModal(
+                    showStockDeleteConfirmationModal(
                         'Excluir Produto',
                         'Tem certeza que deseja excluir este produto? Esta ação não pode ser desfeita.',
                         async () => {
@@ -3535,7 +3760,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         deleteSelectedBtn.addEventListener('click', () => {
             if (selectedProductIds.size === 0) return;
 
-            showConfirmationModal(
+            showStockDeleteConfirmationModal(
                 `Excluir ${selectedProductIds.size} Produtos`,
                 'Tem certeza que deseja excluir os produtos selecionados? Esta ação não pode ser desfeita.',
                 async () => {
@@ -3575,6 +3800,13 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 return;
             }
 
+            const photoRaw = document.getElementById('product-photo-url')?.value?.trim() || '';
+            const photoSan = sanitizeProductImageUrl(photoRaw);
+            if (photoRaw && !photoSan) {
+                showToast('URL da foto inválida. Use http ou https com link direto da imagem.', true);
+                return;
+            }
+
             const newProduct = {
                 code: document.getElementById('product-code').value.trim(),
                 codeRM: document.getElementById('product-code-rm').value.trim(),
@@ -3589,6 +3821,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 updatedAt: serverTimestamp(),
                 createdBy: toUpperText(currentUser?.displayName || currentUser?.uid || 'Anônimo')
             };
+            if (photoSan) newProduct.imageUrl = photoSan;
 
             // 🔒 VALIDAÇÕES CRÍTICAS
             // 1. Campos obrigatórios
@@ -3636,6 +3869,8 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 await addHistoryEntry(docRef.id, 'Criação', newProduct.quantity, newProduct.quantity, {}, newProduct);
                 showToast("✅ Produto adicionado com sucesso!");
                 addForm.reset();
+                document.getElementById('product-photo-preview-wrap')?.classList.add('hidden');
+                document.getElementById('product-photo-preview')?.removeAttribute('src');
                 switchView('inventory-view');
             } catch (error) {
                 console.error("Erro ao adicionar produto: ", error);
@@ -3644,6 +3879,31 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                     : '❌ Falha ao adicionar produto. Tente novamente.';
                 showToast(errorMsg, true);
             }
+        });
+
+        document.getElementById('product-photo-url')?.addEventListener('input', () => {
+            updateProductPhotoPreview('product-photo-url', 'product-photo-preview-wrap', 'product-photo-preview');
+        });
+        document.getElementById('product-photo-url')?.addEventListener('blur', () => {
+            updateProductPhotoPreview('product-photo-url', 'product-photo-preview-wrap', 'product-photo-preview');
+        });
+        document.body.addEventListener('input', (ev) => {
+            if (ev.target?.id === 'edit-product-photo-url') {
+                updateProductPhotoPreview('edit-product-photo-url', 'edit-photo-preview-wrap', 'edit-photo-preview');
+            }
+        });
+        document.body.addEventListener('focusout', (ev) => {
+            if (ev.target?.id === 'edit-product-photo-url') {
+                updateProductPhotoPreview('edit-product-photo-url', 'edit-photo-preview-wrap', 'edit-photo-preview');
+            }
+        });
+
+        document.getElementById('product-image-lightbox-close')?.addEventListener('click', () => closeProductImageLightbox());
+        document.getElementById('product-image-lightbox-backdrop')?.addEventListener('click', () => closeProductImageLightbox());
+        document.addEventListener('keydown', (ev) => {
+            if (ev.key !== 'Escape') return;
+            const lb = document.getElementById('product-image-lightbox');
+            if (lb && !lb.classList.contains('hidden')) closeProductImageLightbox();
         });
         
         createRequisitionBtn.addEventListener('click', () => {
@@ -3738,15 +3998,35 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                     button.textContent = 'Salvar e Baixar Estoque';
                     return;
                 }
-                
+
+                const sigReqCanvas = document.getElementById('req-signature-requester-canvas');
+                const sigStoCanvas = document.getElementById('req-signature-storekeeper-canvas');
+                if (!sigReqCanvas || sigReqCanvas.dataset.hasInk !== '1') {
+                    showToast('Assinatura do requisitante é obrigatória.', true);
+                    button.disabled = false;
+                    button.textContent = 'Salvar e Baixar Estoque';
+                    return;
+                }
+                if (!sigStoCanvas || sigStoCanvas.dataset.hasInk !== '1') {
+                    showToast('Assinatura do almoxarife é obrigatória.', true);
+                    button.disabled = false;
+                    button.textContent = 'Salvar e Baixar Estoque';
+                    return;
+                }
+                const requesterSignatureJpeg = sigReqCanvas.toDataURL('image/jpeg', 0.85);
+                const storekeeperSignatureJpeg = sigStoCanvas.toDataURL('image/jpeg', 0.85);
+
                 const newReqData = {
                     number: document.getElementById('req-number').value,
                     requester: toUpperText(document.getElementById('req-requester').value),
                     teamLeader: toUpperText(document.getElementById('req-team-leader').value),
                     applicationLocation: toUpperText(document.getElementById('req-application-location').value),
                     obra: document.getElementById('req-obra').value,
-                    items: [], 
-                    date: serverTimestamp()
+                    items: [],
+                    date: serverTimestamp(),
+                    requesterSignatureJpeg,
+                    storekeeperSignatureJpeg,
+                    storekeeperSignedBy: toUpperText(currentUser?.displayName || currentUser?.uid || 'Anônimo')
                 };
 
                 try {
@@ -3812,6 +4092,12 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 const id = document.getElementById('edit-product-id').value;
                 const productRef = doc(productsCollectionRef, id);
                 const newQuantity = parseInt(document.getElementById('edit-product-quantity').value);
+                const photoRaw = document.getElementById('edit-product-photo-url')?.value?.trim() || '';
+                const photoSan = sanitizeProductImageUrl(photoRaw);
+                if (photoRaw && !photoSan) {
+                    showToast('URL da foto inválida. Use http ou https com link direto da imagem.', true);
+                    return;
+                }
                 const updatedData = {
                     codeRM: document.getElementById('edit-product-code-rm').value.trim(),
                     name: toUpperText(document.getElementById('edit-product-name').value),
@@ -3824,6 +4110,8 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                     updatedAt: serverTimestamp(), // 🔍 Auditoria: timestamp de atualização
                     updatedBy: toUpperText(currentUser?.displayName || currentUser?.uid || 'Anônimo') // 🔍 Auditoria: quem atualizou
                 };
+                if (photoSan) updatedData.imageUrl = photoSan;
+                else updatedData.imageUrl = deleteField();
                 try {
                     await updateDoc(productRef, updatedData);
                     const product = products.find(p => p.id === id);
@@ -4312,8 +4600,11 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                         const columns = lines[i].split(delimiter);
                         if (columns.length < 6) continue;
 
-                        const [codeRM, name, unitAbbr, quantity, location, minQuantity, group] = columns.map(s => s.trim().replace(/"/g, ''));
+                        const cells = columns.map(s => s.trim().replace(/"/g, ''));
+                        const [codeRM, name, unitAbbr, quantity, location, minQuantity, group] = cells;
                         const unit = unitMap[unitAbbr.toLowerCase()] || unitAbbr;
+                        const importPhotoRaw = cells.length >= 8 ? cells[7] : '';
+                        const importPhotoUrl = sanitizeProductImageUrl(importPhotoRaw);
 
                         if (codeRM && name) {
                             const newProd = {
@@ -4327,6 +4618,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                                 minQuantity: parseInt(minQuantity) || 0,
                                 observation: ''
                             };
+                            if (importPhotoUrl) newProd.imageUrl = importPhotoUrl;
                             const docRef = doc(productsCollectionRef);
                             batch.set(docRef, newProd);
                             importedCount++;
@@ -4404,7 +4696,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
 
         exportBtn.addEventListener('click', () => {
             if (products.length === 0) { showToast("Não há produtos para exportar.", true); return; }
-            let csvContent = "Código RM;Nome;Unidade;Quantidade;Localização;Qtd. Mínima;Grupo\n";
+            let csvContent = "Código RM;Nome;Unidade;Quantidade;Localização;Qtd. Mínima;Grupo;URL da foto\n";
             products.forEach(p => { 
                 const row = [
                     p.codeRM || '',
@@ -4413,7 +4705,8 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                     p.quantity || 0,
                     p.location || '',
                     p.minQuantity || 0,
-                    p.group || ''
+                    p.group || '',
+                    p.imageUrl || ''
                 ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(';');
                 csvContent += row + '\n';
             });
