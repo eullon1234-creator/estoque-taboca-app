@@ -1,6 +1,6 @@
 // Importações do Firebase SDK
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, doc, addDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, onSnapshot, serverTimestamp, runTransaction, writeBatch, Timestamp, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, onSnapshot, serverTimestamp, runTransaction, writeBatch, Timestamp, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Configuração do Firebase ---
         const firebaseConfig = {
@@ -16,7 +16,16 @@
         /** PIN só para evitar exclusão acidental no estoque (não é segurança forte). */
         const STOCK_DELETE_PIN = '0000';
         const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        /** Cache local (IndexedDB): menos leituras cobradas ao recarregar ou reabrir o app quando os dados já estão em cache. */
+        let db;
+        try {
+            db = initializeFirestore(app, {
+                localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+            });
+        } catch (e) {
+            console.warn('Firestore: cache persistente indisponível, usando modo padrão.', e?.message || e);
+            db = getFirestore(app);
+        }
         // Sem Firebase Auth — autenticação gerenciada pelo próprio app
 
         // --- Estado da Aplicação ---
@@ -45,7 +54,6 @@
         let currentViewId = 'dashboard-view';
         let coreUnsubscribers = [];
         let estrelaUnsubscribers = [];
-        let hasVisibilityListener = false;
         
         // 🔐 Sistema de Autenticação e Permissões
         let currentUser = null;
@@ -915,8 +923,13 @@
             }, (error) => handleFirestoreError(error, 'saídas Estrela')));
         }
 
+        /**
+         * Mantém listeners ativos enquanto o usuário está logado (mesmo com a aba em segundo plano).
+         * Antes: ao ocultar a aba, todos os listeners eram removidos e, ao voltar, o Firestore cobrava
+         * de novo uma leitura por documento — muito caro em histórico grande. Logout ainda encerra tudo.
+         */
         function syncRealtimeListeners() {
-            if (!currentUser || document.hidden) {
+            if (!currentUser) {
                 stopEstrelaListeners();
                 stopCoreListeners();
                 return;
@@ -929,10 +942,6 @@
 
         function setupListeners() {
             syncRealtimeListeners();
-            if (!hasVisibilityListener) {
-                document.addEventListener('visibilitychange', syncRealtimeListeners);
-                hasVisibilityListener = true;
-            }
         }
 
         // --- Funções de Lógica (Firestore) ---
@@ -3784,7 +3793,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                     userUid: currentUser?.uid || null,
                     obraId: currentObraId || null,
                     userAgent: (navigator.userAgent || '').slice(0, 400),
-                    appVersion: '2.0.2'
+                    appVersion: '2.0.3'
                 });
                 feedbackForm.reset();
                 setFeedbackPanelOpen(false);
