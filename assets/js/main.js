@@ -2113,9 +2113,10 @@
                     </div>
                     <div id="req-items-container" class="space-y-2 max-h-60 overflow-y-auto p-2 bg-slate-50 border rounded-md"></div>
                     <button type="button" id="add-req-item-btn" class="mt-2 text-sm text-indigo-600 font-semibold hover:text-indigo-800">+ Adicionar Item</button>
-                    <div class="mt-8 flex justify-end gap-4">
+                    <div class="mt-8 flex justify-end gap-4 flex-wrap">
                         <button type="button" class="close-modal-btn px-6 py-2 bg-slate-200 rounded-lg font-semibold hover:bg-slate-300 transition">Cancelar</button>
-                        <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition">Salvar e Baixar Estoque</button>
+                        <button type="submit" id="req-submit-stock" class="px-6 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition">Salvar e Baixar Estoque</button>
+                        <button type="submit" id="req-submit-save-print" class="px-6 py-2 bg-slate-700 text-white rounded-lg font-semibold hover:bg-slate-800 transition">Salvar e imprimir</button>
                     </div>
                 </form>
             `;
@@ -2255,10 +2256,7 @@
             });
         };
 
-        const showViewRequisitionModal = (reqIds) => {
-            const reqs = requisitions.filter(r => reqIds.includes(r.id));
-            if (reqs.length === 0) return;
-
+        const buildRequisitionPrintPagesHtml = (reqs) => {
             const escHtml = (s) => String(s ?? '')
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
@@ -2267,14 +2265,14 @@
 
             let allContentHTML = '';
             reqs.forEach((req, index) => {
-                let itemsHTML = req.items.map(item => `
+                let itemsHTML = (req.items || []).map(item => `
                     <tr>
                         <td class="border p-2">${item.productCodeRM || item.productCode}</td>
                         <td class="border p-2">${item.productName}</td>
                         <td class="border p-2 text-center">${item.quantity}</td>
                     </tr>
                 `).join('');
-                
+
                 const logoHTML = appSettings.logoUrl ? `<img src="${appSettings.logoUrl}" class="h-12 w-auto max-w-[150px] object-contain">` : '';
                 const pageBreak = index < reqs.length - 1 ? 'page-break-after: always;' : '';
 
@@ -2329,7 +2327,7 @@
                             </div>
                         </div>
                         <div class="grid grid-cols-2 gap-x-4 gap-y-2 mb-6 text-sm">
-                            <p><strong>Data:</strong> ${req.date ? new Date(req.date.seconds * 1000).toLocaleDateString('pt-BR') : '...'}</p>
+                            <p><strong>Data:</strong> ${req.date?.seconds ? new Date(req.date.seconds * 1000).toLocaleDateString('pt-BR') : '...'}</p>
                             <p><strong>Requisitante:</strong> ${req.requester}</p>
                             <p><strong>Função do Funcionário:</strong> ${req.teamLeader || 'N/A'}</p>
                             <p><strong>Obra:</strong> ${req.obra || 'N/A'}</p>
@@ -2349,6 +2347,30 @@
                     </div>
                 `;
             });
+            return allContentHTML;
+        };
+
+        const triggerRequisitionBrowserPrint = (reqs) => {
+            if (!reqs || reqs.length === 0) return;
+            const printArea = document.getElementById('print-area');
+            if (!printArea) return;
+            const html = buildRequisitionPrintPagesHtml(reqs);
+            printArea.innerHTML = `<div id="pdf-content" class="bg-white p-4">${html}</div>`;
+            printArea.classList.remove('hidden');
+            const finalize = () => {
+                printArea.classList.add('hidden');
+                printArea.innerHTML = '';
+                window.removeEventListener('afterprint', finalize);
+            };
+            window.addEventListener('afterprint', finalize);
+            requestAnimationFrame(() => window.print());
+        };
+
+        const showViewRequisitionModal = (reqIds) => {
+            const reqs = requisitions.filter(r => reqIds.includes(r.id));
+            if (reqs.length === 0) return;
+
+            const allContentHTML = buildRequisitionPrintPagesHtml(reqs);
 
             const content = `
                 <div id="pdf-content" class="bg-white p-4">${allContentHTML}</div>
@@ -4097,9 +4119,19 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             
             if (e.target.id === 'requisition-form') {
                 e.preventDefault();
-                const button = e.target.querySelector('button[type="submit"]');
-                button.disabled = true;
-                button.innerHTML = `<div class="spinner-small"></div>`;
+                const formEl = e.target;
+                const submitBtns = Array.from(formEl.querySelectorAll('button[type="submit"]'));
+                const clickedSubmit = e.submitter || submitBtns[0];
+                const wantsPrint = clickedSubmit?.id === 'req-submit-save-print';
+                const resetReqSubmitBtns = () => {
+                    submitBtns.forEach((b) => {
+                        b.disabled = false;
+                        if (b.id === 'req-submit-stock') b.textContent = 'Salvar e Baixar Estoque';
+                        else if (b.id === 'req-submit-save-print') b.textContent = 'Salvar e imprimir';
+                    });
+                };
+                submitBtns.forEach((b) => { b.disabled = true; });
+                if (clickedSubmit) clickedSubmit.innerHTML = `<div class="spinner-small"></div>`;
 
                 const itemsMap = new Map();
                 let hasInvalidItem = false;
@@ -4118,8 +4150,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
 
                 if (hasInvalidItem || itemsMap.size === 0) {
                     showToast("Adicione pelo menos um item com quantidade e produto válidos.", true);
-                    button.disabled = false;
-                    button.textContent = 'Salvar e Baixar Estoque';
+                    resetReqSubmitBtns();
                     return;
                 }
 
@@ -4140,14 +4171,12 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                     const sigStoCanvas = document.getElementById('req-signature-storekeeper-canvas');
                     if (!sigReqCanvas || sigReqCanvas.dataset.hasInk !== '1') {
                         showToast('Assinatura do requisitante é obrigatória (modo eletrônico).', true);
-                        button.disabled = false;
-                        button.textContent = 'Salvar e Baixar Estoque';
+                        resetReqSubmitBtns();
                         return;
                     }
                     if (!sigStoCanvas || sigStoCanvas.dataset.hasInk !== '1') {
                         showToast('Assinatura do almoxarife é obrigatória (modo eletrônico).', true);
-                        button.disabled = false;
-                        button.textContent = 'Salvar e Baixar Estoque';
+                        resetReqSubmitBtns();
                         return;
                     }
                     newReqData.requesterSignatureJpeg = sigReqCanvas.toDataURL('image/jpeg', 0.85);
@@ -4194,12 +4223,31 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                         });
                     });
 
+                    const reqForPrint = {
+                        number: newReqData.number,
+                        requester: newReqData.requester,
+                        teamLeader: newReqData.teamLeader,
+                        applicationLocation: newReqData.applicationLocation,
+                        obra: newReqData.obra,
+                        items: [...newReqData.items],
+                        signatureMode: newReqData.signatureMode,
+                        date: { seconds: Math.floor(Date.now() / 1000) },
+                        requesterSignatureJpeg: newReqData.requesterSignatureJpeg,
+                        storekeeperSignatureJpeg: newReqData.storekeeperSignatureJpeg,
+                        storekeeperSignedBy: newReqData.storekeeperSignedBy,
+                    };
+
                     batch.set(doc(requisitionsCollectionRef), newReqData);
                     await batch.commit();
                     
                     selectedProductIds.clear();
-                    showToast("Requisição criada e estoque atualizado!");
+                    showToast(wantsPrint
+                        ? "Requisição salva. Confirme na janela de impressão para enviar à impressora."
+                        : "Requisição criada e estoque atualizado!");
                     closeModal('generic-modal');
+                    if (wantsPrint) {
+                        triggerRequisitionBrowserPrint([reqForPrint]);
+                    }
 
                 } catch (error) {
                     console.error("Erro ao finalizar requisição: ", error);
@@ -4208,8 +4256,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                         : error.message;
                     showToast(`Erro: ${message}`, true);
                 } finally {
-                    button.disabled = false;
-                    button.textContent = 'Salvar e Baixar Estoque';
+                    resetReqSubmitBtns();
                 }
             }
 
