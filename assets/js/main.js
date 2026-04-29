@@ -84,6 +84,9 @@
         const exitsList = document.getElementById('exits-list');
         const exitsSearchInput = document.getElementById('exits-search-input');
         const noExitsMessage = document.getElementById('no-exits-message');
+        const activityLogList = document.getElementById('activity-log-list');
+        const activityLogSearchInput = document.getElementById('activity-log-search-input');
+        const noActivityLogMessage = document.getElementById('no-activity-log-message');
         const sortOrderSelect = document.getElementById('sort-order');
         const locationFilterSelect = document.getElementById('location-filter');
         const addForm = document.getElementById('add-product-form');
@@ -567,6 +570,7 @@
         /** Canvas de assinatura para tablet/desktop; retorna { clear, hasInk, toDataURL }. */
         const setupSignaturePad = (canvas, clearButton) => {
             if (!canvas) return null;
+            if (canvas.dataset.padWired === '1') return null;
             const ctx = canvas.getContext('2d');
             const W = 560;
             const H = 160;
@@ -632,6 +636,8 @@
                 ev.preventDefault();
                 clear();
             });
+
+            canvas.dataset.padWired = '1';
 
             return {
                 clear,
@@ -837,6 +843,7 @@
                 if (isDataLoaded) {
                     updateDashboard();
                     renderExitLog(exitsSearchInput.value);
+                    renderActivityLog(activityLogSearchInput?.value || '');
                     renderRMView(rmSearchInput.value);
                     tryOpenPlaqueDeepLink();
                 }
@@ -1203,7 +1210,7 @@
                 </div>
                 <div class="flex justify-between items-center px-1 mt-6 mb-3">
                     <h3 class="text-lg font-bold tracking-tight" style="color:#191c1d;">Atividade Recente</h3>
-                    <button onclick="document.querySelector('[data-view=exit-log-view]').click()" class="text-xs font-bold uppercase tracking-widest" style="color:#005bbf; letter-spacing:0.08em;">Ver tudo</button>
+                    <button onclick="document.querySelector('[data-view=activity-log-view]').click()" class="text-xs font-bold uppercase tracking-widest" style="color:#005bbf; letter-spacing:0.08em;">Ver tudo</button>
                 </div>
                 <div class="rounded-2xl p-2 space-y-2" style="background:#f3f4f5;">`;
             if (recentHistory.length > 0) {
@@ -1872,6 +1879,74 @@
             });
         };
 
+        const escHtmlText = (s) => String(s ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        const buildActivityLogHaystack = (h) => [h.type, h.productName, h.productCode, h.productCodeRM, h.withdrawnBy, h.performedBy, h.receivedBy, h.supplier, h.nfNumber, h.applicationLocation, h.teamLeader, h.details, h.obra]
+            .filter((v) => v != null && String(v).trim() !== '')
+            .map((v) => String(v).toLowerCase())
+            .join(' ');
+
+        const buildActivityLogDetail = (h) => {
+            const parts = [];
+            const actor = h.performedBy || h.receivedBy || h.withdrawnBy;
+            if (actor) parts.push(String(actor));
+            if (h.details) parts.push(String(h.details));
+            if (h.nfNumber) parts.push(`NF ${h.nfNumber}`);
+            if (h.supplier) parts.push(`Fornec.: ${h.supplier}`);
+            if (h.applicationLocation) parts.push(`Aplicação: ${h.applicationLocation}`);
+            if (h.teamLeader) parts.push(`Função: ${h.teamLeader}`);
+            if (h.obra) parts.push(`Obra: ${h.obra}`);
+            return parts.length ? parts.join(' · ') : '—';
+        };
+
+        const formatActivityLogQuantity = (h) => {
+            const t = h.type || '';
+            if (t === 'Edição') return '<span class="text-slate-400 font-medium">—</span>';
+            const q = Math.abs(Number(h.quantity) || 0);
+            const positiveTypes = ['Entrada', 'Entrada por NF', 'Ajuste Entrada', 'Criação', 'Importação'];
+            const isPositive = positiveTypes.includes(t);
+            const cls = isPositive ? 'text-green-600' : 'text-red-600';
+            const sym = isPositive ? '+' : '−';
+            return `<span class="font-bold text-lg ${cls}">${sym}${q}</span>`;
+        };
+
+        const renderActivityLog = (filter = '') => {
+            if (!activityLogList || !noActivityLogMessage) return;
+            const q = (filter || '').toLowerCase().trim();
+            const filtered = [...history].filter((h) => {
+                if (!q) return true;
+                return buildActivityLogHaystack(h).includes(q);
+            }).sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
+
+            activityLogList.innerHTML = '';
+            noActivityLogMessage.classList.toggle('hidden', !(filtered.length === 0 && isDataLoaded));
+            if (filtered.length === 0 && isDataLoaded) {
+                noActivityLogMessage.innerHTML = q
+                    ? '<p class="text-lg">Nenhum registro encontrado para esta busca.</p>'
+                    : '<p class="text-lg">Nenhuma atividade registrada ainda.</p>';
+            }
+
+            filtered.forEach((h) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 transition-colors duration-150';
+                const dateStr = h.date ? new Date(h.date.seconds * 1000).toLocaleString('pt-BR') : '…';
+                const saldo = h.newTotal != null && h.newTotal !== '' ? String(h.newTotal) : '—';
+                const detail = escHtmlText(buildActivityLogDetail(h));
+                tr.innerHTML = `
+                    <td class="p-3 sm:p-4 text-sm text-slate-600 whitespace-nowrap">${dateStr}</td>
+                    <td class="p-3 sm:p-4 text-sm font-semibold text-slate-800">${escHtmlText(h.type || '—')}</td>
+                    <td class="p-3 sm:p-4"><p class="font-semibold text-slate-800 text-sm">${escHtmlText(h.productName)}</p><p class="text-xs text-slate-500">${escHtmlText(h.productCodeRM || h.productCode || '')}</p></td>
+                    <td class="p-3 sm:p-4 text-center">${formatActivityLogQuantity(h)}</td>
+                    <td class="p-3 sm:p-4 text-center text-slate-700 font-semibold hidden sm:table-cell">${escHtmlText(saldo)}</td>
+                    <td class="p-3 sm:p-4 text-sm text-slate-600 max-w-md">${detail}</td>
+                `;
+                activityLogList.appendChild(tr);
+            });
+        };
+
         const renderRMView = (filter = '') => {
             const lowerCaseFilter = filter.toLowerCase();
             const exitHistory = history.filter(h => 
@@ -2001,8 +2076,15 @@
                             </select>
                         </div>
                     </div>
-                    <div class="mt-4 space-y-4">
-                        <p class="text-sm text-slate-600">Assinaturas eletrônicas (obrigatórias) — use dedo ou caneta no tablet.</p>
+                    <div class="md:col-span-2 flex items-start gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200 mb-2">
+                        <input type="checkbox" id="req-electronic-signature" class="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 shrink-0" checked>
+                        <div class="min-w-0">
+                            <label for="req-electronic-signature" class="text-sm font-semibold text-slate-800 cursor-pointer">Usar assinatura eletrônica (tablet)</label>
+                            <p class="text-xs text-slate-500 mt-1 leading-relaxed">Marcado: assinar na tela antes de salvar. Desmarcado: o PDF sai com linhas em branco para assinar no papel.</p>
+                        </div>
+                    </div>
+                    <div id="req-signature-section" class="mt-4 space-y-4">
+                        <p class="text-sm text-slate-600">Desenhe abaixo com dedo ou caneta — obrigatório quando a assinatura eletrônica está ativada.</p>
                         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             <div class="border border-slate-200 rounded-lg p-3 bg-white">
                                 <p class="text-sm font-semibold text-slate-800 mb-2">Requisitante</p>
@@ -2151,6 +2233,13 @@
                 addReqItem();
             }
 
+            const syncReqSignatureSectionVisibility = () => {
+                const on = document.getElementById('req-electronic-signature')?.checked ?? true;
+                document.getElementById('req-signature-section')?.classList.toggle('hidden', !on);
+            };
+            document.getElementById('req-electronic-signature')?.addEventListener('change', syncReqSignatureSectionVisibility);
+            syncReqSignatureSectionVisibility();
+
             requestAnimationFrame(() => {
                 setupSignaturePad(document.getElementById('req-signature-requester-canvas'), document.getElementById('req-signature-requester-clear'));
                 setupSignaturePad(document.getElementById('req-signature-storekeeper-canvas'), document.getElementById('req-signature-storekeeper-clear'));
@@ -2179,6 +2268,44 @@
                 
                 const logoHTML = appSettings.logoUrl ? `<img src="${appSettings.logoUrl}" class="h-12 w-auto max-w-[150px] object-contain">` : '';
                 const pageBreak = index < reqs.length - 1 ? 'page-break-after: always;' : '';
+
+                const useManualSignaturePdf = req.signatureMode === 'manual'
+                    || (!req.requesterSignatureJpeg && !req.storekeeperSignatureJpeg);
+                let signatureBlockHtml = '';
+                if (useManualSignaturePdf) {
+                    signatureBlockHtml = `
+                         <div class="mt-12 text-sm">
+                              <p class="text-xs text-slate-600 mb-3 text-center">Assinaturas manuais — preencher no papel após impressão</p>
+                              <div class="flex flex-wrap justify-center gap-10 items-end">
+                                  <div class="text-center" style="min-width:200px;max-width:48%;">
+                                      <div style="height:96px;border:1px dashed #94a3b8;border-radius:8px;background:#fafafa;"></div>
+                                      <p class="border-t border-black pt-1 px-4 mt-2">Assinatura requisitante</p>
+                                      <p class="text-xs text-slate-600 mt-1">${escHtml(req.requester || '')}</p>
+                                  </div>
+                                  <div class="text-center" style="min-width:200px;max-width:48%;">
+                                      <div style="height:96px;border:1px dashed #94a3b8;border-radius:8px;background:#fafafa;"></div>
+                                      <p class="border-t border-black pt-1 px-4 mt-2">Assinatura almoxarife</p>
+                                      <p class="text-xs text-slate-600 mt-1">${escHtml(req.storekeeperSignedBy || '________________')}</p>
+                                  </div>
+                              </div>
+                         </div>`;
+                } else {
+                    signatureBlockHtml = `
+                         <div class="mt-12 text-sm">
+                              <div class="flex flex-wrap justify-center gap-10 items-end">
+                                  <div class="text-center" style="min-width:200px;max-width:48%;">
+                                      ${req.requesterSignatureJpeg ? `<img src="${req.requesterSignatureJpeg.replace(/"/g, '&quot;')}" alt="" style="max-height:100px;object-fit:contain;display:block;margin:0 auto 8px;">` : '<div style="height:80px;"></div>'}
+                                      <p class="border-t border-black pt-1 px-4">Assinatura requisitante</p>
+                                      <p class="text-xs text-slate-600 mt-1">${escHtml(req.requester || '')}</p>
+                                  </div>
+                                  <div class="text-center" style="min-width:200px;max-width:48%;">
+                                      ${req.storekeeperSignatureJpeg ? `<img src="${req.storekeeperSignatureJpeg.replace(/"/g, '&quot;')}" alt="" style="max-height:100px;object-fit:contain;display:block;margin:0 auto 8px;">` : '<div style="height:80px;"></div>'}
+                                      <p class="border-t border-black pt-1 px-4">Assinatura almoxarife</p>
+                                      <p class="text-xs text-slate-600 mt-1">${escHtml(req.storekeeperSignedBy || '—')}</p>
+                                  </div>
+                              </div>
+                         </div>`;
+                }
 
                 allContentHTML += `
                     <div style="${pageBreak}">
@@ -2209,20 +2336,7 @@
                             </thead>
                             <tbody>${itemsHTML}</tbody>
                         </table>
-                         <div class="mt-12 text-sm">
-                              <div class="flex flex-wrap justify-center gap-10 items-end">
-                                  <div class="text-center" style="min-width:200px;max-width:48%;">
-                                      ${req.requesterSignatureJpeg ? `<img src="${req.requesterSignatureJpeg.replace(/"/g, '&quot;')}" alt="" style="max-height:100px;object-fit:contain;display:block;margin:0 auto 8px;">` : '<div style="height:80px;"></div>'}
-                                      <p class="border-t border-black pt-1 px-4">Assinatura requisitante</p>
-                                      <p class="text-xs text-slate-600 mt-1">${escHtml(req.requester || '')}</p>
-                                  </div>
-                                  <div class="text-center" style="min-width:200px;max-width:48%;">
-                                      ${req.storekeeperSignatureJpeg ? `<img src="${req.storekeeperSignatureJpeg.replace(/"/g, '&quot;')}" alt="" style="max-height:100px;object-fit:contain;display:block;margin:0 auto 8px;">` : '<div style="height:80px;"></div>'}
-                                      <p class="border-t border-black pt-1 px-4">Assinatura almoxarife</p>
-                                      <p class="text-xs text-slate-600 mt-1">${escHtml(req.storekeeperSignedBy || '—')}</p>
-                                  </div>
-                              </div>
-                         </div>
+                        ${signatureBlockHtml}
                     </div>
                 `;
             });
@@ -3236,6 +3350,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 setupEntryViewListeners();
             }
             if (viewId === 'exit-log-view') renderExitLog(exitsSearchInput.value);
+            if (viewId === 'activity-log-view') renderActivityLog(activityLogSearchInput?.value || '');
             if (viewId === 'rm-view') renderRMView(rmSearchInput.value); 
             if (viewId === 'dashboard-view') updateDashboard();
             if (viewId === 'tool-loans-view') {
@@ -3999,23 +4114,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                     return;
                 }
 
-                const sigReqCanvas = document.getElementById('req-signature-requester-canvas');
-                const sigStoCanvas = document.getElementById('req-signature-storekeeper-canvas');
-                if (!sigReqCanvas || sigReqCanvas.dataset.hasInk !== '1') {
-                    showToast('Assinatura do requisitante é obrigatória.', true);
-                    button.disabled = false;
-                    button.textContent = 'Salvar e Baixar Estoque';
-                    return;
-                }
-                if (!sigStoCanvas || sigStoCanvas.dataset.hasInk !== '1') {
-                    showToast('Assinatura do almoxarife é obrigatória.', true);
-                    button.disabled = false;
-                    button.textContent = 'Salvar e Baixar Estoque';
-                    return;
-                }
-                const requesterSignatureJpeg = sigReqCanvas.toDataURL('image/jpeg', 0.85);
-                const storekeeperSignatureJpeg = sigStoCanvas.toDataURL('image/jpeg', 0.85);
-
+                const useElectronicSignature = document.getElementById('req-electronic-signature')?.checked ?? true;
                 const newReqData = {
                     number: document.getElementById('req-number').value,
                     requester: toUpperText(document.getElementById('req-requester').value),
@@ -4024,10 +4123,28 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                     obra: document.getElementById('req-obra').value,
                     items: [],
                     date: serverTimestamp(),
-                    requesterSignatureJpeg,
-                    storekeeperSignatureJpeg,
-                    storekeeperSignedBy: toUpperText(currentUser?.displayName || currentUser?.uid || 'Anônimo')
+                    signatureMode: useElectronicSignature ? 'electronic' : 'manual'
                 };
+
+                if (useElectronicSignature) {
+                    const sigReqCanvas = document.getElementById('req-signature-requester-canvas');
+                    const sigStoCanvas = document.getElementById('req-signature-storekeeper-canvas');
+                    if (!sigReqCanvas || sigReqCanvas.dataset.hasInk !== '1') {
+                        showToast('Assinatura do requisitante é obrigatória (modo eletrônico).', true);
+                        button.disabled = false;
+                        button.textContent = 'Salvar e Baixar Estoque';
+                        return;
+                    }
+                    if (!sigStoCanvas || sigStoCanvas.dataset.hasInk !== '1') {
+                        showToast('Assinatura do almoxarife é obrigatória (modo eletrônico).', true);
+                        button.disabled = false;
+                        button.textContent = 'Salvar e Baixar Estoque';
+                        return;
+                    }
+                    newReqData.requesterSignatureJpeg = sigReqCanvas.toDataURL('image/jpeg', 0.85);
+                    newReqData.storekeeperSignatureJpeg = sigStoCanvas.toDataURL('image/jpeg', 0.85);
+                    newReqData.storekeeperSignedBy = toUpperText(currentUser?.displayName || currentUser?.uid || 'Anônimo');
+                }
 
                 try {
                     const batch = writeBatch(db);
@@ -5439,6 +5556,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             renderProducts();
         });
         exitsSearchInput.addEventListener('input', (e) => renderExitLog(e.target.value));
+        activityLogSearchInput?.addEventListener('input', (e) => renderActivityLog(e.target.value));
         rmSearchInput.addEventListener('input', (e) => renderRMView(e.target.value));
         toolLoanSearchInput?.addEventListener('input', populateToolLoanProducts);
         
