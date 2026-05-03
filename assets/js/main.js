@@ -70,6 +70,15 @@
         let dashboardTrendChart = null;
         let lastComprasFilteredItems = [];
         let lastComprasPeriodDays = 15;
+        /** Snapshot da última análise (export Excel independente dos filtros da tabela). */
+        let lastComprasExport = {
+            coverageDays: 30,
+            periodDays: 15,
+            pedido: [],
+            turnover: [],
+            zero: [],
+            low: []
+        };
         
         // ⭐ UHE Estrela State
         let estrelaProducts = [];
@@ -3226,12 +3235,109 @@
                 return { p, totalConsumed, dailyRate, daysRemaining, suggestedQty, status, lastMov };
             }).filter(Boolean);
 
-            // Ordenar: critico → atencao → monitorar, depois dias restantes asc
+            // Ordenar: urgência → maior rotatividade (saída no período) → menos dias de cobertura
             const ordem = { critico: 0, atencao: 1, monitorar: 2 };
             items.sort((a, b) => {
                 if (ordem[a.status] !== ordem[b.status]) return ordem[a.status] - ordem[b.status];
+                if ((b.totalConsumed || 0) !== (a.totalConsumed || 0)) return (b.totalConsumed || 0) - (a.totalConsumed || 0);
                 return (a.daysRemaining ?? 9999) - (b.daysRemaining ?? 9999);
             });
+
+            const enrichComprasRow = (p) => {
+                const qty = p.quantity || 0;
+                const min = p.minQuantity || 0;
+                const totalConsumed = consumoMap[p.id] || 0;
+                const dailyRate = periodDays > 0 ? totalConsumed / periodDays : 0;
+                const coverageQty = dailyRate > 0 ? Math.ceil(dailyRate * coverageDays * 1.2) : 0;
+                const suggestedQty = dailyRate > 0
+                    ? Math.max(0, coverageQty - qty)
+                    : Math.max(0, min - qty);
+                return { p, qty, min, totalConsumed, dailyRate, suggestedQty };
+            };
+
+            const turnoverRows = products
+                .map((p) => enrichComprasRow(p))
+                .filter((r) => r.totalConsumed > 0)
+                .sort((a, b) => b.totalConsumed - a.totalConsumed)
+                .slice(0, 40);
+
+            const zeroRows = products
+                .filter((p) => (p.quantity || 0) === 0)
+                .map(enrichComprasRow)
+                .sort((a, b) => b.totalConsumed - a.totalConsumed);
+
+            const lowRows = products
+                .filter((p) => {
+                    const q = p.quantity || 0;
+                    const m = p.minQuantity || 0;
+                    return q > 0 && m > 0 && q <= m;
+                })
+                .map(enrichComprasRow)
+                .sort((a, b) => {
+                    const ra = a.min > 0 ? a.qty / a.min : 1;
+                    const rb = b.min > 0 ? b.qty / b.min : 1;
+                    return ra - rb;
+                });
+
+            lastComprasExport = {
+                coverageDays,
+                periodDays,
+                pedido: items.filter((i) => i.suggestedQty > 0),
+                turnover: turnoverRows,
+                zero: zeroRows,
+                low: lowRows
+            };
+
+            const comprasEscTxt = (v) => String(v ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+
+            const ttb = document.getElementById('compras-turnover-tbody');
+            const ztb = document.getElementById('compras-zero-tbody');
+            const ltb = document.getElementById('compras-low-tbody');
+            if (ttb) {
+                ttb.innerHTML = turnoverRows.length
+                    ? turnoverRows.map((r, idx) => `
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-2 py-2 font-bold text-slate-500">${idx + 1}</td>
+                        <td class="px-2 py-2">
+                            <span class="font-semibold text-slate-800">${comprasEscTxt(r.p.name)}</span>
+                            <span class="block text-[10px] text-slate-400">${comprasEscTxt(r.p.codeRM || r.p.code || '—')}</span>
+                        </td>
+                        <td class="px-2 py-2 text-right font-bold text-indigo-700">${r.totalConsumed}</td>
+                        <td class="px-2 py-2 text-right text-slate-600">${r.dailyRate > 0 ? r.dailyRate.toFixed(1) : '—'}</td>
+                        <td class="px-2 py-2 text-right ${r.qty <= 0 ? 'text-red-600 font-bold' : 'text-slate-800'}">${r.qty}</td>
+                    </tr>`).join('')
+                    : '<tr><td colspan="5" class="px-3 py-6 text-center text-slate-400">Sem saídas registradas no período</td></tr>';
+            }
+            if (ztb) {
+                ztb.innerHTML = zeroRows.length
+                    ? zeroRows.map((r) => `
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-2 py-2">
+                            <span class="font-semibold text-slate-800">${comprasEscTxt(r.p.name)}</span>
+                            <span class="block text-[10px] text-slate-400">${comprasEscTxt(r.p.codeRM || r.p.code || '—')}</span>
+                        </td>
+                        <td class="px-2 py-2 text-right text-slate-600">${r.min}</td>
+                        <td class="px-2 py-2 text-right font-bold text-emerald-700">${r.suggestedQty > 0 ? r.suggestedQty : '—'}</td>
+                    </tr>`).join('')
+                    : '<tr><td colspan="3" class="px-3 py-6 text-center text-slate-400">Nenhum item com estoque zerado</td></tr>';
+            }
+            if (ltb) {
+                ltb.innerHTML = lowRows.length
+                    ? lowRows.map((r) => `
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-2 py-2">
+                            <span class="font-semibold text-slate-800">${comprasEscTxt(r.p.name)}</span>
+                            <span class="block text-[10px] text-slate-400">${comprasEscTxt(r.p.codeRM || r.p.code || '—')}</span>
+                        </td>
+                        <td class="px-2 py-2 text-right font-semibold text-amber-800">${r.qty}</td>
+                        <td class="px-2 py-2 text-right text-slate-600">${r.min}</td>
+                        <td class="px-2 py-2 text-right font-bold text-emerald-700">${r.suggestedQty > 0 ? r.suggestedQty : '—'}</td>
+                    </tr>`).join('')
+                    : '<tr><td colspan="4" class="px-3 py-6 text-center text-slate-400">Nenhum item abaixo do mínimo (com mín. cadastrado)</td></tr>';
+            }
 
             // Cards de resumo (baseados em TODOS os itens, antes dos filtros de UI)
             const criticos       = items.filter(i => i.status === 'critico').length;
@@ -3295,7 +3401,7 @@
             }
             noMsg.classList.add('hidden');
 
-            filtered.forEach(({ p, dailyRate, daysRemaining, suggestedQty, status, lastMov }) => {
+            filtered.forEach(({ p, dailyRate, daysRemaining, suggestedQty, status, lastMov, totalConsumed }) => {
                 let badgeBg, badgeColor, badgeLabel;
                 if (status === 'critico')      { badgeBg = '#fff2f0'; badgeColor = '#ba1a1a'; badgeLabel = '🔴 CRÍTICO'; }
                 else if (status === 'atencao') { badgeBg = '#fff8e1'; badgeColor = '#795900'; badgeLabel = '🟡 ATENÇÃO'; }
@@ -3344,6 +3450,7 @@
                         ${qty} <span class="text-xs font-normal text-slate-400">${p.unit || ''}</span>
                     </td>
                     <td class="px-4 py-3 text-center text-slate-500">${min}</td>
+                    <td class="px-4 py-3 text-center font-semibold text-indigo-800">${totalConsumed || 0}</td>
                     <td class="px-4 py-3 text-center text-slate-600">${dailyText}</td>
                     <td class="px-4 py-3 text-center">${daysText}</td>
                     <td class="px-4 py-3 text-center">${lastMovText}</td>
@@ -5352,110 +5459,243 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 renderComprasView(sel ? parseInt(sel.value) : 15);
             }
 
-            // Exportar itens sugeridos para Excel (formato XLS profissional)
+            // Exportar Sugestão de Compras — Excel .xlsx (várias abas)
             if (e.target.id === 'compras-excel-btn' || e.target.closest('#compras-excel-btn')) {
+                const XLS = typeof XLSX !== 'undefined' ? XLSX : null;
+                if (!XLS) {
+                    showToast('Biblioteca Excel indisponível. Recarregue a página.', true);
+                    return;
+                }
+
                 const periodLabel = (() => {
                     const sel = document.getElementById('compras-period-select');
                     return sel ? sel.options[sel.selectedIndex].text : `Últimos ${lastComprasPeriodDays} dias`;
                 })();
+                const covSel = document.getElementById('compras-coverage-select');
+                const coverageLabel = covSel ? covSel.options[covSel.selectedIndex].text : `Cobrir ${lastComprasExport.coverageDays} dias`;
 
-                const toBuy = (lastComprasFilteredItems || []).filter(i => i.suggestedQty > 0);
+                const ex = lastComprasExport;
+                const nPed = ex.pedido?.length || 0;
+                const nTor = ex.turnover?.length || 0;
+                const nZer = ex.zero?.length || 0;
+                const nLow = ex.low?.length || 0;
 
-                if (!toBuy.length) {
-                    showToast('Nenhum item com compra sugerida para exportar.', true);
+                if (!nPed && !nTor && !nZer && !nLow) {
+                    showToast('Abra a tela Sugestão de Compras para carregar os dados antes de exportar.', true);
                     return;
                 }
 
-                const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-                const dataGerada = new Date().toLocaleString('pt-BR');
-                const timestamp = new Date().toISOString().slice(0, 10);
+                const urgencyLabel = (s) => (s === 'critico' ? 'CRÍTICO' : s === 'atencao' ? 'ATENÇÃO' : 'MONITORAR');
+                const stamp = new Date().toISOString().slice(0, 10);
+                const agora = new Date().toLocaleString('pt-BR');
 
-                const urgencyColor = (s) => {
-                    if (s === 'critico') return { bg: '#FDEDED', fg: '#B71C1C', label: 'CRÍTICO' };
-                    if (s === 'atencao') return { bg: '#FFF8E1', fg: '#E65100', label: 'ATENÇÃO' };
-                    return { bg: '#E3F2FD', fg: '#0D47A1', label: 'MONITORAR' };
-                };
+                try {
+                    const wb = XLS.utils.book_new();
 
-                let totalSugerido = 0;
-                let criticos = 0;
-                let atencao = 0;
-                toBuy.forEach(i => {
-                    totalSugerido += i.suggestedQty;
-                    if (i.status === 'critico') criticos++;
-                    else if (i.status === 'atencao') atencao++;
-                });
+                    const bdr = (color = 'CBD5E1') => ({
+                        top: { style: 'thin', color: { rgb: color } },
+                        bottom: { style: 'thin', color: { rgb: color } },
+                        left: { style: 'thin', color: { rgb: color } },
+                        right: { style: 'thin', color: { rgb: color } }
+                    });
+                    const sTitle = {
+                        font: { bold: true, sz: 16, color: { rgb: 'FFFFFF' } },
+                        fill: { fgColor: { rgb: '0F172A' } },
+                        alignment: { horizontal: 'center', vertical: 'center' },
+                        border: bdr('1E3A8A')
+                    };
+                    const sSub = {
+                        font: { italic: true, sz: 10, color: { rgb: '64748B' } },
+                        fill: { fgColor: { rgb: 'F1F5F9' } },
+                        alignment: { horizontal: 'center', vertical: 'center' }
+                    };
+                    const sTH = {
+                        font: { bold: true, sz: 10, color: { rgb: 'FFFFFF' } },
+                        fill: { fgColor: { rgb: '1E40AF' } },
+                        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+                        border: bdr('1E40AF')
+                    };
+                    const sCell = (even) => ({
+                        font: { sz: 10, color: { rgb: '111827' } },
+                        fill: { fgColor: { rgb: even ? 'F8FAFC' : 'FFFFFF' } },
+                        alignment: { vertical: 'center' },
+                        border: bdr()
+                    });
+                    const sNum = (even, align = 'right') => ({
+                        font: { sz: 10, color: { rgb: '111827' } },
+                        fill: { fgColor: { rgb: even ? 'F8FAFC' : 'FFFFFF' } },
+                        alignment: { horizontal: align, vertical: 'center' },
+                        border: bdr()
+                    });
 
-                let rows = '';
-                toBuy.forEach(({ p, dailyRate, daysRemaining, suggestedQty, status }, idx) => {
-                    const u = urgencyColor(status);
-                    const rowBg = idx % 2 === 0 ? '#FFFFFF' : '#F8F9FA';
-                    rows += `<tr>
-                        <td style="background:${u.bg};color:${u.fg};font-weight:bold;text-align:center;border:1px solid #D0D0D0;padding:6px 8px;font-size:11px;">${esc(u.label)}</td>
-                        <td style="background:${rowBg};border:1px solid #D0D0D0;padding:6px 8px;font-size:11px;">${esc(p.name)}</td>
-                        <td style="background:${rowBg};border:1px solid #D0D0D0;padding:6px 8px;text-align:center;font-size:11px;">${esc(p.codeRM || p.code || '-')}</td>
-                        <td style="background:${rowBg};border:1px solid #D0D0D0;padding:6px 8px;font-size:11px;">${esc(p.group || '-')}</td>
-                        <td style="background:${rowBg};border:1px solid #D0D0D0;padding:6px 8px;text-align:center;font-size:11px;">${esc(p.unit || 'UN')}</td>
-                        <td style="background:${rowBg};border:1px solid #D0D0D0;padding:6px 8px;font-size:11px;">${esc(p.location || '-')}</td>
-                        <td style="background:${rowBg};border:1px solid #D0D0D0;padding:6px 8px;text-align:center;font-size:11px;">${p.quantity ?? 0}</td>
-                        <td style="background:${rowBg};border:1px solid #D0D0D0;padding:6px 8px;text-align:center;font-size:11px;">${p.minQuantity ?? 0}</td>
-                        <td style="background:${rowBg};border:1px solid #D0D0D0;padding:6px 8px;text-align:center;font-size:11px;">${dailyRate > 0 ? dailyRate.toFixed(2) : '0'}</td>
-                        <td style="background:${rowBg};border:1px solid #D0D0D0;padding:6px 8px;text-align:center;font-size:11px;font-weight:bold;color:${daysRemaining !== null && daysRemaining <= 7 ? '#B71C1C' : '#333'};">${daysRemaining ?? '-'}</td>
-                        <td style="background:#E8F5E9;border:1px solid #D0D0D0;padding:6px 10px;text-align:center;font-size:12px;font-weight:bold;color:#1B5E20;">${suggestedQty}</td>
-                    </tr>`;
-                });
+                    const mergeRange = (ws, r1, c1, r2, c2) => {
+                        if (!ws['!merges']) ws['!merges'] = [];
+                        ws['!merges'].push({ s: { r: r1, c: c1 }, e: { r: r2, c: c2 } });
+                    };
+                    const setCell = (ws, r, c, v, style, t = 's') => {
+                        ws[XLS.utils.encode_cell({ r, c })] = { v, t, s: style };
+                    };
+                    const setNum = (ws, r, c, v, style) => setCell(ws, r, c, v, style, typeof v === 'number' ? 'n' : 's');
 
-                const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="utf-8">
-<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
-<x:Name>Compras</x:Name>
-<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
-</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
-</head><body>
-<table>
-    <tr><td colspan="11" style="font-size:18px;font-weight:bold;color:#005BBF;padding:12px 8px 2px 8px;font-family:Calibri,sans-serif;">SUGESTÃO DE COMPRAS — ESTOQUE UHE ESTRELA</td></tr>
-    <tr>
-        <td colspan="3" style="font-size:11px;color:#555;padding:2px 8px;font-family:Calibri,sans-serif;">Período: ${esc(periodLabel)}</td>
-        <td colspan="3" style="font-size:11px;color:#555;padding:2px 8px;font-family:Calibri,sans-serif;">Gerado em: ${esc(dataGerada)}</td>
-        <td colspan="5" style="font-size:11px;color:#555;padding:2px 8px;font-family:Calibri,sans-serif;">Total de itens: ${toBuy.length}</td>
-    </tr>
-    <tr>
-        <td colspan="3" style="font-size:11px;color:#B71C1C;padding:2px 8px;font-family:Calibri,sans-serif;">Críticos: ${criticos}</td>
-        <td colspan="3" style="font-size:11px;color:#E65100;padding:2px 8px;font-family:Calibri,sans-serif;">Atenção: ${atencao}</td>
-        <td colspan="5" style="font-size:11px;color:#1B5E20;padding:2px 8px;font-family:Calibri,sans-serif;">Qtd total sugerida: ${totalSugerido}</td>
-    </tr>
-    <tr><td colspan="11" style="height:10px;"></td></tr>
-    <tr>
-        <th style="background:#005BBF;color:#FFFFFF;font-weight:bold;text-align:center;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:90px;">Urgência</th>
-        <th style="background:#005BBF;color:#FFFFFF;font-weight:bold;text-align:left;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:280px;">Material</th>
-        <th style="background:#005BBF;color:#FFFFFF;font-weight:bold;text-align:center;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:100px;">Código RM</th>
-        <th style="background:#005BBF;color:#FFFFFF;font-weight:bold;text-align:left;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:140px;">Grupo</th>
-        <th style="background:#005BBF;color:#FFFFFF;font-weight:bold;text-align:center;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:60px;">Unid.</th>
-        <th style="background:#005BBF;color:#FFFFFF;font-weight:bold;text-align:left;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:120px;">Local</th>
-        <th style="background:#005BBF;color:#FFFFFF;font-weight:bold;text-align:center;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:70px;">Estoque</th>
-        <th style="background:#005BBF;color:#FFFFFF;font-weight:bold;text-align:center;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:70px;">Mínimo</th>
-        <th style="background:#005BBF;color:#FFFFFF;font-weight:bold;text-align:center;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:80px;">Cons./Dia</th>
-        <th style="background:#005BBF;color:#FFFFFF;font-weight:bold;text-align:center;border:1px solid #004A9F;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:80px;">Dias Rest.</th>
-        <th style="background:#1B5E20;color:#FFFFFF;font-weight:bold;text-align:center;border:1px solid #145218;padding:8px 10px;font-size:11px;font-family:Calibri,sans-serif;width:90px;">Qtd Compra</th>
-    </tr>
-    ${rows}
-    <tr><td colspan="11" style="height:6px;"></td></tr>
-    <tr>
-        <td colspan="9" style="text-align:right;font-size:11px;font-weight:bold;padding:6px 8px;border-top:2px solid #005BBF;font-family:Calibri,sans-serif;color:#333;">TOTAL A COMPRAR →</td>
-        <td colspan="2" style="text-align:center;font-size:14px;font-weight:bold;padding:6px 8px;border-top:2px solid #005BBF;background:#E8F5E9;color:#1B5E20;font-family:Calibri,sans-serif;">${totalSugerido}</td>
-    </tr>
-</table>
-</body></html>`;
+                    // ── Aba Resumo ─────────────────────────────────────────────
+                    const wsRes = XLS.utils.aoa_to_sheet([]);
+                    wsRes['!cols'] = [{ wch: 52 }, { wch: 24 }];
+                    let r0 = 0;
+                    setCell(wsRes, r0, 0, 'SUGESTÃO DE COMPRAS — RESUMO', sTitle);
+                    mergeRange(wsRes, r0, 0, r0, 1);
+                    r0++;
+                    setCell(wsRes, r0, 0, `${periodLabel} · ${coverageLabel}`, sSub);
+                    mergeRange(wsRes, r0, 0, r0, 1);
+                    r0++;
+                    setCell(wsRes, r0, 0, `Gerado em: ${agora}`, sSub);
+                    mergeRange(wsRes, r0, 0, r0, 1);
+                    r0 += 2;
 
-                const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `compras_sugeridas_${lastComprasPeriodDays}dias_${timestamp}.xls`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                showToast('Planilha de compra exportada com sucesso.');
+                    const totalPedQtd = (ex.pedido || []).reduce((a, i) => a + (i.suggestedQty || 0), 0);
+                    const metaStyle = sCell(false);
+                    metaStyle.alignment = { vertical: 'center', wrapText: true };
+                    const linhas = [
+                        `Itens com quantidade sugerida para compra (aba "Pedido sugerido"): ${nPed}`,
+                        `Quantidade total sugerida (somatório): ${totalPedQtd}`,
+                        `Itens com maior saída no período (aba "Rotatividade"): ${nTor}`,
+                        `Produtos com estoque zerado (aba "Estoque zerado"): ${nZer}`,
+                        `Produtos abaixo do estoque mínimo cadastrado (aba "Abaixo mínimo"): ${nLow}`,
+                        '',
+                        'Use a aba "Pedido sugerido" para montar o pedido. As demais abas ajudam a priorizar por giro e risco de ruptura.'
+                    ];
+                    linhas.forEach((txt, i) => {
+                        setCell(wsRes, r0 + i, 0, txt, metaStyle);
+                    });
+                    r0 += linhas.length;
+                    wsRes['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r0, c: 1 } });
+                    XLS.utils.book_append_sheet(wb, wsRes, 'Resumo');
+
+                    const appendTableSheet = (sheetName, headers, rowCells) => {
+                        const ws = XLS.utils.aoa_to_sheet([]);
+                        const colW = headers.map((h) => ({ wch: Math.min(40, Math.max(10, String(h).length + 5)) }));
+                        ws['!cols'] = colW;
+                        let rr = 0;
+                        setCell(ws, rr, 0, sheetName.toUpperCase(), sTitle);
+                        mergeRange(ws, rr, 0, rr, headers.length - 1);
+                        rr++;
+                        setCell(ws, rr, 0, `${periodLabel} · ${coverageLabel} · ${agora}`, sSub);
+                        mergeRange(ws, rr, 0, rr, headers.length - 1);
+                        rr += 2;
+
+                        headers.forEach((h, c) => setCell(ws, rr, c, h, sTH));
+                        rr++;
+
+                        rowCells.forEach((cells, idx) => {
+                            const even = idx % 2 === 0;
+                            cells.forEach((cell, c) => {
+                                const v = cell.v;
+                                const isNum = cell.n;
+                                const align = cell.a || 'left';
+                                const st = isNum ? sNum(even, align === 'right' ? 'right' : 'center') : { ...sCell(even), alignment: { horizontal: align, vertical: 'center' } };
+                                if (isNum) setNum(ws, rr, c, v, st);
+                                else setCell(ws, rr, c, v ?? '—', st);
+                            });
+                            rr++;
+                        });
+
+                        ws['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rr - 1, c: headers.length - 1 } });
+                        const safeName = sheetName.replace(/[:\\/?*[\]]/g, '').slice(0, 31);
+                        XLS.utils.book_append_sheet(wb, ws, safeName);
+                    };
+
+                    // ── Pedido sugerido ───────────────────────────────────────
+                    if (nPed) {
+                        const headers = ['Urgência', 'Material', 'Código RM', 'Grupo', 'Unid.', 'Local', 'Estoque', 'Mín.', 'Saída período', 'Média/dia', 'Dias rest.', 'Qtd compra', 'Última saída'];
+                        const rowCells = ex.pedido.map((i) => {
+                            const { p, dailyRate, daysRemaining, suggestedQty, status, lastMov, totalConsumed } = i;
+                            const lastStr = lastMov ? new Date(lastMov).toLocaleDateString('pt-BR') : '—';
+                            return [
+                                { v: urgencyLabel(status), a: 'center' },
+                                { v: p.name || '' },
+                                { v: p.codeRM || p.code || '—' },
+                                { v: p.group || '—' },
+                                { v: p.unit || 'UN', a: 'center' },
+                                { v: p.location || '—' },
+                                { v: Number(p.quantity ?? 0), n: true, a: 'right' },
+                                { v: Number(p.minQuantity ?? 0), n: true, a: 'right' },
+                                { v: Number(totalConsumed || 0), n: true, a: 'right' },
+                                { v: dailyRate > 0 ? Number(dailyRate.toFixed(3)) : 0, n: true, a: 'right' },
+                                { v: daysRemaining !== null && daysRemaining !== undefined ? Number(daysRemaining) : '—', n: daysRemaining !== null && daysRemaining !== undefined, a: 'right' },
+                                { v: Number(suggestedQty), n: true, a: 'right' },
+                                { v: lastStr, a: 'center' }
+                            ];
+                        });
+                        appendTableSheet('Pedido sugerido', headers, rowCells);
+                    }
+
+                    // ── Rotatividade ──────────────────────────────────────────
+                    if (nTor) {
+                        const headers = ['Pos.', 'Material', 'Código RM', 'Grupo', 'Unid.', 'Local', 'Saída período', 'Média/dia', 'Estoque', 'Qtd sugerida'];
+                        const rowCells = ex.turnover.map((row, idx) => {
+                            const { p, totalConsumed, dailyRate, qty, suggestedQty } = row;
+                            return [
+                                { v: idx + 1, n: true, a: 'center' },
+                                { v: p.name || '' },
+                                { v: p.codeRM || p.code || '—' },
+                                { v: p.group || '—' },
+                                { v: p.unit || 'UN', a: 'center' },
+                                { v: p.location || '—' },
+                                { v: Number(totalConsumed), n: true, a: 'right' },
+                                { v: dailyRate > 0 ? Number(dailyRate.toFixed(3)) : 0, n: true, a: 'right' },
+                                { v: Number(qty), n: true, a: 'right' },
+                                { v: suggestedQty > 0 ? Number(suggestedQty) : '—', n: suggestedQty > 0, a: 'right' }
+                            ];
+                        });
+                        appendTableSheet('Rotatividade', headers, rowCells);
+                    }
+
+                    // ── Estoque zerado ─────────────────────────────────────────
+                    if (nZer) {
+                        const headers = ['Material', 'Código RM', 'Grupo', 'Unid.', 'Local', 'Mín.', 'Saída período', 'Média/dia', 'Qtd sugerida'];
+                        const rowCells = ex.zero.map((row) => {
+                            const { p, min, totalConsumed, dailyRate, suggestedQty } = row;
+                            return [
+                                { v: p.name || '' },
+                                { v: p.codeRM || p.code || '—' },
+                                { v: p.group || '—' },
+                                { v: p.unit || 'UN', a: 'center' },
+                                { v: p.location || '—' },
+                                { v: Number(min), n: true, a: 'right' },
+                                { v: Number(totalConsumed), n: true, a: 'right' },
+                                { v: dailyRate > 0 ? Number(dailyRate.toFixed(3)) : 0, n: true, a: 'right' },
+                                { v: suggestedQty > 0 ? Number(suggestedQty) : '—', n: suggestedQty > 0, a: 'right' }
+                            ];
+                        });
+                        appendTableSheet('Estoque zerado', headers, rowCells);
+                    }
+
+                    // ── Abaixo do mínimo ──────────────────────────────────────
+                    if (nLow) {
+                        const headers = ['Material', 'Código RM', 'Grupo', 'Unid.', 'Local', 'Estoque', 'Mín.', 'Saída período', 'Média/dia', 'Qtd sugerida'];
+                        const rowCells = ex.low.map((row) => {
+                            const { p, qty, min, totalConsumed, dailyRate, suggestedQty } = row;
+                            return [
+                                { v: p.name || '' },
+                                { v: p.codeRM || p.code || '—' },
+                                { v: p.group || '—' },
+                                { v: p.unit || 'UN', a: 'center' },
+                                { v: p.location || '—' },
+                                { v: Number(qty), n: true, a: 'right' },
+                                { v: Number(min), n: true, a: 'right' },
+                                { v: Number(totalConsumed), n: true, a: 'right' },
+                                { v: dailyRate > 0 ? Number(dailyRate.toFixed(3)) : 0, n: true, a: 'right' },
+                                { v: suggestedQty > 0 ? Number(suggestedQty) : '—', n: suggestedQty > 0, a: 'right' }
+                            ];
+                        });
+                        appendTableSheet('Abaixo mínimo', headers, rowCells);
+                    }
+
+                    XLS.writeFile(wb, `compras_pedido_${lastComprasPeriodDays}d_${stamp}.xlsx`);
+                    showToast('Planilha Excel (.xlsx) exportada com resumo, pedido, giro e rupturas.');
+                } catch (err) {
+                    console.error('Export compras Excel:', err);
+                    showToast(`Erro ao exportar: ${err.message}`, true);
+                }
             }
 
             // Imprimir
