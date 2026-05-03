@@ -448,7 +448,7 @@
                 const userDocRef = doc(usersCollectionRef, userId);
                 const userDoc = await getDoc(userDocRef);
                 
-                if (userDoc.exists()) {
+                if (userDoc.exists) {
                     return userDoc.data().role || 'visualizador';
                 } else {
                     // Criar usuário novo como visualizador por padrão
@@ -818,7 +818,7 @@
             const obraDefaultNames = { 'uhe_estrela': 'UHE Estrela', 'pch_taboca': 'PCH Taboca' };
             const obraDefaultName = obraDefaultNames[currentUser?.obraId] || 'UHE Estrela';
             coreUnsubscribers.push(onSnapshot(settingsDocRef, (doc) => {
-                if (doc.exists()) {
+                if (doc.exists) {
                     const data = doc.data();
                     // Corrigir nomes legados apenas para UHE Estrela
                     if (currentUser?.obraId === 'uhe_estrela' && (data.appName === 'Estoque Taboca' || data.appName === 'Estoque Estrela')) {
@@ -3539,7 +3539,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 const userRef = doc(db, `/artifacts/${appId}/public/data/users`, userId);
                 const userDoc = await getDoc(userRef);
 
-                if (userDoc.exists() && userDoc.data().passwordHash === hash) {
+                if (userDoc.exists && userDoc.data().passwordHash === hash) {
                     const data = userDoc.data();
                     const appUser = { 
                         uid: userId, 
@@ -3550,7 +3550,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                     localStorage.setItem('appUser', JSON.stringify(appUser));
                     initializeAppSession(appUser);
                 } else {
-                    loginError.textContent = userDoc.exists() ? 'Senha incorreta.' : 'Usuário não encontrado.';
+                    loginError.textContent = userDoc.exists ? 'Senha incorreta.' : 'Usuário não encontrado.';
                     loginError.classList.remove('hidden');
                     loginBtn.disabled = false;
                     loginBtn.textContent = 'Entrar';
@@ -4081,7 +4081,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                     
                     await runTransaction(db, async (transaction) => {
                         const productDoc = await transaction.get(productRef);
-                        if (!productDoc.exists()) {
+                        if (!productDoc.exists) {
                             throw new Error("Produto não encontrado.");
                         }
                         
@@ -4377,7 +4377,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                     let productDataForHistory = null;
                     await runTransaction(db, async (transaction) => {
                         const productDoc = await transaction.get(productRef);
-                        if (!productDoc.exists()) {
+                        if (!productDoc.exists) {
                             throw new Error("Produto não encontrado.");
                         }
                         productDataForHistory = productDoc.data();
