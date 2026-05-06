@@ -1710,6 +1710,44 @@
                 `;
                 requisitionsList.appendChild(tr);
             });
+
+            const selectAll = document.getElementById('select-all-reqs');
+            if (selectAll) {
+                selectAll.checked = false;
+                selectAll.indeterminate = false;
+            }
+            updateSelectedRequisitionsUI();
+        };
+
+        const getSelectedRequisitionIds = () =>
+            Array.from(document.querySelectorAll('.req-checkbox:checked'))
+                .map(cb => cb.dataset.id)
+                .filter(Boolean);
+
+        const updateSelectedRequisitionsUI = () => {
+            const selectAll = document.getElementById('select-all-reqs');
+            const all = Array.from(document.querySelectorAll('.req-checkbox'));
+            const checked = all.filter(cb => cb.checked);
+
+            if (printSelectedReqsBtn) {
+                printSelectedReqsBtn.classList.toggle('hidden', checked.length === 0);
+            }
+
+            if (selectAll) {
+                if (all.length === 0) {
+                    selectAll.checked = false;
+                    selectAll.indeterminate = false;
+                } else if (checked.length === 0) {
+                    selectAll.checked = false;
+                    selectAll.indeterminate = false;
+                } else if (checked.length === all.length) {
+                    selectAll.checked = true;
+                    selectAll.indeterminate = false;
+                } else {
+                    selectAll.checked = false;
+                    selectAll.indeterminate = true;
+                }
+            }
         };
 
         const formatFirestoreDate = (value) => {
@@ -2272,9 +2310,8 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;');
 
-            let allContentHTML = '';
-            reqs.forEach((req, index) => {
-                let itemsHTML = (req.items || []).map(item => `
+            const buildReqBlock = (req) => {
+                const itemsHTML = (req.items || []).map(item => `
                     <tr>
                         <td class="border p-2">${item.productCodeRM || item.productCode}</td>
                         <td class="border p-2">${item.productName}</td>
@@ -2283,7 +2320,6 @@
                 `).join('');
 
                 const logoHTML = appSettings.logoUrl ? `<img src="${appSettings.logoUrl}" class="h-12 w-auto max-w-[150px] object-contain">` : '';
-                const pageBreak = index < reqs.length - 1 ? 'page-break-after: always;' : '';
 
                 const useManualSignaturePdf = req.signatureMode === 'manual'
                     || (!req.requesterSignatureJpeg && !req.storekeeperSignatureJpeg);
@@ -2323,26 +2359,26 @@
                          </div>`;
                 }
 
-                allContentHTML += `
-                    <div style="${pageBreak}">
-                        <div class="flex items-center justify-between mb-6 border-b pb-4">
+                return `
+                    <div style="border:1px solid #e5e7eb;border-radius:12px;padding:16px;box-sizing:border-box;flex:1;min-height:0;">
+                        <div class="flex items-center justify-between mb-4 border-b pb-3">
                             <div class="flex items-center gap-4">
                                 ${logoHTML}
-                                <h1 class="text-xl font-bold text-slate-800">${appSettings.appName}</h1>
+                                <h1 class="text-lg font-bold text-slate-800">${escHtml(appSettings.appName)}</h1>
                             </div>
                             <div class="text-right">
-                                <h2 class="text-lg font-bold">Requisição de Material</h2>
-                                <p class="text-sm">Nº ${req.number}</p>
+                                <h2 class="text-base font-bold">Requisição de Material</h2>
+                                <p class="text-sm">Nº ${escHtml(req.number)}</p>
                             </div>
                         </div>
-                        <div class="grid grid-cols-2 gap-x-4 gap-y-2 mb-6 text-sm">
+                        <div class="grid grid-cols-2 gap-x-4 gap-y-1 mb-3 text-xs">
                             <p><strong>Data:</strong> ${req.date?.seconds ? new Date(req.date.seconds * 1000).toLocaleDateString('pt-BR') : '...'}</p>
-                            <p><strong>Requisitante:</strong> ${req.requester}</p>
-                            <p><strong>Função do Funcionário:</strong> ${req.teamLeader || 'N/A'}</p>
-                            <p><strong>Obra:</strong> ${req.obra || 'N/A'}</p>
-                            <p class="col-span-2"><strong>Local de Aplicação:</strong> ${req.applicationLocation}</p>
+                            <p><strong>Requisitante:</strong> ${escHtml(req.requester)}</p>
+                            <p><strong>Função:</strong> ${escHtml(req.teamLeader || 'N/A')}</p>
+                            <p><strong>Obra:</strong> ${escHtml(req.obra || 'N/A')}</p>
+                            <p class="col-span-2"><strong>Local:</strong> ${escHtml(req.applicationLocation)}</p>
                         </div>
-                        <table class="w-full text-left border-collapse mt-4 text-sm">
+                        <table class="w-full text-left border-collapse mt-2 text-xs">
                             <thead class="bg-slate-100">
                                 <tr>
                                     <th class="border p-2">Código</th>
@@ -2355,7 +2391,21 @@
                         ${signatureBlockHtml}
                     </div>
                 `;
-            });
+            };
+
+            // A4: 2 requisições por página (uma em cima da outra)
+            let allContentHTML = '';
+            for (let i = 0; i < reqs.length; i += 2) {
+                const r1 = reqs[i];
+                const r2 = reqs[i + 1];
+                const pageBreak = i + 2 < reqs.length ? 'page-break-after: always;' : '';
+                allContentHTML += `
+                    <div class="req-a4-page" style="${pageBreak}width:794px;height:1123px;padding:18px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px;background:#ffffff;overflow:hidden;">
+                        ${buildReqBlock(r1)}
+                        ${r2 ? buildReqBlock(r2) : `<div style="flex:1;"></div>`}
+                    </div>
+                `;
+            }
             return allContentHTML;
         };
 
@@ -2382,7 +2432,9 @@
             const allContentHTML = buildRequisitionPrintPagesHtml(reqs);
 
             const content = `
-                <div id="pdf-content" class="bg-white p-4">${allContentHTML}</div>
+                <div class="bg-white p-4 overflow-auto" style="max-height:70vh;">
+                    <div id="pdf-content">${allContentHTML}</div>
+                </div>
                 <div class="mt-8 flex justify-end gap-4">
                     <button type="button" class="close-modal-btn px-6 py-2 bg-slate-200 rounded-lg font-semibold hover:bg-slate-300 transition">Fechar</button>
                     <button type="button" id="download-pdf-btn" class="px-6 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition">Baixar PDF</button>
@@ -2400,22 +2452,50 @@
                 btn.innerHTML = `<div class="spinner-small"></div>`;
                 btn.disabled = true;
 
-                html2canvas(requisitionElement, { scale: 2 }).then(canvas => {
-                    const imgData = canvas.toDataURL('image/png');
-                    const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
-                    const pdfWidth = pdf.internal.pageSize.getWidth();
-                    const canvasWidth = canvas.width;
-                    const canvasHeight = canvas.height;
-                    const ratio = canvasWidth / canvasHeight;
-                    const width = pdfWidth - 40;
-                    const height = width / ratio;
+                const pages = Array.from(requisitionElement.querySelectorAll('.req-a4-page'));
+                const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+                const pdfW = pdf.internal.pageSize.getWidth();
+                const pdfH = pdf.internal.pageSize.getHeight();
+                const margin = 14; // margem pequena para evitar corte na impressora/PDF viewer
 
-                    pdf.addImage(imgData, 'PNG', 20, 20, width, height);
-                    pdf.save(`Requisicoes.pdf`);
-                    
-                    btn.innerHTML = `Baixar PDF`;
-                    btn.disabled = false;
-                });
+                const renderPage = async (pageEl, pageIdx) => {
+                    const canvas = await html2canvas(pageEl, {
+                        scale: 2,
+                        backgroundColor: '#ffffff',
+                        useCORS: true,
+                        logging: false
+                    });
+                    const imgData = canvas.toDataURL('image/png');
+
+                    // Ajustar imagem para caber dentro do A4 (com margem), sem recorte
+                    const imgW = canvas.width;
+                    const imgH = canvas.height;
+                    const maxW = pdfW - margin * 2;
+                    const maxH = pdfH - margin * 2;
+                    const scale = Math.min(maxW / imgW, maxH / imgH);
+                    const outW = imgW * scale;
+                    const outH = imgH * scale;
+                    const x = (pdfW - outW) / 2;
+                    const y = (pdfH - outH) / 2;
+
+                    if (pageIdx > 0) pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', x, y, outW, outH);
+                };
+
+                (async () => {
+                    try {
+                        // fallback: caso por algum motivo não existam páginas, renderiza o container inteiro
+                        const targets = pages.length ? pages : [requisitionElement];
+                        for (let i = 0; i < targets.length; i++) {
+                            // eslint-disable-next-line no-await-in-loop
+                            await renderPage(targets[i], i);
+                        }
+                        pdf.save(`Requisicoes.pdf`);
+                    } finally {
+                        btn.innerHTML = `Baixar PDF`;
+                        btn.disabled = false;
+                    }
+                })();
             };
         };
 
@@ -5001,9 +5081,9 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         });
 
         printSelectedReqsBtn.addEventListener('click', () => {
-            const selectedIds = Array.from(document.querySelectorAll('.req-checkbox:checked')).map(cb => cb.dataset.id);
+            const selectedIds = getSelectedRequisitionIds();
             if (selectedIds.length === 0) {
-                showToast("Selecione pelo menos uma requisição para imprimir.", true);
+                showToast("Selecione pelo menos uma requisição para baixar.", true);
                 return;
             }
             showViewRequisitionModal(selectedIds);
@@ -5012,6 +5092,13 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             document.querySelectorAll('.req-checkbox').forEach(checkbox => {
                 checkbox.checked = e.target.checked;
             });
+            updateSelectedRequisitionsUI();
+        });
+
+        requisitionsList.addEventListener('change', (e) => {
+            if (e.target && e.target.classList && e.target.classList.contains('req-checkbox')) {
+                updateSelectedRequisitionsUI();
+            }
         });
         
         generateExitReportBtn.addEventListener('click', () => {
