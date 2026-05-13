@@ -1,7 +1,7 @@
 {
   "name": "UHE Estrela",
   "short_name": "Estrela",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Gestão de almoxarifado — Estrela",
   "start_url": "./index.html",
   "scope": "./",

@@ -526,6 +526,7 @@
         const openModal = (modalId) => {
             document.getElementById(`${modalId}-backdrop`).classList.add('show');
             document.getElementById(modalId).classList.add('show');
+            document.body.style.overflow = 'hidden';
         };
         const closeModal = (modalId) => {
             if (currentAudio) {
@@ -537,8 +538,12 @@
             const backdrop = document.getElementById(`${modalId}-backdrop`);
             if (backdrop) backdrop.classList.remove('show');
             modal.classList.remove('show');
-            modal.classList.remove('max-w-4xl');
+            modal.classList.remove('max-w-4xl', 'max-w-lg', 'max-w-2xl', 'max-w-xl');
             modal.classList.add('max-w-md');
+            if (modalId === 'generic-modal') {
+                modal.classList.remove('modal-fixed-inner-scroll', 'modal-fixed-inner-scroll--tall');
+            }
+            document.body.style.overflow = '';
         };
 
         const showConfirmationModal = (title, message, onConfirm) => {
@@ -1383,6 +1388,11 @@
             .replace(/&/g, '&amp;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+
+        const escapeHtml = (s) => String(s ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
 
         const updateProductPhotoPreview = (inputId, wrapId, imgId) => {
             const inp = document.getElementById(inputId);
@@ -2546,55 +2556,131 @@
             updateProductPhotoPreview('edit-product-photo-url', 'edit-photo-preview-wrap', 'edit-photo-preview');
         };
 
+        /** Borda esquerda por tipo de movimento (lista simples). */
+        const getHistoryBorderClass = (type) => {
+            if (['Entrada', 'Entrada por NF', 'Ajuste Entrada'].includes(type)) return 'border-l-emerald-500';
+            if (['Saída', 'Saída por Requisição'].includes(type)) return 'border-l-red-500';
+            if (type === 'Ajuste Saída') return 'border-l-amber-500';
+            if (['Criação', 'Importação'].includes(type)) return 'border-l-blue-500';
+            if (type === 'Edição') return 'border-l-violet-500';
+            return 'border-l-slate-400';
+        };
+
+        /**
+         * Lista simples de histórico: entradas/saídas com nomes (quem pegou, fornecedor, NF, local, obra).
+         */
+        const buildProductHistoryListHtml = (productHistory, productRef = {}) => {
+            if (!productHistory.length) {
+                return '<p class="text-slate-500 text-center py-6 text-sm">Nenhuma movimentação registrada.</p>';
+            }
+
+            const unit = escapeHtml(productRef.unit || 'un.');
+            const isInc = (t) => ['Entrada', 'Entrada por NF', 'Ajuste Entrada', 'Criação', 'Importação'].includes(t);
+            const isDec = (t) => ['Saída', 'Saída por Requisição', 'Ajuste Saída'].includes(t);
+
+            const sep = '<span class="text-slate-300 mx-0.5 sm:mx-1">|</span>';
+
+            return productHistory.map((h) => {
+                const type = h.type || 'Movimentação';
+                const border = getHistoryBorderClass(type);
+                const dateStr = formatFirestoreDate(h.date || h.timestamp);
+                const qty = h.quantity != null ? Number(h.quantity) : 0;
+                const saldo = h.newTotal != null ? String(h.newTotal) : '—';
+                const detailsText = typeof h.details === 'string' ? h.details.trim() : '';
+
+                let qLine = '';
+                if (type === 'Criação' || type === 'Importação') {
+                    qLine = `Cadastro inicial: <strong class="text-blue-800">${qty}</strong> ${unit} — Saldo: <strong>${escapeHtml(saldo)}</strong>`;
+                } else if (isInc(type)) {
+                    qLine = `Entrada de <strong class="text-emerald-700">${qty}</strong> ${unit} — Saldo após: <strong>${escapeHtml(saldo)}</strong>`;
+                } else if (isDec(type)) {
+                    qLine = `Saída de <strong class="text-red-700">${qty}</strong> ${unit} — Saldo após: <strong>${escapeHtml(saldo)}</strong>`;
+                } else if (type === 'Edição') {
+                    qLine = `Alteração de cadastro — Estoque no registro: <strong>${escapeHtml(saldo)}</strong>`;
+                } else {
+                    qLine = `<strong>${escapeHtml(type)}</strong> — Qtd: <strong>${qty}</strong> ${unit} — Saldo: <strong>${escapeHtml(saldo)}</strong>`;
+                }
+
+                let peopleLine = '';
+                if (type === 'Criação' || type === 'Importação') {
+                    const bits = [];
+                    const by = h.performedBy || h.receivedBy;
+                    if (by) bits.push(`<span><span class="text-slate-500">Cadastrado por:</span> ${escapeHtml(String(by))}</span>`);
+                    peopleLine = bits.join(sep);
+                } else if (type === 'Entrada por NF' || type === 'Entrada' || type === 'Ajuste Entrada') {
+                    const bits = [];
+                    if (h.supplier) bits.push(`<span><span class="text-slate-500">Fornecedor:</span> ${escapeHtml(String(h.supplier))}</span>`);
+                    if (h.nfNumber) bits.push(`<span><span class="text-slate-500">NF:</span> ${escapeHtml(String(h.nfNumber))}</span>`);
+                    const receb = h.receivedBy || h.performedBy;
+                    if (receb) bits.push(`<span><span class="text-slate-500">Recebido por:</span> ${escapeHtml(String(receb))}</span>`);
+                    peopleLine = bits.join(sep);
+                } else if (isDec(type)) {
+                    const bits = [];
+                    if (h.withdrawnBy) bits.push(`<span><span class="text-slate-500">Quem pegou:</span> ${escapeHtml(String(h.withdrawnBy))}</span>`);
+                    if (h.teamLeader) bits.push(`<span><span class="text-slate-500">Encarregado:</span> ${escapeHtml(String(h.teamLeader))}</span>`);
+                    if (h.applicationLocation) bits.push(`<span><span class="text-slate-500">Para / local de uso:</span> ${escapeHtml(String(h.applicationLocation))}</span>`);
+                    if (h.obra) bits.push(`<span><span class="text-slate-500">Obra:</span> ${escapeHtml(String(h.obra))}</span>`);
+                    peopleLine = bits.join(sep);
+                    const reg = h.performedBy;
+                    if (reg && String(reg).trim() && String(reg).trim() !== String(h.withdrawnBy || '').trim()) {
+                        peopleLine += (peopleLine ? sep : '') + `<span><span class="text-slate-500">Baixa registrada por:</span> ${escapeHtml(String(reg))}</span>`;
+                    }
+                } else if (h.performedBy || h.receivedBy) {
+                    peopleLine = `<span><span class="text-slate-500">Por:</span> ${escapeHtml(String(h.performedBy || h.receivedBy))}</span>`;
+                }
+
+                const foot = [];
+                if (h.observation) foot.push(`<span class="text-slate-500">Obs.:</span> ${escapeHtml(String(h.observation))}`);
+                if (detailsText) foot.push(`<span class="text-slate-500">Detalhe:</span> ${escapeHtml(detailsText)}`);
+                if (h.rmProcessed === true) foot.push('<span class="text-slate-500">RM:</span> Baixado');
+                else if (h.rmProcessed === false && (isDec(type) || type === 'Entrada por NF' || type === 'Entrada')) {
+                    foot.push('<span class="text-slate-500">RM:</span> Pendente');
+                }
+
+                return `
+                    <div class="rounded-lg border border-slate-200 bg-white border-l-4 ${border} pl-3 pr-2 py-2 sm:py-2.5">
+                        <div class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
+                            <span class="text-sm font-semibold text-slate-800">${escapeHtml(type)}</span>
+                            <span class="text-xs text-slate-500">${dateStr !== '...' ? escapeHtml(dateStr) : '—'}</span>
+                        </div>
+                        <p class="text-sm text-slate-700 mt-1 leading-snug">${qLine}</p>
+                        ${peopleLine ? `<p class="text-xs sm:text-sm text-slate-700 mt-1.5 leading-relaxed break-words">${peopleLine}</p>` : ''}
+                        ${foot.length ? `<p class="text-xs text-slate-500 mt-1.5 leading-snug">${foot.join(' · ')}</p>` : ''}
+                    </div>`;
+            }).join('');
+        };
+
         const showHistoryModal = () => {
-             const product = products.find(p => p.id === currentProductId);
+            const product = products.find(p => p.id === currentProductId);
             if (!product) return;
 
             const productHistory = history
                 .filter(h => h.productId === currentProductId)
                 .sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
 
-            let historyItemsHTML = '';
-            if (productHistory.length > 0) {
-                productHistory.forEach(h => {
-                    let details = '';
-                    let colorClass = '';
-                    switch(h.type) {
-                        case 'Entrada': case 'Ajuste Entrada':
-                            colorClass = 'border-green-500'; details = `<strong>+${h.quantity}</strong> unidades. Estoque foi para <strong>${h.newTotal}</strong>.`; break;
-                        case 'Saída': case 'Saída por Requisição':
-                            colorClass = 'border-red-500'; details = `<strong>-${h.quantity}</strong> unidades. Retirado por <strong>${h.withdrawnBy}</strong>. Estoque foi para <strong>${h.newTotal}</strong>.`; break;
-                        case 'Ajuste Saída':
-                            colorClass = 'border-yellow-500'; details = `<strong>-${h.quantity}</strong> unidades ajustadas. Estoque foi para <strong>${h.newTotal}</strong>.`; break;
-                        case 'Criação': case 'Importação': 
-                            colorClass = 'border-blue-500'; details = `Produto cadastrado com <strong>${h.quantity}</strong> unidades.`; break;
-                        case 'Edição': 
-                            colorClass = 'border-purple-500'; details = `Dados do produto foram alterados.`; break;
-                    }
-                    historyItemsHTML += `
-                        <div class="p-3 bg-slate-50 rounded-lg border-l-4 ${colorClass}">
-                            <p class="font-semibold text-slate-800">${h.type}</p>
-                            <p class="text-sm text-slate-700">${details}</p>
-                            <p class="text-xs text-slate-500 mt-1">${h.date ? new Date(h.date.seconds * 1000).toLocaleString('pt-BR') : 'Data indisponível'}</p>
+            const historyItemsHTML = buildProductHistoryListHtml(productHistory, product);
+            const gm = document.getElementById('generic-modal');
+            gm.classList.add('modal-fixed-inner-scroll');
+            gm.innerHTML = `
+                <div class="modal-inner-scroll-root flex flex-col min-h-0">
+                    <div class="shrink-0 flex justify-between items-start gap-2 border-b border-slate-200 pb-3">
+                        <div class="min-w-0 pr-2">
+                            <h2 class="text-lg sm:text-xl font-bold text-slate-900">Histórico</h2>
+                            <p class="text-slate-800 font-semibold text-sm sm:text-base mt-0.5 break-words">${escapeHtml(product.name || '')}</p>
+                            <p class="text-xs text-slate-500 font-mono mt-0.5">${escapeHtml(product.codeRM || product.code || '—')}</p>
+                            <p class="text-xs text-slate-600 mt-2">
+                                Estoque: <strong>${product.quantity ?? 0}</strong> ${escapeHtml(product.unit || '')}
+                                · Mín.: <strong>${product.minQuantity ?? 0}</strong>
+                                · Local: ${escapeHtml(product.location || '—')}
+                                · <strong>${productHistory.length}</strong> mov.
+                            </p>
                         </div>
-                    `;
-                });
-            } else {
-                historyItemsHTML = '<p class="text-slate-500 text-center">Nenhum histórico para este produto.</p>';
-            }
-
-            const content = `
-                <div class="flex justify-between items-start">
-                    <div>
-                        <h2 class="text-2xl font-bold">Histórico do Produto</h2>
-                        <p class="text-slate-600 mb-6">${product.name} (${product.codeRM || product.code})</p>
+                        <button type="button" class="close-modal-btn p-1.5 text-slate-400 hover:text-slate-700 text-2xl leading-none flex-shrink-0" aria-label="Fechar">&times;</button>
                     </div>
-                    <button type="button" class="close-modal-btn p-2 -mt-2 -mr-2 text-slate-400 hover:text-slate-700 text-3xl">&times;</button>
-                </div>
-                <div class="max-h-96 overflow-y-auto space-y-3 pr-2">${historyItemsHTML}</div>
-            `;
-            document.getElementById('generic-modal').innerHTML = content;
-            document.getElementById('generic-modal').classList.replace('max-w-md', 'max-w-4xl');
+                    <p class="shrink-0 text-xs text-slate-500 mt-2">Role só a lista abaixo — a página não desce.</p>
+                    <div class="product-history-scroller flex-1 min-h-0 overflow-y-auto mt-2 space-y-2">${historyItemsHTML}</div>
+                </div>`;
+            gm.classList.replace('max-w-md', 'max-w-lg');
             openModal('generic-modal');
         };
 
@@ -2647,76 +2733,51 @@
                 .sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0))
                 .slice(0, 50);
 
-            let historyItemsHTML = '';
-            if (productHistory.length > 0) {
-                productHistory.forEach(h => {
-                    let details = '';
-                    let colorClass = '';
-                    switch (h.type) {
-                        case 'Entrada': case 'Ajuste Entrada':
-                            colorClass = 'border-green-500'; details = `<strong>+${h.quantity}</strong> unidades. Estoque: <strong>${h.newTotal}</strong>.`; break;
-                        case 'Saída': case 'Saída por Requisição':
-                            colorClass = 'border-red-500'; details = `<strong>-${h.quantity}</strong> unidades. ${h.withdrawnBy ? `Retirado: <strong>${h.withdrawnBy}</strong>. ` : ''}Estoque: <strong>${h.newTotal}</strong>.`; break;
-                        case 'Ajuste Saída':
-                            colorClass = 'border-yellow-500'; details = `<strong>-${h.quantity}</strong> ajuste. Estoque: <strong>${h.newTotal}</strong>.`; break;
-                        case 'Criação': case 'Importação':
-                            colorClass = 'border-blue-500'; details = `Cadastro: <strong>${h.quantity}</strong> unidades.`; break;
-                        case 'Edição':
-                            colorClass = 'border-purple-500'; details = `Alteração de cadastro.`; break;
-                        default:
-                            colorClass = 'border-slate-400'; details = String(h.type || '—');
-                    }
-                    historyItemsHTML += `
-                        <div class="p-3 bg-slate-50 rounded-lg border-l-4 ${colorClass}">
-                            <p class="font-semibold text-slate-800">${h.type || '—'}</p>
-                            <p class="text-sm text-slate-700">${details}</p>
-                            <p class="text-xs text-slate-500 mt-1">${h.date ? new Date(h.date.seconds * 1000).toLocaleString('pt-BR') : '—'}</p>
-                        </div>`;
-                });
-            } else {
-                historyItemsHTML = '<p class="text-slate-500 text-center py-4">Nenhum histórico de movimentação para este produto.</p>';
-            }
+            const historyItemsHTML = buildProductHistoryListHtml(productHistory, product);
 
             const isLow = (product.quantity || 0) <= (product.minQuantity || 0);
             const content = `
-                <div class="flex justify-between items-start gap-2">
-                    <div class="min-w-0">
-                        <p class="text-xs font-bold uppercase tracking-wide text-indigo-600">Ficha do produto</p>
-                        <h2 class="text-xl sm:text-2xl font-bold text-slate-800 break-words">${product.name || '—'}</h2>
-                        <p class="text-sm text-slate-600 mt-1">RM: <span class="font-mono font-semibold">${product.codeRM || '—'}</span> · SKU: <span class="font-mono">${product.code || '—'}</span></p>
+                <div class="modal-inner-scroll-root flex flex-col min-h-0">
+                    <div class="shrink-0 flex justify-between items-start gap-2">
+                        <div class="min-w-0">
+                            <p class="text-xs font-bold uppercase tracking-wide text-indigo-600">Ficha do produto</p>
+                            <h2 class="text-xl sm:text-2xl font-bold text-slate-800 break-words">${escapeHtml(product.name || '—')}</h2>
+                            <p class="text-sm text-slate-600 mt-1">RM: <span class="font-mono font-semibold">${product.codeRM || '—'}</span> · SKU: <span class="font-mono">${product.code || '—'}</span></p>
+                        </div>
+                        <button type="button" class="close-modal-btn p-2 -mt-1 text-slate-400 hover:text-slate-700 text-2xl flex-shrink-0" aria-label="Fechar">&times;</button>
                     </div>
-                    <button type="button" class="close-modal-btn p-2 -mt-1 text-slate-400 hover:text-slate-700 text-2xl flex-shrink-0" aria-label="Fechar">&times;</button>
-                </div>
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
-                    <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                        <p class="text-xs text-slate-500">Estoque atual</p>
-                        <p class="text-lg font-extrabold text-slate-900">${product.quantity ?? 0}</p>
+                    <div class="shrink-0 grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
+                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                            <p class="text-xs text-slate-500">Estoque atual</p>
+                            <p class="text-lg font-extrabold text-slate-900">${product.quantity ?? 0}</p>
+                        </div>
+                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                            <p class="text-xs text-slate-500">Estoque mínimo</p>
+                            <p class="text-lg font-extrabold text-slate-900">${product.minQuantity ?? 0}</p>
+                        </div>
+                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                            <p class="text-xs text-slate-500">Unidade</p>
+                            <p class="text-sm font-bold text-slate-800 truncate">${product.unit || '—'}</p>
+                        </div>
+                        <div class="p-3 rounded-xl ${isLow ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'} border col-span-2 sm:col-span-1">
+                            <p class="text-xs text-slate-500">Local</p>
+                            <p class="text-sm font-bold text-slate-800 break-words">${escapeHtml(product.location || '—')}</p>
+                        </div>
                     </div>
-                    <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                        <p class="text-xs text-slate-500">Estoque mínimo</p>
-                        <p class="text-lg font-extrabold text-slate-900">${product.minQuantity ?? 0}</p>
+                    <div class="shrink-0 mt-4 p-3 rounded-xl bg-indigo-50/80 border border-indigo-100">
+                        <p class="text-xs font-bold text-indigo-800 mb-2">Acesso ao app (o QR da plaquinha leva a este endereço)</p>
+                        <a id="plaque-app-link" href="#" class="text-sm text-indigo-600 font-semibold break-all underline">Abrir ficha do produto no app</a>
+                        <p class="text-xs text-slate-500 mt-2">Toque no link no celular para abrir o app. Se estiver deslogado, faça login; em seguida abra o link de novo (ou use o leitor de QR da plaquinha após o login).</p>
                     </div>
-                    <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                        <p class="text-xs text-slate-500">Unidade</p>
-                        <p class="text-sm font-bold text-slate-800 truncate">${product.unit || '—'}</p>
+                    <div class="shrink-0 mt-4 flex flex-wrap gap-2">
+                        <button type="button" id="plaque-go-inventory" class="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700">Ver na lista de estoque</button>
                     </div>
-                    <div class="p-3 rounded-xl ${isLow ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'} border col-span-2 sm:col-span-1">
-                        <p class="text-xs text-slate-500">Local</p>
-                        <p class="text-sm font-bold text-slate-800 break-words">${product.location || '—'}</p>
-                    </div>
-                </div>
-                <div class="mt-4 p-3 rounded-xl bg-indigo-50/80 border border-indigo-100">
-                    <p class="text-xs font-bold text-indigo-800 mb-2">Acesso ao app (o QR da plaquinha leva a este endereço)</p>
-                    <a id="plaque-app-link" href="#" class="text-sm text-indigo-600 font-semibold break-all underline">Abrir ficha do produto no app</a>
-                    <p class="text-xs text-slate-500 mt-2">Toque no link no celular para abrir o app. Se estiver deslogado, faça login; em seguida abra o link de novo (ou use o leitor de QR da plaquinha após o login).</p>
-                </div>
-                <div class="mt-4 flex flex-wrap gap-2">
-                    <button type="button" id="plaque-go-inventory" class="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700">Ver na lista de estoque</button>
-                </div>
-                <h3 class="text-sm font-bold text-slate-800 mt-6 mb-2">Histórico de entradas e saídas</h3>
-                <div class="max-h-72 overflow-y-auto space-y-2 pr-1">${historyItemsHTML}</div>
-            `;
+                    <h3 class="shrink-0 text-sm font-bold text-slate-800 mt-4 mb-1">Histórico <span class="text-slate-500 font-normal">(últimos 50)</span></h3>
+                    <p class="shrink-0 text-xs text-slate-500 mb-1">Role só a área abaixo — a página atrás não desce.</p>
+                    <div class="product-history-scroller flex-1 min-h-0 overflow-y-auto mt-1 space-y-2 pr-0.5">${historyItemsHTML}</div>
+                </div>`;
             const gm = document.getElementById('generic-modal');
+            gm.classList.add('modal-fixed-inner-scroll', 'modal-fixed-inner-scroll--tall');
             gm.innerHTML = content;
             gm.classList.replace('max-w-md', 'max-w-4xl');
             const appA = document.getElementById('plaque-app-link');
@@ -4002,7 +4063,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                     userUid: currentUser?.uid || null,
                     obraId: currentObraId || null,
                     userAgent: (navigator.userAgent || '').slice(0, 400),
-                    appVersion: '2.0.3'
+                    appVersion: '2.0.4'
                 });
                 feedbackForm.reset();
                 setFeedbackPanelOpen(false);
