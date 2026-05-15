@@ -1,4 +1,4 @@
-// Importações do Firebase SDK
+﻿// Importações do Firebase SDK
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, onSnapshot, serverTimestamp, runTransaction, writeBatch, Timestamp, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -57,7 +57,7 @@
         
         // 🔐 Sistema de Autenticação e Permissões
         let currentUser = null;
-        let userRole = null; // 'admin', 'operador', 'visualizador'
+        let userRole = null; // 'admin', 'operador', 'visualizador', 'visitante'
         let currentObraId = null; // ID da obra selecionada para multi-tenancy
         let isAuthInitialized = false; // Flag para controlar inicialização
         
@@ -121,7 +121,8 @@
         const noRequisitionsMessage = document.getElementById('no-requisitions-message');
         const printSelectedReqsBtn = document.getElementById('print-selected-reqs-btn');
         const generateExitReportBtn = document.getElementById('generate-exit-report-btn');
-        const generateConsumptionReportBtn = document.getElementById('generate-consumption-report-btn');
+        const generateRotationReportBtn = document.getElementById('generate-rotation-report-btn');
+        const exportRotationExcelBtn = document.getElementById('export-rotation-excel-btn');
         const generateKpiReportBtn = document.getElementById('generate-kpi-report-btn');
         const addLocationForm = document.getElementById('add-location-form');
         const loginUsernameInput = document.getElementById('login-username');
@@ -129,6 +130,12 @@
         const loginObraSelect = document.getElementById('login-obra');
         const loginBtn = document.getElementById('login-btn');
         const loginError = document.getElementById('login-error');
+        const loginFormUser = document.getElementById('login-form-user');
+        const loginFormVisitor = document.getElementById('login-form-visitor');
+        const loginModeUserBtn = document.getElementById('login-mode-user');
+        const loginModeVisitorBtn = document.getElementById('login-mode-visitor');
+        const visitorObraSelect = document.getElementById('visitor-obra');
+        const visitorLoginBtn = document.getElementById('visitor-login-btn');
         const logoutBtn = document.getElementById('logout-btn');
         const loginScreen = document.getElementById('login-screen');
         const appContainer = document.getElementById('app-container');
@@ -444,8 +451,19 @@
         const PERMISSIONS = {
             admin: ['create', 'read', 'update', 'delete', 'export', 'import', 'manage_users', 'settings'],
             operador: ['create', 'read', 'update', 'export'],
-            visualizador: ['read', 'export']
+            visualizador: ['read', 'export'],
+            visitante: ['read', 'export']
         };
+
+        const READONLY_ALLOWED_VIEWS = new Set([
+            'dashboard-view',
+            'inventory-view',
+            'exit-log-view',
+            'activity-log-view',
+            'reports-view'
+        ]);
+
+        const isReadOnlyRole = () => userRole === 'visitante' || userRole === 'visualizador';
 
         const hasPermission = (action) => {
             if (!userRole) return false;
@@ -477,22 +495,50 @@
             }
         };
 
+        let readOnlyClickGuardWired = false;
+
         const updateUIBasedOnPermissions = () => {
             const createButtons = document.querySelectorAll('#add-product-btn, #create-requisition-btn, #add-location-btn');
-            const editButtons = document.querySelectorAll('.edit-btn, .delete-btn, .adjust-btn');
             const importExportButtons = document.querySelectorAll('#import-btn, #export-btn, #backup-btn, #restore-btn');
-            
-            // Ocultar botões baseado em permissões
+            const navViewButtons = document.querySelectorAll('[data-view]');
+            const readonly = isReadOnlyRole();
+
             createButtons.forEach(btn => {
                 btn.style.display = hasPermission('create') ? '' : 'none';
             });
 
-            if (!hasPermission('update')) {
+            navViewButtons.forEach(btn => {
+                const viewId = btn.dataset.view;
+                if (!viewId) return;
+                if (readonly) {
+                    btn.style.display = READONLY_ALLOWED_VIEWS.has(viewId) ? '' : 'none';
+                } else {
+                    btn.style.display = '';
+                }
+            });
+
+            if (selectAllProductsCheckbox) {
+                const checkboxCol = selectAllProductsCheckbox.closest('th');
+                selectAllProductsCheckbox.style.display = readonly ? 'none' : '';
+                if (checkboxCol) checkboxCol.style.display = readonly ? 'none' : '';
+            }
+            document.querySelectorAll('.product-checkbox').forEach(cb => {
+                cb.style.display = readonly ? 'none' : '';
+                const cell = cb.closest('td');
+                if (cell) cell.style.display = readonly ? 'none' : '';
+            });
+
+            if (deleteSelectedBtn) deleteSelectedBtn.classList.add('hidden');
+            if (initiateRequisitionBtn) initiateRequisitionBtn.classList.add('hidden');
+
+            if (!hasPermission('update') && !readOnlyClickGuardWired) {
+                readOnlyClickGuardWired = true;
                 document.addEventListener('click', (e) => {
+                    if (!isReadOnlyRole() && hasPermission('update')) return;
                     if (e.target.closest('.edit-btn, .delete-btn, .adjust-btn')) {
                         e.stopPropagation();
-                        showToast('🔒 Você não tem permissão para editar/excluir', true);
-                        return false;
+                        e.preventDefault();
+                        showToast('🔒 Modo visitante: apenas consulta e relatórios.', true);
                     }
                 }, true);
             }
@@ -507,9 +553,12 @@
                 }
             });
 
-            // Configurações apenas para admin
             if (settingsBtn) {
                 settingsBtn.style.display = hasPermission('settings') ? '' : 'none';
+            }
+
+            if (readonly && currentViewId && !READONLY_ALLOWED_VIEWS.has(currentViewId)) {
+                switchView('dashboard-view');
             }
         };
 
@@ -735,7 +784,8 @@
             const roleLabels = {
                 admin: { text: 'Administrador', color: '#6600cc' },
                 operador: { text: 'Operador', color: '#005bbf' },
-                visualizador: { text: 'Visualizador', color: '#414754' }
+                visualizador: { text: 'Visualizador', color: '#414754' },
+                visitante: { text: 'Visitante', color: '#047857' }
             };
             const roleInfo = roleLabels[userRole] || roleLabels.operador;
 
@@ -1616,10 +1666,13 @@
                     : `<div class="shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-lg border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-slate-300" title="Sem foto">
                         <span class="material-symbols-outlined text-3xl">image</span>
                        </div>`;
+                const readonlyRow = isReadOnlyRole();
+                const checkboxCell = readonlyRow ? '' : `<td class="p-3 sm:p-4 text-center"><input type="checkbox" class="product-checkbox h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600" data-id="${p.id}" ${isChecked ? 'checked' : ''}></td>`;
+                const editDeleteBtns = readonlyRow ? '' : `<button data-id="${p.id}" class="edit-btn text-slate-500 hover:text-blue-600 p-1.5 sm:p-2 rounded-full hover:bg-blue-100 transition" title="Editar"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button><button data-id="${p.id}" class="delete-btn text-slate-500 hover:text-red-600 p-1.5 sm:p-2 rounded-full hover:bg-red-100 transition" title="Excluir"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>`;
                 const tr = document.createElement('tr');
                 tr.className = `hover:bg-slate-50 transition-colors duration-150`;
                 tr.innerHTML = `
-                    <td class="p-3 sm:p-4 text-center"><input type="checkbox" class="product-checkbox h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600" data-id="${p.id}" ${isChecked ? 'checked' : ''}></td>
+                    ${checkboxCell}
                     <td class="p-3 sm:p-4 align-top">
                         <div class="flex gap-3 items-start">
                             ${thumbBlock}
@@ -1636,7 +1689,7 @@
                     <td class="p-3 sm:p-4 align-top"><div class="flex flex-col sm:flex-row sm:items-center gap-1"><p class="text-base sm:text-lg font-bold text-slate-800">${p.quantity}</p>${isLowStock ? '<span class="px-1.5 py-0.5 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">Baixo</span>' : ''}</div></td>
                     <td class="p-3 sm:p-4 align-top text-slate-600 text-sm hidden sm:table-cell">${p.minQuantity}</td>
                     <td class="p-3 sm:p-4 align-top text-slate-600 text-sm hidden sm:table-cell">${p.location}</td>
-                    <td class="p-3 sm:p-4 align-top text-center"><div class="flex justify-center items-center gap-0.5 sm:gap-1"><button data-id="${p.id}" class="history-btn text-slate-500 hover:text-purple-600 p-1.5 sm:p-2 rounded-full hover:bg-purple-100 transition" title="Histórico"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></button><button data-id="${p.id}" class="edit-btn text-slate-500 hover:text-blue-600 p-1.5 sm:p-2 rounded-full hover:bg-blue-100 transition" title="Editar"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button><button data-id="${p.id}" class="delete-btn text-slate-500 hover:text-red-600 p-1.5 sm:p-2 rounded-full hover:bg-red-100 transition" title="Excluir"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button></div></td>`;
+                    <td class="p-3 sm:p-4 align-top text-center"><div class="flex justify-center items-center gap-0.5 sm:gap-1"><button data-id="${p.id}" class="history-btn text-slate-500 hover:text-purple-600 p-1.5 sm:p-2 rounded-full hover:bg-purple-100 transition" title="Histórico"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></button>${editDeleteBtns}</div></td>`;
                 productList.appendChild(tr);
             });
 
@@ -3315,6 +3368,268 @@
             if (doc) window.open(doc.output('bloburl'), '_blank');
         });
 
+        const buildRotationReportData = (periodDays = 15, coverageDays = 30) => {
+            const now = Date.now();
+            const cutoff = now - periodDays * 864e5;
+            const consumoMap = {};
+            const lastMovMap = {};
+
+            history.forEach(h => {
+                if (!h.productId) return;
+                const isExit = h.type === 'Saída' || h.type === 'Saída por Requisição' || h.type === 'Ajuste Saída';
+                if (!isExit) return;
+                const ts = h.date?.seconds ? h.date.seconds * 1000 : 0;
+                if (!lastMovMap[h.productId] || ts > lastMovMap[h.productId]) lastMovMap[h.productId] = ts;
+                if (ts >= cutoff) consumoMap[h.productId] = (consumoMap[h.productId] || 0) + Math.abs(h.quantity || 0);
+            });
+
+            const enrich = (p) => {
+                const qty = p.quantity || 0;
+                const min = p.minQuantity || 0;
+                const totalConsumed = consumoMap[p.id] || 0;
+                const dailyRate = periodDays > 0 ? totalConsumed / periodDays : 0;
+                const daysRemaining = dailyRate > 0 ? Math.floor(qty / dailyRate) : null;
+                const lastMov = lastMovMap[p.id] || null;
+                const daysSinceLastMov = lastMov ? Math.floor((now - lastMov) / 864e5) : null;
+                const coverageQty = dailyRate > 0 ? Math.ceil(dailyRate * coverageDays * 1.2) : 0;
+                const suggestedQty = dailyRate > 0
+                    ? Math.max(0, coverageQty - qty)
+                    : Math.max(0, min - qty);
+                let status = 'ok';
+                if (qty <= 0 || (min > 0 && qty <= min)) status = 'critico';
+                else if (daysRemaining !== null && daysRemaining <= 15) status = 'atencao';
+                else if (min > 0 && qty <= min * 1.5) status = 'atencao';
+                return { p, qty, min, totalConsumed, dailyRate, daysRemaining, daysSinceLastMov, suggestedQty, status, lastMov };
+            };
+
+            const allRows = products.map(enrich);
+            const turnover = allRows.filter(r => r.totalConsumed > 0).sort((a, b) => b.totalConsumed - a.totalConsumed);
+            const deadStock = allRows.filter(r => r.qty > 0 && r.totalConsumed === 0).sort((a, b) => b.qty - a.qty);
+            const purchaseSuggestions = allRows
+                .filter(r => r.suggestedQty > 0)
+                .sort((a, b) => {
+                    const ordem = { critico: 0, atencao: 1, ok: 2 };
+                    if (ordem[a.status] !== ordem[b.status]) return ordem[a.status] - ordem[b.status];
+                    if (b.totalConsumed !== a.totalConsumed) return b.totalConsumed - a.totalConsumed;
+                    return b.suggestedQty - a.suggestedQty;
+                });
+
+            return {
+                periodDays,
+                coverageDays,
+                turnover,
+                deadStock,
+                purchaseSuggestions,
+                summary: {
+                    turnoverCount: turnover.length,
+                    deadCount: deadStock.length,
+                    purchaseCount: purchaseSuggestions.length,
+                    totalSuggestedUnits: purchaseSuggestions.reduce((s, r) => s + r.suggestedQty, 0)
+                }
+            };
+        };
+
+        const exportRotationReportExcel = (report, periodDays, coverageDays) => {
+            const XLS = typeof XLSX !== 'undefined' ? XLSX : null;
+            if (!XLS) {
+                showToast('Biblioteca de planilhas não carregou. Recarregue a página.', true);
+                return false;
+            }
+
+            const stamp = new Date().toISOString().slice(0, 10);
+            const agora = new Date().toLocaleString('pt-BR');
+            const obraNames = { uhe_estrela: 'UHE Estrela', pch_taboca: 'PCH Taboca' };
+            const obraNome = obraNames[currentObraId] || currentObraId || 'Obra';
+            const obraSlug = (currentObraId || 'obra').replace(/[^a-z0-9_]/gi, '_');
+            const marginPct = 20;
+            const sortedAll = [...products].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            const rowMap = new Map();
+            report.turnover.forEach(r => rowMap.set(r.p.id, r));
+            report.deadStock.forEach(r => rowMap.set(r.p.id, r));
+            report.purchaseSuggestions.forEach(r => rowMap.set(r.p.id, r));
+            sortedAll.forEach(p => {
+                if (!rowMap.has(p.id)) {
+                    const min = p.minQuantity || 0;
+                    const qty = p.quantity || 0;
+                    rowMap.set(p.id, {
+                        p, qty, min, totalConsumed: 0, dailyRate: 0, daysRemaining: null,
+                        daysSinceLastMov: null, suggestedQty: Math.max(0, min - qty), status: qty <= 0 || qty <= min ? 'critico' : 'ok'
+                    });
+                }
+            });
+
+            try {
+                const wb = XLS.utils.book_new();
+                const bdr = (c = 'CBD5E1') => ({
+                    top: { style: 'thin', color: { rgb: c } }, bottom: { style: 'thin', color: { rgb: c } },
+                    left: { style: 'thin', color: { rgb: c } }, right: { style: 'thin', color: { rgb: c } }
+                });
+                const sTitle = { font: { bold: true, sz: 18, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '4C1D95' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: bdr('312E81') };
+                const sSub = { font: { sz: 10, color: { rgb: '475569' } }, fill: { fgColor: { rgb: 'EDE9FE' } }, alignment: { horizontal: 'left', vertical: 'center' } };
+                const sParamLbl = { font: { bold: true, sz: 10, color: { rgb: '4C1D95' } }, fill: { fgColor: { rgb: 'F5F3FF' } }, alignment: { horizontal: 'left', vertical: 'center' }, border: bdr('DDD6FE') };
+                const sParamVal = { font: { bold: true, sz: 11, color: { rgb: '1E1B4B' } }, fill: { fgColor: { rgb: 'FFFFFF' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: bdr('DDD6FE') };
+                const sTH = { font: { bold: true, sz: 10, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '5B21B6' } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: bdr('4C1D95') };
+                const sFormulaHdr = { ...sTH, fill: { fgColor: { rgb: '7C3AED' } } };
+                const sCell = (even) => ({ font: { sz: 10, color: { rgb: '111827' } }, fill: { fgColor: { rgb: even ? 'F5F3FF' : 'FFFFFF' } }, alignment: { vertical: 'center' }, border: bdr() });
+                const sNum = (even) => ({ ...sCell(even), alignment: { horizontal: 'right', vertical: 'center' } });
+                const sFormula = (even) => ({ ...sNum(even), font: { sz: 10, color: { rgb: '4C1D95' }, italic: true } });
+                const sTotal = { font: { bold: true, sz: 11, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '4C1D95' } }, alignment: { horizontal: 'right', vertical: 'center' }, border: bdr('312E81') };
+
+                const merge = (ws, r1, c1, r2, c2) => { if (!ws['!merges']) ws['!merges'] = []; ws['!merges'].push({ s: { r: r1, c: c1 }, e: { r: r2, c: c2 } }); };
+                const setCell = (ws, r, c, v, style, t = 's') => { ws[XLS.utils.encode_cell({ r, c })] = { v, t, s: style }; };
+                const setNum = (ws, r, c, v, style) => setCell(ws, r, c, v, style, typeof v === 'number' ? 'n' : 's');
+                const setFormula = (ws, r, c, f, style, asNumber = true) => {
+                    const cell = { f, s: style };
+                    if (asNumber) cell.t = 'n';
+                    ws[XLS.utils.encode_cell({ r, c })] = cell;
+                };
+                const col = (n) => XLS.utils.encode_col(n);
+
+                const HEADERS = ['#', 'Material', 'Código RM', 'Grupo', 'Unid.', 'Local', 'Estoque', 'Mín.', 'Saída período', 'Média/dia', 'Meta estoque', 'Comprar (giro)', 'Comprar (mín.)', 'Qtd. sugerida', 'Dias rest.', 'Classificação', 'Urgência'];
+                const COL = { NUM: 0, NOME: 1, RM: 2, GRUPO: 3, UN: 4, LOC: 5, EST: 6, MIN: 7, SAIDA: 8, MEDIA: 9, META: 10, COMP_G: 11, COMP_M: 12, SUG: 13, DIAS: 14, CLASS: 15, URG: 16 };
+                const lastCol = HEADERS.length - 1;
+                const headerRow = 7;
+                const firstDataRow = 8;
+                const paramPeriodRow = 2;
+                const paramCovRow = 3;
+                const paramMarginRow = 4;
+
+                const buildDataSheet = (sheetTitle, rows, accentRgb) => {
+                    const ws = XLS.utils.aoa_to_sheet([]);
+                    const titleStyle = { ...sTitle, fill: { fgColor: { rgb: accentRgb } } };
+                    const thStyle = { ...sTH, fill: { fgColor: { rgb: accentRgb } } };
+
+                    setCell(ws, 0, 0, sheetTitle, titleStyle);
+                    merge(ws, 0, 0, 0, lastCol);
+                    setCell(ws, 1, 0, `${obraNome} · Gerado em ${agora}`, sSub);
+                    merge(ws, 1, 0, 1, lastCol);
+
+                    setCell(ws, paramPeriodRow, 0, 'Período análise (dias)', sParamLbl);
+                    setNum(ws, paramPeriodRow, 1, periodDays, sParamVal);
+                    setCell(ws, paramCovRow, 0, 'Cobertura alvo (dias)', sParamLbl);
+                    setNum(ws, paramCovRow, 1, coverageDays, sParamVal);
+                    setCell(ws, paramMarginRow, 0, 'Margem segurança (%)', sParamLbl);
+                    setNum(ws, paramMarginRow, 1, marginPct, sParamVal);
+                    setCell(ws, 5, 0, 'Altere os parâmetros acima — as fórmulas recalculam automaticamente.', { ...sSub, font: { italic: true, sz: 9, color: { rgb: '64748B' } } });
+                    merge(ws, 5, 0, 5, lastCol);
+
+                    HEADERS.forEach((h, c) => setCell(ws, headerRow, c, h, c >= COL.MEDIA ? sFormulaHdr : thStyle));
+
+                    const excelFirst = firstDataRow + 1;
+                    rows.forEach((row, idx) => {
+                        const r = firstDataRow + idx;
+                        const er = r + 1;
+                        const even = idx % 2 === 0;
+                        const p = row.p;
+                        const qty = row.qty ?? p.quantity ?? 0;
+                        const min = row.min ?? p.minQuantity ?? 0;
+                        const saida = row.totalConsumed ?? 0;
+
+                        setNum(ws, r, COL.NUM, idx + 1, { ...sNum(even), alignment: { horizontal: 'center', vertical: 'center' } });
+                        setCell(ws, r, COL.NOME, p.name || '', sCell(even));
+                        setCell(ws, r, COL.RM, p.codeRM || p.code || '—', sCell(even));
+                        setCell(ws, r, COL.GRUPO, p.group || '—', sCell(even));
+                        setCell(ws, r, COL.UN, p.unit || 'UN', { ...sCell(even), alignment: { horizontal: 'center', vertical: 'center' } });
+                        setCell(ws, r, COL.LOC, p.location || '—', sCell(even));
+                        setNum(ws, r, COL.EST, qty, sNum(even));
+                        setNum(ws, r, COL.MIN, min, sNum(even));
+                        setNum(ws, r, COL.SAIDA, saida, sNum(even));
+
+                        const cEst = col(COL.EST);
+                        const cMin = col(COL.MIN);
+                        const cSaida = col(COL.SAIDA);
+                        const cMedia = col(COL.MEDIA);
+                        const cMeta = col(COL.META);
+                        const cCompG = col(COL.COMP_G);
+                        const cCompM = col(COL.COMP_M);
+                        const cSug = col(COL.SUG);
+                        const cDias = col(COL.DIAS);
+                        const cClass = col(COL.CLASS);
+                        const pRef = `$B$${paramPeriodRow + 1}`;
+                        const cRef = `$B$${paramCovRow + 1}`;
+                        const mRef = `$B$${paramMarginRow + 1}/100`;
+
+                        setFormula(ws, r, COL.MEDIA, `IF(${pRef}>0,${cSaida}${er}/${pRef},0)`, sFormula(even));
+                        setFormula(ws, r, COL.META, `IF(${cMedia}${er}>0,ROUNDUP(${cMedia}${er}*${cRef}*(1+${mRef}),0),0)`, sFormula(even));
+                        setFormula(ws, r, COL.COMP_G, `MAX(0,${cMeta}${er}-${cEst}${er})`, sFormula(even));
+                        setFormula(ws, r, COL.COMP_M, `MAX(0,${cMin}${er}-${cEst}${er})`, sFormula(even));
+                        setFormula(ws, r, COL.SUG, `IF(${cSaida}${er}>0,${cCompG}${er},${cCompM}${er})`, sFormula(even));
+                        setFormula(ws, r, COL.DIAS, `IF(${cMedia}${er}>0,INT(${cEst}${er}/${cMedia}${er}),"")`, sFormula(even));
+                        setFormula(ws, r, COL.CLASS, `IF(${cEst}${er}=0,"ZERADO",IF(${cSaida}${er}=0,"PARADO",IF(${cEst}${er}<=${cMin}${er},"CRITICO","ATIVO")))`, { ...sCell(even), alignment: { horizontal: 'center', vertical: 'center' } }, false);
+                        setFormula(ws, r, COL.URG, `IF(${cEst}${er}=0,"CRITICO",IF(${cEst}${er}<=${cMin}${er},"CRITICO",IF(${cSaida}${er}=0,"PARADO",IF(${cDias}${er}="","",IF(${cDias}${er}<=15,"ATENCAO","REPOSICAO")))))`, { ...sCell(even), alignment: { horizontal: 'center', vertical: 'center' } }, false);
+                    });
+
+                    const totalRow = firstDataRow + rows.length;
+                    const lastDataEr = totalRow;
+                    if (rows.length > 0) {
+                        setCell(ws, totalRow, COL.LOC, 'TOTAIS', sTotal);
+                        setFormula(ws, totalRow, COL.SAIDA, `SUM(${col(COL.SAIDA)}${excelFirst}:${col(COL.SAIDA)}${lastDataEr})`, sTotal);
+                        setFormula(ws, totalRow, COL.SUG, `SUM(${col(COL.SUG)}${excelFirst}:${col(COL.SUG)}${lastDataEr})`, sTotal);
+                    }
+
+                    ws['!cols'] = [5, 34, 14, 16, 8, 18, 10, 10, 12, 11, 12, 12, 12, 12, 10, 14, 12].map(w => ({ wch: w }));
+                    ws['!rows'] = [{ hpt: 36 }, { hpt: 22 }, { hpt: 22 }, { hpt: 22 }, { hpt: 22 }, { hpt: 18 }, { hpt: 8 }, { hpt: 32 }];
+                    ws['!freeze'] = { xSplit: 2, ySplit: headerRow + 1 };
+                    if (rows.length > 0) {
+                        ws['!autofilter'] = { ref: XLS.utils.encode_range({ s: { r: headerRow, c: 0 }, e: { r: totalRow, c: lastCol } }) };
+                    }
+                    ws['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(totalRow, headerRow), c: lastCol } });
+                    return ws;
+                };
+
+                const allRows = sortedAll.map(p => rowMap.get(p.id)).filter(Boolean);
+                const wsAnalise = buildDataSheet('ANÁLISE COMPLETA DE ROTATIVIDADE', allRows, '4C1D95');
+                XLS.utils.book_append_sheet(wb, wsAnalise, 'Análise');
+
+                const wsRes = XLS.utils.aoa_to_sheet([]);
+                setCell(wsRes, 0, 0, 'PAINEL — RELATÓRIO DE ROTATIVIDADE', sTitle);
+                merge(wsRes, 0, 0, 0, 3);
+                setCell(wsRes, 1, 0, `${obraNome} · ${agora}`, sSub);
+                merge(wsRes, 1, 0, 1, 3);
+                const kpiLbl = { ...sParamLbl, font: { bold: true, sz: 11, color: { rgb: '334155' } } };
+                const kpiVal = { font: { bold: true, sz: 22, color: { rgb: '4C1D95' } }, alignment: { horizontal: 'center', vertical: 'center' }, fill: { fgColor: { rgb: 'FFFFFF' } }, border: bdr('DDD6FE') };
+                const ref = (c) => `'Análise'!${col(c)}:${col(c)}`;
+                const kpis = [
+                    ['Com rotatividade (ATIVO)', `COUNTIF(${ref(COL.CLASS)},"ATIVO")`],
+                    ['Produtos parados (PARADO)', `COUNTIF(${ref(COL.CLASS)},"PARADO")`],
+                    ['Estoque zerado', `COUNTIF(${ref(COL.CLASS)},"ZERADO")`],
+                    ['Crítico / abaixo mín.', `COUNTIF(${ref(COL.CLASS)},"CRITICO")`],
+                    ['Itens para comprar', `COUNTIF(${ref(COL.SUG)},">0")`],
+                    ['Qtd. total sugerida', `SUMIF(${ref(COL.SUG)},">0",${ref(COL.SUG)})`]
+                ];
+                let kr = 3;
+                kpis.forEach(([label, formula]) => {
+                    setCell(wsRes, kr, 0, label, kpiLbl);
+                    merge(wsRes, kr, 0, kr, 1);
+                    wsRes[XLS.utils.encode_cell({ r: kr, c: 2 })] = { f: formula, t: 'n', s: kpiVal };
+                    merge(wsRes, kr, 2, kr, 3);
+                    kr++;
+                });
+                setCell(wsRes, kr + 1, 0, 'Parâmetros na aba "Análise" (linhas 3–5): período, cobertura e margem %. Fórmulas nas colunas J–Q.', { ...sSub, alignment: { wrapText: true, vertical: 'top' } });
+                merge(wsRes, kr + 1, 0, kr + 3, 3);
+                wsRes['!cols'] = [{ wch: 28 }, { wch: 4 }, { wch: 16 }, { wch: 16 }];
+                wsRes['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: kr + 3, c: 3 } });
+                XLS.utils.book_append_sheet(wb, wsRes, 'Resumo');
+
+                const turnoverRows = [...report.turnover];
+                if (turnoverRows.length) XLS.utils.book_append_sheet(wb, buildDataSheet('MAIOR ROTATIVIDADE', turnoverRows, '1D4ED8'), 'Rotatividade');
+
+                const deadRows = [...report.deadStock];
+                if (deadRows.length) XLS.utils.book_append_sheet(wb, buildDataSheet('PRODUTOS MORTOS (PARADOS)', deadRows, 'B45309'), 'Produtos mortos');
+
+                const buyRows = [...report.purchaseSuggestions];
+                if (buyRows.length) XLS.utils.book_append_sheet(wb, buildDataSheet('SUGESTÃO DE COMPRA', buyRows, '047857'), 'O que comprar');
+
+                XLS.writeFile(wb, `relatorio_rotatividade_${obraSlug}_${periodDays}d_${stamp}.xlsx`);
+                showToast('Excel exportado: fórmulas, filtros e 5 abas profissionais.');
+                return true;
+            } catch (err) {
+                console.error('Export rotatividade Excel:', err);
+                showToast(`Erro ao exportar Excel: ${err.message}`, true);
+                return false;
+            }
+        };
+
         const renderComprasView = (periodDays = 15) => {
             const now = Date.now();
             const cutoff = now - periodDays * 864e5;
@@ -3606,6 +3921,10 @@
         };
 
         const switchView = (viewId) => {
+            if (isReadOnlyRole() && !READONLY_ALLOWED_VIEWS.has(viewId)) {
+                showToast('🔒 Modo visitante: apenas consulta e relatórios.', true);
+                return;
+            }
             currentViewId = viewId;
             if (viewId !== 'inventory-view' && viewId !== 'requisitions-view') {
                 selectedProductIds.clear();
@@ -3733,6 +4052,36 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
 
         // --- Event Listeners ---
 
+        const setLoginMode = (mode) => {
+            const isVisitor = mode === 'visitor';
+            loginFormUser?.classList.toggle('hidden', isVisitor);
+            loginFormVisitor?.classList.toggle('hidden', !isVisitor);
+            loginError?.classList.add('hidden');
+            if (loginModeUserBtn) {
+                loginModeUserBtn.style.background = isVisitor ? 'transparent' : '#fff';
+                loginModeUserBtn.style.color = isVisitor ? '#6b7280' : '#0066FF';
+                loginModeUserBtn.style.boxShadow = isVisitor ? 'none' : '0 1px 4px rgba(0,0,0,0.08)';
+            }
+            if (loginModeVisitorBtn) {
+                loginModeVisitorBtn.style.background = isVisitor ? '#fff' : 'transparent';
+                loginModeVisitorBtn.style.color = isVisitor ? '#047857' : '#6b7280';
+                loginModeVisitorBtn.style.boxShadow = isVisitor ? '0 1px 4px rgba(0,0,0,0.08)' : 'none';
+            }
+        };
+
+        const doVisitorLogin = () => {
+            const obraId = visitorObraSelect?.value || 'uhe_estrela';
+            const obraNames = { uhe_estrela: 'UHE Estrela', pch_taboca: 'PCH Taboca' };
+            const appUser = {
+                uid: `visitante_${obraId}`,
+                displayName: `Visitante — ${obraNames[obraId] || obraId}`,
+                role: 'visitante',
+                obraId
+            };
+            localStorage.setItem('appUser', JSON.stringify(appUser));
+            initializeAppSession(appUser);
+        };
+
         // 🔐 Login com usuário e senha (sem Firebase Auth)
         const doLogin = async () => {
             const username = loginUsernameInput.value.trim().toUpperCase();
@@ -3815,6 +4164,10 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         loginBtn.addEventListener('click', doLogin);
         loginPasswordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
         loginUsernameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loginPasswordInput.focus(); });
+        loginModeUserBtn?.addEventListener('click', () => setLoginMode('user'));
+        loginModeVisitorBtn?.addEventListener('click', () => setLoginMode('visitor'));
+        visitorLoginBtn?.addEventListener('click', doVisitorLogin);
+        setLoginMode('user');
 
         const setFeedbackPanelOpen = (open) => {
             if (!feedbackPanel) return;
@@ -3846,6 +4199,11 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             loginScreen.classList.remove('hidden');
             appContainer.classList.add('hidden');
             if (logoutBtn) logoutBtn.classList.add('hidden');
+            setLoginMode('user');
+            if (loginBtn) {
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Entrar';
+            }
             showToast('Logout realizado com sucesso');
         });
 
@@ -5202,100 +5560,135 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             document.body.removeChild(link);
         });
 
-        generateConsumptionReportBtn.addEventListener('click', () => {
-            const exitHistory = history.filter(h => h.type === 'Saída' || h.type === 'Saída por Requisição');
-            if (exitHistory.length === 0) {
-                showToast("Nenhum consumo registrado para gerar relatório.", true);
+        generateRotationReportBtn?.addEventListener('click', () => {
+            if (products.length === 0) {
+                showToast('Nenhum produto cadastrado para gerar o relatório.', true);
                 return;
             }
 
-            const consumptionByLocation = exitHistory.reduce((acc, curr) => {
-                const location = curr.applicationLocation || 'Não especificado';
-                if (!acc[location]) {
-                    acc[location] = {};
-                }
-                const productIdentifier = curr.productCodeRM || curr.productCode;
-                if (!acc[location][productIdentifier]) {
-                    const product = products.find(p => p.id === curr.productId);
-                    acc[location][productIdentifier] = {
-                        name: curr.productName,
-                        codeRM: curr.productCodeRM,
-                        group: product?.group || 'N/A',
-                        unit: product?.unit || 'N/A',
-                        totalQuantity: 0
-                    };
-                }
-                acc[location][productIdentifier].totalQuantity += curr.quantity;
-                return acc;
-            }, {});
+            const periodDays = parseInt(document.getElementById('rotation-period-select')?.value || '15', 10);
+            const coverageDays = parseInt(document.getElementById('rotation-coverage-select')?.value || '30', 10);
+            const report = buildRotationReportData(periodDays, coverageDays);
 
-            let modalContent = `
-                <div class="flex justify-between items-start mb-6">
-                    <h2 class="text-2xl font-bold">Relatório de Consumo por Local</h2>
+            const esc = (v) => String(v ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+
+            const statusBadge = (status) => {
+                if (status === 'critico') return '<span class="px-2 py-0.5 rounded-full text-xs font-bold" style="background:#fff2f0;color:#ba1a1a;">Crítico</span>';
+                if (status === 'atencao') return '<span class="px-2 py-0.5 rounded-full text-xs font-bold" style="background:#fff8e1;color:#795900;">Atenção</span>';
+                return '<span class="px-2 py-0.5 rounded-full text-xs font-bold" style="background:#e8f5e9;color:#006e2c;">Reposição</span>';
+            };
+
+            const turnoverRows = report.turnover.slice(0, 50).map((r, idx) => `
+                <tr class="border-b border-slate-100 hover:bg-slate-50">
+                    <td class="p-2 font-bold text-slate-500">${idx + 1}</td>
+                    <td class="p-2"><span class="font-semibold">${esc(r.p.name)}</span><span class="block text-xs text-slate-400">${esc(r.p.codeRM || r.p.code || '—')}</span></td>
+                    <td class="p-2 text-slate-600">${esc(r.p.group || '—')}</td>
+                    <td class="p-2 text-center font-bold text-violet-700">${r.totalConsumed}</td>
+                    <td class="p-2 text-center">${r.dailyRate > 0 ? r.dailyRate.toFixed(2) : '—'}</td>
+                    <td class="p-2 text-center ${r.qty <= 0 ? 'text-red-600 font-bold' : ''}">${r.qty} ${esc(r.p.unit || '')}</td>
+                    <td class="p-2 text-center">${r.daysRemaining !== null ? r.daysRemaining + ' d' : '—'}</td>
+                </tr>`).join('') || '<tr><td colspan="7" class="p-4 text-center text-slate-400">Nenhuma saída no período</td></tr>';
+
+            const deadRows = report.deadStock.slice(0, 50).map(r => `
+                <tr class="border-b border-slate-100 hover:bg-slate-50">
+                    <td class="p-2"><span class="font-semibold">${esc(r.p.name)}</span><span class="block text-xs text-slate-400">${esc(r.p.codeRM || r.p.code || '—')}</span></td>
+                    <td class="p-2 text-slate-600">${esc(r.p.group || '—')}</td>
+                    <td class="p-2 text-center font-bold text-slate-800">${r.qty} ${esc(r.p.unit || '')}</td>
+                    <td class="p-2 text-center text-slate-600">${r.min || '—'}</td>
+                    <td class="p-2 text-center text-amber-700">${r.daysSinceLastMov !== null ? r.daysSinceLastMov + ' dias' : 'Sem histórico'}</td>
+                    <td class="p-2 text-xs text-slate-500">Parado no período — avaliar antes de comprar mais</td>
+                </tr>`).join('') || '<tr><td colspan="6" class="p-4 text-center text-slate-400">Nenhum produto parado no período</td></tr>';
+
+            const purchaseRows = report.purchaseSuggestions.slice(0, 80).map(r => `
+                <tr class="border-b border-slate-100 hover:bg-slate-50">
+                    <td class="p-2">${statusBadge(r.status)}</td>
+                    <td class="p-2"><span class="font-semibold">${esc(r.p.name)}</span><span class="block text-xs text-slate-400">${esc(r.p.codeRM || r.p.code || '—')}</span></td>
+                    <td class="p-2 text-center">${r.qty}</td>
+                    <td class="p-2 text-center">${r.min || '—'}</td>
+                    <td class="p-2 text-center">${r.totalConsumed || 0}</td>
+                    <td class="p-2 text-center">${r.dailyRate > 0 ? r.dailyRate.toFixed(2) : '—'}</td>
+                    <td class="p-2 text-center font-bold text-emerald-700">${r.suggestedQty} ${esc(r.p.unit || '')}</td>
+                </tr>`).join('') || '<tr><td colspan="7" class="p-4 text-center text-slate-400">Nenhuma compra sugerida</td></tr>';
+
+            const modalContent = `
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h2 class="text-2xl font-bold">Relatório de Rotatividade</h2>
+                        <p class="text-sm text-slate-500 mt-1">Período: ${periodDays} dias · Cobertura: ${coverageDays} dias</p>
+                    </div>
                     <button type="button" class="close-modal-btn p-2 -mt-2 -mr-2 text-slate-400 hover:text-slate-700 text-3xl">&times;</button>
                 </div>
-                <div id="consumption-report-content" class="max-h-96 overflow-y-auto space-y-6 pr-2">
-            `;
-
-            for (const location in consumptionByLocation) {
-                modalContent += `
-                    <div class="mb-4">
-                        <h3 class="text-lg font-bold text-indigo-700 border-b pb-2 mb-2">${location}</h3>
-                        <table class="w-full text-left text-sm">
-                            <thead class="bg-slate-50">
-                                <tr>
-                                    <th class="p-2">Produto</th>
-                                    <th class="p-2">Cód. RM</th>
-                                    <th class="p-2">Grupo</th>
-                                    <th class="p-2 text-center">Qtd. Consumida</th>
-                                    <th class="p-2">Unidade</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                `;
-                for (const product in consumptionByLocation[location]) {
-                    const data = consumptionByLocation[location][product];
-                    modalContent += `
-                        <tr class="border-b">
-                            <td class="p-2">${data.name}</td>
-                            <td class="p-2">${data.codeRM}</td>
-                            <td class="p-2">${data.group}</td>
-                            <td class="p-2 text-center font-semibold">${data.totalQuantity}</td>
-                            <td class="p-2">${data.unit}</td>
-                        </tr>
-                    `;
-                }
-                modalContent += `</tbody></table></div>`;
-            }
-            modalContent += `</div>
-                <div class="mt-8 flex justify-end gap-4">
-                    <button type="button" id="export-consumption-csv" class="px-6 py-2 bg-teal-600 text-white rounded-lg font-semibold hover:bg-teal-700 transition">Exportar (CSV)</button>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                    <div class="rounded-lg p-3 bg-violet-50 border border-violet-100"><p class="text-xs font-bold text-violet-800">Com rotatividade</p><p class="text-2xl font-black text-violet-900">${report.summary.turnoverCount}</p></div>
+                    <div class="rounded-lg p-3 bg-amber-50 border border-amber-100"><p class="text-xs font-bold text-amber-800">Produtos parados</p><p class="text-2xl font-black text-amber-900">${report.summary.deadCount}</p></div>
+                    <div class="rounded-lg p-3 bg-emerald-50 border border-emerald-100"><p class="text-xs font-bold text-emerald-800">Itens a comprar</p><p class="text-2xl font-black text-emerald-900">${report.summary.purchaseCount}</p></div>
+                    <div class="rounded-lg p-3 bg-slate-50 border border-slate-200"><p class="text-xs font-bold text-slate-600">Qtd. sugerida total</p><p class="text-2xl font-black text-slate-900">${report.summary.totalSuggestedUnits}</p></div>
+                </div>
+                <div id="rotation-report-content" class="max-h-[60vh] overflow-y-auto space-y-6 pr-2">
+                    <section>
+                        <h3 class="text-lg font-bold text-violet-800 border-b pb-2 mb-2">Maior rotatividade</h3>
+                        <p class="text-xs text-slate-500 mb-2">Produtos com mais saídas no período.</p>
+                        <table class="w-full text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-600"><tr>
+                            <th class="p-2">#</th><th class="p-2">Produto</th><th class="p-2">Grupo</th>
+                            <th class="p-2 text-center">Saída</th><th class="p-2 text-center">/dia</th>
+                            <th class="p-2 text-center">Estoque</th><th class="p-2 text-center">Dias rest.</th>
+                        </tr></thead><tbody>${turnoverRows}</tbody></table>
+                    </section>
+                    <section>
+                        <h3 class="text-lg font-bold text-amber-800 border-b pb-2 mb-2">Produtos mortos (parados)</h3>
+                        <p class="text-xs text-slate-500 mb-2">Com estoque, sem saída no período.</p>
+                        <table class="w-full text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-600"><tr>
+                            <th class="p-2">Produto</th><th class="p-2">Grupo</th><th class="p-2 text-center">Estoque</th>
+                            <th class="p-2 text-center">Mín.</th><th class="p-2 text-center">Última saída</th><th class="p-2">Observação</th>
+                        </tr></thead><tbody>${deadRows}</tbody></table>
+                    </section>
+                    <section>
+                        <h3 class="text-lg font-bold text-emerald-800 border-b pb-2 mb-2">O que comprar</h3>
+                        <p class="text-xs text-slate-500 mb-2">Sugestão com base na rotatividade e cobertura de ${coverageDays} dias.</p>
+                        <table class="w-full text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-600"><tr>
+                            <th class="p-2">Urgência</th><th class="p-2">Produto</th><th class="p-2 text-center">Atual</th>
+                            <th class="p-2 text-center">Mín.</th><th class="p-2 text-center">Saída</th><th class="p-2 text-center">/dia</th>
+                            <th class="p-2 text-center">Comprar</th>
+                        </tr></thead><tbody>${purchaseRows}</tbody></table>
+                    </section>
+                </div>
+                <div class="mt-6 flex justify-end gap-4">
+                    <button type="button" id="export-rotation-excel-modal" class="px-6 py-2 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition">Baixar Excel (.xlsx)</button>
                 </div>
             `;
-            
-            document.getElementById('generic-modal').innerHTML = modalContent;
-            document.getElementById('generic-modal').classList.replace('max-w-md', 'max-w-4xl');
+
+            const modal = document.getElementById('generic-modal');
+            modal.innerHTML = modalContent;
+            modal.classList.remove('max-w-md');
+            modal.classList.add('max-w-5xl');
             openModal('generic-modal');
 
-            document.getElementById('export-consumption-csv').addEventListener('click', () => {
-                let csvContent = "Local de Aplicação;Produto;Código RM;Grupo;Unidade;Quantidade Consumida\n";
-                for (const location in consumptionByLocation) {
-                    for (const product in consumptionByLocation[location]) {
-                        const data = consumptionByLocation[location][product];
-                        const row = [location, data.name, data.codeRM, data.group, data.unit, data.totalQuantity]
-                            .map(field => `"${String(field).replace(/"/g, '""')}"`).join(';');
-                        csvContent += row + '\n';
-                    }
-                }
-                const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
-                const link = document.createElement("a");
-                const url = URL.createObjectURL(blob);
-                link.setAttribute("href", url);
-                link.setAttribute("download", "relatorio_consumo_por_local.csv");
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+            document.getElementById('export-rotation-excel-modal')?.addEventListener('click', () => {
+                exportRotationReportExcel(report, periodDays, coverageDays);
             });
+        });
+
+        const runRotationExcelExport = () => {
+            if (products.length === 0) {
+                showToast('Nenhum produto cadastrado para gerar o relatório.', true);
+                return;
+            }
+            const periodDays = parseInt(document.getElementById('rotation-period-select')?.value || '15', 10);
+            const coverageDays = parseInt(document.getElementById('rotation-coverage-select')?.value || '30', 10);
+            const report = buildRotationReportData(periodDays, coverageDays);
+            exportRotationReportExcel(report, periodDays, coverageDays);
+        };
+
+        exportRotationExcelBtn?.addEventListener('click', runRotationExcelExport);
+
+        document.getElementById('reports-view')?.addEventListener('click', (e) => {
+            if (e.target.closest('#export-rotation-excel-btn')) {
+                e.preventDefault();
+                runRotationExcelExport();
+            }
         });
 
         generateKpiReportBtn.addEventListener('click', () => {
