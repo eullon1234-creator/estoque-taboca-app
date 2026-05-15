@@ -1,0 +1,84 @@
+---
+description: Padrão profissional para exportações Excel (.xlsx) com xlsx-js-style — estilo do relatório de rotatividade
+globs: assets/js/main.js
+alwaysApply: false
+---
+
+# Exportação Excel profissional (estoque-taboca)
+
+Referência canônica: `exportRotationReportExcel` em `assets/js/main.js`. Reutilize o mesmo padrão em novos relatórios ou melhorias.
+
+## Stack
+
+- Biblioteca: **xlsx-js-style** (`XLSX` global). Verificar `if (!XLSX)` e toast de erro.
+- Saída: `XLS.writeFile(wb, nome_arquivo.xlsx)` — nunca CSV se o usuário pedir Excel.
+- Nome: `relatorio_{tipo}_{obraSlug}_{params}_{YYYY-MM-DD}.xlsx`
+
+## Estrutura do workbook
+
+1. **Aba Resumo** — painel com KPIs em fórmulas (`COUNTIF`, `SUMIF`) referenciando a aba principal com aspas: `'Análise'!P:P`
+2. **Aba principal (dados + fórmulas)** — todos os itens ou base analítica
+3. **Abas filtradas** — vistas temáticas (ex.: Rotatividade, Parados, Comprar), cada uma com o mesmo `buildDataSheet` e cor de destaque diferente
+
+## Layout de cada aba de dados
+
+| Linha | Conteúdo |
+|-------|----------|
+| 1 | Título mergeado (full width), fundo accent, texto branco 18px bold |
+| 2 | Subtítulo: obra + data/hora geração |
+| 3–5 | **Parâmetros editáveis** (rótulo col A, valor col B): período, cobertura, margem % |
+| 6 | Nota: "Altere os parâmetros — as fórmulas recalculam automaticamente" |
+| 8 | Cabeçalhos da tabela |
+| 9+ | Dados + fórmulas |
+
+- `headerRow = 7`, `firstDataRow = 8` (0-indexed)
+- Referências absolutas aos parâmetros: `$B$3`, `$B$4`, etc.
+
+## Fórmulas (inglês, vírgula — Excel localiza ao abrir)
+
+- `setFormula(ws, r, c, formula, style, asNumber)` — `asNumber: false` para células de texto
+- Colunas calculadas destacadas com `sFormulaHdr` (roxo mais claro)
+- Exemplos do padrão rotatividade:
+  - Média/dia: `IF($B$3>0,I9/$B$3,0)`
+  - Meta: `IF(J9>0,ROUNDUP(J9*$B$4*(1+$B$5/100),0),0)`
+  - Qtd sugerida: `IF(I9>0,MAX(0,K9-G9),MAX(0,H9-G9))`
+- Linha **TOTAIS** no final com `SUM` nas colunas numéricas relevantes
+
+## Estilos (reutilizar objetos)
+
+- `bdr`, `sTitle`, `sSub`, `sParamLbl`, `sParamVal`, `sTH`, `sFormulaHdr`, `sCell(even)`, `sNum(even)`, `sFormula(even)`, `sTotal`
+- Paleta principal: violeta `#4C1D95` / `#5B21B6`; abas temáticas com accent próprio (azul `#1D4ED8`, âmbar `#B45309`, verde `#047857`)
+- Linhas zebradas: `even ? 'F5F3FF' : 'FFFFFF'`
+
+## Recursos obrigatórios da planilha
+
+- `ws['!cols']` — larguras `wch` por coluna
+- `ws['!rows']` — altura título ~36pt, cabeçalho ~32pt
+- `ws['!freeze']` — `{ xSplit: 2, ySplit: headerRow + 1 }` (fixar # e Material)
+- `ws['!autofilter']` — do cabeçalho até linha de totais
+- `ws['!merges']` — título e subtítulo
+
+## Helpers padrão
+
+```javascript
+const merge = (ws, r1, c1, r2, c2) => { ... };
+const setCell = (ws, r, c, v, style, t = 's') => { ... };
+const setNum = (ws, r, c, v, style) => { ... };
+const setFormula = (ws, r, c, f, style, asNumber = true) => { ... };
+const col = (n) => XLS.utils.encode_col(n);
+```
+
+Extrair `buildDataSheet(sheetTitle, rows, accentRgb)` quando houver múltiplas abas com a mesma estrutura.
+
+## UX no app
+
+- Botão verde **Baixar Excel (.xlsx)** com `inline-flex`, ícone Material `table_view`
+- Toast de sucesso mencionando fórmulas e abas
+- `showToast` se biblioteca não carregou
+
+## Não fazer
+
+- Exportar só valores estáticos quando o relatório for analítico (preferir fórmulas ligadas a parâmetros)
+- CSV disfarçado de Excel
+- Abas sem estilo ou sem largura de coluna
+- Fórmulas sem aspas em nomes de aba com acento: usar `'Análise'!` não `Análise!`

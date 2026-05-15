@@ -2196,13 +2196,13 @@
                         </div>
                     </div>
                     <div class="md:col-span-2 flex items-start gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200 mb-2">
-                        <input type="checkbox" id="req-electronic-signature" class="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 shrink-0" checked>
+                        <input type="checkbox" id="req-electronic-signature" class="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 shrink-0">
                         <div class="min-w-0">
-                            <label for="req-electronic-signature" class="text-sm font-semibold text-slate-800 cursor-pointer">Usar assinatura eletrônica (tablet)</label>
-                            <p class="text-xs text-slate-500 mt-1 leading-relaxed">Marcado: assinar na tela antes de salvar. Desmarcado: o PDF sai com linhas em branco para assinar no papel.</p>
+                            <label for="req-electronic-signature" class="text-sm font-semibold text-slate-800 cursor-pointer">Usar assinatura eletrônica</label>
+                            <p class="text-xs text-slate-500 mt-1 leading-relaxed">Marque esta opção para assinar na tela (tablet ou celular) antes de salvar. Se não marcar, o PDF sai com espaço em branco para assinar no papel.</p>
                         </div>
                     </div>
-                    <div id="req-signature-section" class="mt-4 space-y-4">
+                    <div id="req-signature-section" class="mt-4 space-y-4 hidden">
                         <p class="text-sm text-slate-600">Desenhe abaixo com dedo ou caneta — obrigatório quando a assinatura eletrônica está ativada.</p>
                         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             <div class="border border-slate-200 rounded-lg p-3 bg-white">
@@ -2353,17 +2353,19 @@
                 addReqItem();
             }
 
+            const initReqSignaturePads = () => {
+                requestAnimationFrame(() => {
+                    setupSignaturePad(document.getElementById('req-signature-requester-canvas'), document.getElementById('req-signature-requester-clear'));
+                    setupSignaturePad(document.getElementById('req-signature-storekeeper-canvas'), document.getElementById('req-signature-storekeeper-clear'));
+                });
+            };
             const syncReqSignatureSectionVisibility = () => {
-                const on = document.getElementById('req-electronic-signature')?.checked ?? true;
+                const on = document.getElementById('req-electronic-signature')?.checked ?? false;
                 document.getElementById('req-signature-section')?.classList.toggle('hidden', !on);
+                if (on) initReqSignaturePads();
             };
             document.getElementById('req-electronic-signature')?.addEventListener('change', syncReqSignatureSectionVisibility);
             syncReqSignatureSectionVisibility();
-
-            requestAnimationFrame(() => {
-                setupSignaturePad(document.getElementById('req-signature-requester-canvas'), document.getElementById('req-signature-requester-clear'));
-                setupSignaturePad(document.getElementById('req-signature-storekeeper-canvas'), document.getElementById('req-signature-storekeeper-clear'));
-            });
         };
 
         const buildRequisitionPrintPagesHtml = (reqs) => {
@@ -4760,7 +4762,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                     return;
                 }
 
-                const useElectronicSignature = document.getElementById('req-electronic-signature')?.checked ?? true;
+                const useElectronicSignature = document.getElementById('req-electronic-signature')?.checked ?? false;
                 const newReqData = {
                     number: document.getElementById('req-number').value,
                     requester: toUpperText(document.getElementById('req-requester').value),
