@@ -558,7 +558,7 @@
             }
 
             if (readonly && currentViewId && !READONLY_ALLOWED_VIEWS.has(currentViewId)) {
-                switchView('dashboard-view');
+                switchView(userRole === 'visitante' ? 'inventory-view' : 'dashboard-view');
             }
         };
 
@@ -814,6 +814,13 @@
 
             updateUIBasedOnPermissions();
             setupListeners();
+
+            if (userRole === 'visitante') {
+                setTimeout(() => {
+                    switchView('inventory-view');
+                    searchInput?.focus({ preventScroll: true });
+                }, 0);
+            }
             
             // 🔒 Timeout de segurança para garantir carregamento
             setTimeout(() => {
@@ -1630,10 +1637,11 @@
             }
             if (filterText) {
                 processedProducts = processedProducts.filter(p =>
-                    (p.name && p.name.toLowerCase().includes(filterText)) || 
+                    (p.name && p.name.toLowerCase().includes(filterText)) ||
                     (p.code && p.code.toLowerCase().includes(filterText)) ||
                     (p.codeRM && p.codeRM.toLowerCase().includes(filterText)) ||
-                    (p.location && p.location.toLowerCase().includes(filterText))
+                    (p.location && p.location.toLowerCase().includes(filterText)) ||
+                    (p.observation && p.observation.toLowerCase().includes(filterText))
                 );
             }
             if (inventorySortOrder === 'name_asc') processedProducts.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -2729,6 +2737,7 @@
                                 · Local: ${escapeHtml(product.location || '—')}
                                 · <strong>${productHistory.length}</strong> mov.
                             </p>
+                            ${(product.observation || '').toString().trim() ? `<p class="text-xs text-amber-900 mt-2 p-2 rounded-lg bg-amber-50 border border-amber-100"><span class="font-bold">Observação:</span> ${escapeHtml((product.observation || '').toString().trim())}</p>` : ''}
                         </div>
                         <button type="button" class="close-modal-btn p-1.5 text-slate-400 hover:text-slate-700 text-2xl leading-none flex-shrink-0" aria-label="Fechar">&times;</button>
                     </div>
@@ -2747,6 +2756,19 @@
             u.hash = '';
             u.searchParams.set('p', productId);
             return u.toString();
+        };
+
+        /** Texto lido ao escanear o QR da plaquinha (estoque + observação do item) */
+        const buildPlaqueQrInfoText = (p) => {
+            const qty = Number.isFinite(Number(p?.quantity)) ? Number(p.quantity) : 0;
+            const min = Number.isFinite(Number(p?.minQuantity)) ? Number(p.minQuantity) : 0;
+            const lines = [`ATUAL: ${qty}`, `MIN: ${min}`];
+            const obs = (p?.observation || '').toString().trim();
+            if (obs) {
+                const maxObs = 120;
+                lines.push(`OBS: ${obs.length > maxObs ? `${obs.slice(0, maxObs - 1)}…` : obs}`);
+            }
+            return lines.join('\n');
         };
 
         let _plaqueDeepLinkConsumed = false;
@@ -2791,6 +2813,7 @@
             const historyItemsHTML = buildProductHistoryListHtml(productHistory, product);
 
             const isLow = (product.quantity || 0) <= (product.minQuantity || 0);
+            const productObs = (product.observation || '').toString().trim();
             const content = `
                 <div class="modal-inner-scroll-root flex flex-col min-h-0">
                     <div class="shrink-0 flex justify-between items-start gap-2">
@@ -2819,6 +2842,11 @@
                             <p class="text-sm font-bold text-slate-800 break-words">${escapeHtml(product.location || '—')}</p>
                         </div>
                     </div>
+                    ${productObs ? `
+                    <div class="shrink-0 mt-3 p-3 rounded-xl bg-amber-50/90 border border-amber-200">
+                        <p class="text-xs font-bold text-amber-900 mb-1">Observação</p>
+                        <p class="text-sm text-slate-800 break-words whitespace-pre-wrap">${escapeHtml(productObs)}</p>
+                    </div>` : ''}
                     <div class="shrink-0 mt-4 p-3 rounded-xl bg-indigo-50/80 border border-indigo-100">
                         <p class="text-xs font-bold text-indigo-800 mb-2">Acesso ao app (o QR da plaquinha leva a este endereço)</p>
                         <a id="plaque-app-link" href="#" class="text-sm text-indigo-600 font-semibold break-all underline">Abrir ficha do produto no app</a>
@@ -3227,10 +3255,7 @@
                     const pid = chk.getAttribute('data-id') || '';
                     if (!pid) continue;
                     const p = (Array.isArray(products) ? products : []).find(pp => pp?.id === pid) || null;
-
-                    const qty  = Number.isFinite(Number(p?.quantity)) ? Number(p.quantity) : 0;
-                    const min  = Number.isFinite(Number(p?.minQuantity)) ? Number(p.minQuantity) : 0;
-                    const qrText = `ATUAL: ${qty}\nMIN: ${min}`;
+                    const qrText = buildPlaqueQrInfoText(p);
 
                     if (!qrCache[qrText]) {
                         try {
@@ -3268,9 +3293,7 @@
                 const p = (Array.isArray(products) ? products : []).find(pp => pp?.id === pid) || null;
 
                 const resolvedRm   = (p?.codeRM || rm || p?.code || '').toString().trim();
-                const qty          = Number.isFinite(Number(p?.quantity)) ? Number(p.quantity) : 0;
-                const min          = Number.isFinite(Number(p?.minQuantity)) ? Number(p.minQuantity) : 0;
-                const qrText = `ATUAL: ${qty}\nMIN: ${min}`;
+                const qrText = buildPlaqueQrInfoText(p);
 
                 const qrB64  = qrText ? (qrCache[qrText] || null) : null;
 
