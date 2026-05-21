@@ -412,6 +412,17 @@
                             </button>
                         </div>
                     </div>
+                    <div class="flex flex-col md:flex-row gap-3 mb-4">
+                        <div class="relative flex-1">
+                            <input type="text" id="requisitions-search-input" placeholder="Buscar por nº, requisitante, local ou data..." class="w-full p-3 pl-10 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500">
+                            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        </div>
+                        <select id="requisitions-obra-filter" class="p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 bg-white text-slate-700">
+                            <option value="all">Todas as Obras</option>
+                            <option value="TABOCA">Taboca</option>
+                            <option value="ESTRELA">Estrela</option>
+                        </select>
+                    </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left">
                             <thead class="bg-slate-50 text-xs text-slate-600 uppercase tracking-wider font-semibold">
@@ -421,6 +432,7 @@
                                     <th class="p-4">Data</th>
                                     <th class="p-4">Requisitante</th>
                                     <th class="p-4">Local de Aplicação</th>
+                                    <th class="p-4">Obra</th>
                                     <th class="p-4 text-center rounded-r-lg">Ações</th>
                                 </tr>
                             </thead>
@@ -428,6 +440,7 @@
                         </table>
                         <div id="no-requisitions-message" class="text-center text-slate-500 py-16 hidden"></div>
                     </div>
+                    <div id="requisitions-pagination" class="mt-4"></div>
                 </div>
         
                 <div id="exit-log-view" class="view-content hidden">

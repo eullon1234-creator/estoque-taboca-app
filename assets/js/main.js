@@ -64,6 +64,8 @@
         // 🚀 Paginação para Performance
         let currentPage = 1;
         const itemsPerPage = 50; // Mostrar 50 produtos por vez 
+        let reqCurrentPage = 1;
+        const reqItemsPerPage = 30; // Mostrar 30 requisições por vez
         let hasAutoFilledMissingGroups = false;
         let isAutoFillingMissingGroups = false;
         let dashboardTopItemsChart = null;
@@ -120,6 +122,8 @@
         const requisitionsList = document.getElementById('requisitions-list');
         const noRequisitionsMessage = document.getElementById('no-requisitions-message');
         const printSelectedReqsBtn = document.getElementById('print-selected-reqs-btn');
+        const requisitionsSearchInput = document.getElementById('requisitions-search-input');
+        const requisitionsObraFilter = document.getElementById('requisitions-obra-filter');
         const generateExitReportBtn = document.getElementById('generate-exit-report-btn');
         const generateRotationReportBtn = document.getElementById('generate-rotation-report-btn');
         const exportRotationExcelBtn = document.getElementById('export-rotation-excel-btn');
@@ -1759,14 +1763,37 @@
         };
         
         const renderRequisitions = () => {
-            const sortedRequisitions = [...requisitions].sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
-            requisitionsList.innerHTML = '';
-            noRequisitionsMessage.classList.toggle('hidden', sortedRequisitions.length > 0);
-            if(sortedRequisitions.length === 0 && isDataLoaded) {
-                noRequisitionsMessage.innerHTML = `<p class="text-lg">Nenhuma requisição criada ainda.</p>`;
+            const filterText = (requisitionsSearchInput?.value || '').toLowerCase();
+            const obraFilter = requisitionsObraFilter?.value || 'all';
+
+            let filtered = [...requisitions].sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
+
+            if (filterText) {
+                filtered = filtered.filter(req =>
+                    (req.number && req.number.toLowerCase().includes(filterText)) ||
+                    (req.requester && req.requester.toLowerCase().includes(filterText)) ||
+                    (req.applicationLocation && req.applicationLocation.toLowerCase().includes(filterText)) ||
+                    (req.date && new Date(req.date.seconds * 1000).toLocaleDateString('pt-BR').includes(filterText))
+                );
+            }
+            if (obraFilter && obraFilter !== 'all') {
+                filtered = filtered.filter(req => (req.obra || '').toUpperCase() === obraFilter);
             }
 
-            sortedRequisitions.forEach(req => {
+            const totalRequisitions = filtered.length;
+            const totalPages = Math.ceil(totalRequisitions / reqItemsPerPage);
+            if (reqCurrentPage > totalPages) reqCurrentPage = totalPages || 1;
+            const startIndex = (reqCurrentPage - 1) * reqItemsPerPage;
+            const endIndex = startIndex + reqItemsPerPage;
+            const paginatedRequisitions = filtered.slice(startIndex, endIndex);
+
+            requisitionsList.innerHTML = '';
+            noRequisitionsMessage.classList.toggle('hidden', !(filtered.length === 0 && isDataLoaded));
+            if (filtered.length === 0 && isDataLoaded) {
+                noRequisitionsMessage.innerHTML = `<p class="text-lg">Nenhuma requisição encontrada.</p>`;
+            }
+
+            paginatedRequisitions.forEach(req => {
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-slate-50 transition-colors duration-150';
                 tr.innerHTML = `
@@ -1775,6 +1802,7 @@
                     <td class="p-4 text-slate-600">${req.date ? new Date(req.date.seconds * 1000).toLocaleDateString('pt-BR') : '...'}</td>
                     <td class="p-4 text-slate-600">${req.requester}</td>
                     <td class="p-4 text-slate-600">${req.applicationLocation}</td>
+                    <td class="p-4 text-slate-600">${req.obra || '---'}</td>
                     <td class="p-4 text-center">
                         <button data-id="${req.id}" class="view-requisition-btn text-indigo-600 hover:underline font-semibold">Detalhes/PDF</button>
                     </td>
@@ -1788,6 +1816,57 @@
                 selectAll.indeterminate = false;
             }
             updateSelectedRequisitionsUI();
+            renderRequisitionsPagination(totalRequisitions, totalPages);
+        };
+
+        const renderRequisitionsPagination = (total, totalPages) => {
+            const container = document.getElementById('requisitions-pagination');
+            if (!container) return;
+
+            if (totalPages <= 1) {
+                container.innerHTML = `<p class="text-sm text-slate-500">Total de ${total} requisições</p>`;
+                return;
+            }
+
+            const startItem = (reqCurrentPage - 1) * reqItemsPerPage + 1;
+            const endItem = Math.min(reqCurrentPage * reqItemsPerPage, total);
+
+            container.innerHTML = `
+                <div class="flex items-center justify-between gap-4">
+                    <p class="text-sm text-slate-600">
+                        Mostrando <span class="font-semibold">${startItem}-${endItem}</span> de <span class="font-semibold">${total}</span> requisições
+                    </p>
+                    <div class="flex gap-2">
+                        <button id="req-prev-page" ${reqCurrentPage === 1 ? 'disabled' : ''} 
+                            class="px-3 py-1 text-sm font-medium rounded-lg transition ${reqCurrentPage === 1 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'}">
+                            ← Anterior
+                        </button>
+                        <span class="px-3 py-1 text-sm font-semibold text-slate-700">
+                            Página ${reqCurrentPage} de ${totalPages}
+                        </span>
+                        <button id="req-next-page" ${reqCurrentPage === totalPages ? 'disabled' : ''} 
+                            class="px-3 py-1 text-sm font-medium rounded-lg transition ${reqCurrentPage === totalPages ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'}">
+                            Próxima →
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('req-prev-page')?.addEventListener('click', () => {
+                if (reqCurrentPage > 1) {
+                    reqCurrentPage--;
+                    renderRequisitions();
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            });
+
+            document.getElementById('req-next-page')?.addEventListener('click', () => {
+                if (reqCurrentPage < totalPages) {
+                    reqCurrentPage++;
+                    renderRequisitions();
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            });
         };
 
         const getSelectedRequisitionIds = () =>
@@ -3974,6 +4053,10 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             }
             if (viewId === 'exit-log-view') renderExitLog(exitsSearchInput.value);
             if (viewId === 'activity-log-view') renderActivityLog(activityLogSearchInput?.value || '');
+            if (viewId === 'requisitions-view') {
+                reqCurrentPage = 1;
+                renderRequisitions();
+            }
             if (viewId === 'rm-view') renderRMView(rmSearchInput.value); 
             if (viewId === 'dashboard-view') updateDashboard();
             if (viewId === 'tool-loans-view') {
@@ -6421,6 +6504,14 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         activityLogSearchInput?.addEventListener('input', (e) => renderActivityLog(e.target.value));
         rmSearchInput.addEventListener('input', (e) => renderRMView(e.target.value));
         toolLoanSearchInput?.addEventListener('input', populateToolLoanProducts);
+        requisitionsSearchInput?.addEventListener('input', () => {
+            reqCurrentPage = 1;
+            renderRequisitions();
+        });
+        requisitionsObraFilter?.addEventListener('change', () => {
+            reqCurrentPage = 1;
+            renderRequisitions();
+        });
         
         backupBtn.addEventListener('click', async () => {
              try {
