@@ -13,6 +13,7 @@
         };
 
         const appId = 'ferramentaria-estoque'; // ID único para organizar os dados no Firestore
+        const IMGBB_API_KEY = '849ff64039fc5da756442889c526728a';
         /** PIN só para evitar exclusão acidental no estoque (não é segurança forte). */
         const STOCK_DELETE_PIN = '0000';
         const app = initializeApp(firebaseConfig);
@@ -82,6 +83,10 @@
             low: []
         };
         
+        // 📋 Solicitação de Compra State
+        let purchaseRequests = [];
+        let purchaseRequestsRef;
+
         // ⭐ UHE Estrela State
         let estrelaProducts = [];
         let estrelaEntries = [];
@@ -464,7 +469,8 @@
             'inventory-view',
             'exit-log-view',
             'activity-log-view',
-            'reports-view'
+            'reports-view',
+            'purchase-requests-view'
         ]);
 
         const isReadOnlyRole = () => userRole === 'visitante' || userRole === 'visualizador';
@@ -757,6 +763,7 @@
             requisitionsCollectionRef = collection(db, `${obraBase}/requisitions`);
             toolLoansCollectionRef = collection(db, `${obraBase}/tool_loans`);
             locationsCollectionRef = collection(db, `${obraBase}/locations`);
+            purchaseRequestsRef = collection(db, `${obraBase}/purchase_requests`);
             settingsDocRef = doc(db, `${obraBase}/app_settings/main`);
             usersCollectionRef = collection(db, `/artifacts/${appId}/public/data/users`);
 
@@ -975,8 +982,13 @@
                     showLoader(false);
                     showProductsSkeleton(false);
                 }
-                handleFirestoreError(error, 'locais');
-            }));
+                    handleFirestoreError(error, 'locais');
+                }));
+
+            coreUnsubscribers.push(onSnapshot(purchaseRequestsRef, (snapshot) => {
+                purchaseRequests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                if (isDataLoaded && currentViewId === 'purchase-requests-view') renderPurchaseRequests();
+            }, (error) => handleFirestoreError(error, 'solicitações de compra')));
         }
 
         function startEstrelaListeners() {
@@ -1481,22 +1493,255 @@
             if (!safe) return;
             const root = document.getElementById('product-image-lightbox');
             const img = document.getElementById('product-image-lightbox-img');
-            if (!root || !img) return;
+            const container = document.getElementById('lbox-img-container');
+            if (!root || !img || !container) return;
+
+            // Reset zoom/pan state
+            lboxScale = 1;
+            lboxPanX = 0;
+            lboxPanY = 0;
+
             img.referrerPolicy = 'no-referrer';
+            img.onload = () => {
+                // Position image centered at natural size
+                layoutLightboxImage();
+            };
             img.src = safe;
             root.classList.remove('hidden');
             root.setAttribute('aria-hidden', 'false');
             document.body.style.overflow = 'hidden';
+
+            // Hide hint after a few seconds
+            const hint = document.getElementById('lbox-pinch-hint');
+            if (hint) {
+                hint.style.opacity = '1';
+                setTimeout(() => { hint.style.opacity = '0'; }, 4000);
+            }
         };
+        window.openProductImageLightbox = openProductImageLightbox;
+
+        // Lightbox zoom/pan state
+        let lboxScale = 1;
+        let lboxPanX = 0;
+        let lboxPanY = 0;
+        const LBOX_MIN_SCALE = 0.25;
+        const LBOX_MAX_SCALE = 10;
+        const LBOX_ZOOM_STEP = 0.25;
+
+        function layoutLightboxImage() {
+            const img = document.getElementById('product-image-lightbox-img');
+            const container = document.getElementById('lbox-img-container');
+            if (!img || !container || !img.naturalWidth) return;
+
+            const cw = container.clientWidth;
+            const ch = container.clientHeight;
+            const iw = img.naturalWidth;
+            const ih = img.naturalHeight;
+
+            // Fit image inside container at scale=1
+            const fitScale = Math.min(cw / iw, ch / ih, 1);
+            const displayW = iw * fitScale;
+            const displayH = ih * fitScale;
+
+            img.style.width = displayW + 'px';
+            img.style.height = displayH + 'px';
+            img.style.left = ((cw - displayW) / 2) + 'px';
+            img.style.top = ((ch - displayH) / 2) + 'px';
+
+            // Store base dimensions so zoom applies from this state
+            img.dataset.baseW = displayW;
+            img.dataset.baseH = displayH;
+            img.dataset.baseLeft = (cw - displayW) / 2;
+            img.dataset.baseTop = (ch - displayH) / 2;
+
+            lboxScale = 1;
+            lboxPanX = 0;
+            lboxPanY = 0;
+            applyLightboxTransform();
+        }
+
+        function applyLightboxTransform() {
+            const img = document.getElementById('product-image-lightbox-img');
+            const zoomLabel = document.getElementById('lbox-zoom-level');
+            if (!img) return;
+
+            const bw = parseFloat(img.dataset.baseW) || img.clientWidth || 100;
+            const bh = parseFloat(img.dataset.baseH) || img.clientHeight || 100;
+            const bl = parseFloat(img.dataset.baseLeft) || 0;
+            const bt = parseFloat(img.dataset.baseTop) || 0;
+
+            const w = bw * lboxScale;
+            const h = bh * lboxScale;
+            img.style.width = w + 'px';
+            img.style.height = h + 'px';
+            img.style.left = (bl + lboxPanX) + 'px';
+            img.style.top = (bt + lboxPanY) + 'px';
+
+            if (zoomLabel) zoomLabel.textContent = Math.round(lboxScale * 100) + '%';
+        }
+
+        function zoomLightboxAtPoint(newScale, cx, cy) {
+            const container = document.getElementById('lbox-img-container');
+            const img = document.getElementById('product-image-lightbox-img');
+            if (!container || !img) return;
+
+            const oldScale = lboxScale;
+            lboxScale = Math.min(LBOX_MAX_SCALE, Math.max(LBOX_MIN_SCALE, newScale));
+
+            // Zoom towards cursor point
+            const rect = container.getBoundingClientRect();
+            const mx = cx - rect.left;
+            const my = cy - rect.top;
+
+            const bw = parseFloat(img.dataset.baseW) || 100;
+            const bl = parseFloat(img.dataset.baseLeft) || 0;
+
+            const oldW = bw * oldScale;
+            const newW = bw * lboxScale;
+            const ratio = newW / oldW;
+
+            lboxPanX = mx - (mx - lboxPanX) * ratio;
+            lboxPanY = my - (my - lboxPanY) * ratio;
+
+            applyLightboxTransform();
+        }
+
+        function resetLightboxZoom() {
+            lboxScale = 1;
+            lboxPanX = 0;
+            lboxPanY = 0;
+            applyLightboxTransform();
+        }
 
         const closeProductImageLightbox = () => {
             const root = document.getElementById('product-image-lightbox');
             const img = document.getElementById('product-image-lightbox-img');
-            if (img) img.removeAttribute('src');
+            if (img) {
+                img.removeAttribute('src');
+                img.style.width = '';
+                img.style.height = '';
+                img.style.left = '';
+                img.style.top = '';
+            }
             root?.classList.add('hidden');
             root?.setAttribute('aria-hidden', 'true');
             document.body.style.overflow = '';
         };
+
+        // ── Lightbox event wiring (once) ──
+        (function wireLightboxEvents() {
+            const root = document.getElementById('product-image-lightbox');
+            if (!root || root.dataset.lboxWired) return;
+            root.dataset.lboxWired = '1';
+
+            const container = document.getElementById('lbox-img-container');
+            const img = document.getElementById('product-image-lightbox-img');
+            const closeBtn = document.getElementById('product-image-lightbox-close');
+            const backdrop = document.getElementById('product-image-lightbox-backdrop');
+            const zoomInBtn = document.getElementById('lbox-zoom-in');
+            const zoomOutBtn = document.getElementById('lbox-zoom-out');
+            const resetBtn = document.getElementById('lbox-zoom-reset');
+
+            // Close
+            const close = () => closeProductImageLightbox();
+            closeBtn?.addEventListener('click', close);
+            backdrop?.addEventListener('click', close);
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && !root.classList.contains('hidden')) close();
+            });
+
+            // Zoom buttons
+            zoomInBtn?.addEventListener('click', () => {
+                if (!container) return;
+                const rect = container.getBoundingClientRect();
+                zoomLightboxAtPoint(lboxScale + LBOX_ZOOM_STEP, rect.left + rect.width / 2, rect.top + rect.height / 2);
+            });
+            zoomOutBtn?.addEventListener('click', () => {
+                if (!container) return;
+                const rect = container.getBoundingClientRect();
+                zoomLightboxAtPoint(lboxScale - LBOX_ZOOM_STEP, rect.left + rect.width / 2, rect.top + rect.height / 2);
+            });
+            resetBtn?.addEventListener('click', resetLightboxZoom);
+
+            // Mouse wheel zoom
+            container?.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -LBOX_ZOOM_STEP : LBOX_ZOOM_STEP;
+                zoomLightboxAtPoint(lboxScale + delta, e.clientX, e.clientY);
+            }, { passive: false });
+
+            // Pan via mouse drag
+            let isDragging = false;
+            let dragStartX = 0, dragStartY = 0;
+            let panStartX = 0, panStartY = 0;
+
+            container?.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                isDragging = true;
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                panStartX = lboxPanX;
+                panStartY = lboxPanY;
+                container.style.cursor = 'grabbing';
+            });
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                lboxPanX = panStartX + (e.clientX - dragStartX);
+                lboxPanY = panStartY + (e.clientY - dragStartY);
+                applyLightboxTransform();
+            });
+            document.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    if (container) container.style.cursor = 'grab';
+                }
+            });
+
+            // Touch pan + pinch zoom
+            let touches = [];
+            let lastPinchDist = 0;
+            let pinchStartScale = 1;
+
+            container?.addEventListener('touchstart', (e) => {
+                touches = Array.from(e.touches);
+                if (touches.length === 1) {
+                    isDragging = true;
+                    dragStartX = touches[0].clientX;
+                    dragStartY = touches[0].clientY;
+                    panStartX = lboxPanX;
+                    panStartY = lboxPanY;
+                } else if (touches.length === 2) {
+                    isDragging = false;
+                    const dx = touches[0].clientX - touches[1].clientX;
+                    const dy = touches[0].clientY - touches[1].clientY;
+                    lastPinchDist = Math.sqrt(dx * dx + dy * dy);
+                    pinchStartScale = lboxScale;
+                }
+                e.preventDefault();
+            }, { passive: false });
+
+            container?.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                const newTouches = Array.from(e.touches);
+                if (newTouches.length === 1 && isDragging) {
+                    lboxPanX = panStartX + (newTouches[0].clientX - dragStartX);
+                    lboxPanY = panStartY + (newTouches[0].clientY - dragStartY);
+                    applyLightboxTransform();
+                } else if (newTouches.length === 2) {
+                    const dx = newTouches[0].clientX - newTouches[1].clientX;
+                    const dy = newTouches[0].clientY - newTouches[1].clientY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    const scale = pinchStartScale * (dist / lastPinchDist);
+                    const midX = (newTouches[0].clientX + newTouches[1].clientX) / 2;
+                    const midY = (newTouches[0].clientY + newTouches[1].clientY) / 2;
+                    zoomLightboxAtPoint(scale || pinchStartScale, midX, midY);
+                }
+            }, { passive: false });
+
+            container?.addEventListener('touchend', () => {
+                isDragging = false;
+            });
+        })();
         const toUpperOrNull = (value = '') => {
             const normalized = toUpperText(value);
             return normalized || null;
@@ -4069,6 +4314,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 renderComprasView(sel ? parseInt(sel.value) : 15);
             }
             if (viewId === 'estrela-view') renderEstrelaView();
+            if (viewId === 'purchase-requests-view') renderPurchaseRequests();
 
             syncRealtimeListeners();
         };
@@ -7693,3 +7939,236 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 showToast(`Erro ao gerar planilha: ${err.message}`, true);
             }
         };
+
+        // ═══════════════════════════════════════════════════════════════════
+        // 📋 SOLICITAÇÃO DE COMPRA
+        // ═══════════════════════════════════════════════════════════════════
+
+        let prFilter = 'all';
+
+        const openPRModal = () => {
+            document.getElementById('pr-modal-backdrop').classList.remove('hidden');
+            document.getElementById('pr-modal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        };
+
+        const closePRModal = () => {
+            document.getElementById('pr-modal-backdrop').classList.add('hidden');
+            document.getElementById('pr-modal').classList.add('hidden');
+            document.body.style.overflow = '';
+            document.getElementById('pr-form').reset();
+            document.getElementById('pr-image-preview-wrap').classList.add('hidden');
+            document.getElementById('pr-image-preview').removeAttribute('src');
+        };
+
+        const uploadToImgBB = async (file) => {
+            const formData = new FormData();
+            formData.append('image', file);
+            try {
+                const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    return data.data.url;
+                } else {
+                    throw new Error(data.error?.message || 'Erro no upload');
+                }
+            } catch (err) {
+                console.error('imgBB upload error:', err);
+                showToast('Erro ao enviar imagem: ' + err.message, true);
+                return null;
+            }
+        };
+
+        const addPurchaseRequest = async (imageUrl, descricao) => {
+            if (!hasPermission('create')) {
+                showToast('Sem permissão para criar pedidos de compra.', true);
+                return;
+            }
+            try {
+                await addDoc(purchaseRequestsRef, {
+                    imageUrl,
+                    descricao: toUpperText(descricao),
+                    status: 'pendente',
+                    createdAt: serverTimestamp(),
+                    createdBy: toUpperText(currentUser?.displayName || 'Anônimo')
+                });
+                showToast('✅ Pedido de compra adicionado com sucesso!');
+            } catch (err) {
+                console.error('Erro ao adicionar pedido:', err);
+                showToast('Erro ao salvar pedido.', true);
+            }
+        };
+
+        const markAsReceived = async (id) => {
+            if (!hasPermission('update')) {
+                showToast('Sem permissão para alterar status.', true);
+                return;
+            }
+            try {
+                await updateDoc(doc(purchaseRequestsRef, id), {
+                    status: 'recebido',
+                    receivedAt: serverTimestamp(),
+                    receivedBy: toUpperText(currentUser?.displayName || 'Anônimo')
+                });
+                showToast('✅ Pedido marcado como recebido!');
+            } catch (err) {
+                console.error('Erro ao atualizar pedido:', err);
+                showToast('Erro ao atualizar status.', true);
+            }
+        };
+
+        const deletePurchaseRequest = async (id) => {
+            if (!hasPermission('delete')) {
+                showToast('Sem permissão para excluir pedidos.', true);
+                return;
+            }
+            showConfirmationModal('Excluir Pedido', 'Tem certeza que deseja excluir este pedido de compra?', async () => {
+                try {
+                    await deleteDoc(doc(purchaseRequestsRef, id));
+                    showToast('✅ Pedido excluído com sucesso!');
+                } catch (err) {
+                    console.error('Erro ao excluir pedido:', err);
+                    showToast('Erro ao excluir pedido.', true);
+                }
+            });
+        };
+
+        const renderPurchaseRequests = () => {
+            const container = document.getElementById('purchase-requests-list');
+            const emptyMsg = document.getElementById('no-purchase-requests');
+            if (!container) return;
+
+            const filtered = prFilter === 'all'
+                ? purchaseRequests
+                : purchaseRequests.filter(p => p.status === prFilter);
+
+            // Ordenar do mais recente para o mais antigo
+            filtered.sort((a, b) => {
+                const aTime = a.createdAt?.seconds || 0;
+                const bTime = b.createdAt?.seconds || 0;
+                return bTime - aTime;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = '';
+                emptyMsg?.classList.remove('hidden');
+                return;
+            }
+            emptyMsg?.classList.add('hidden');
+
+            container.innerHTML = filtered.map(p => {
+                const dateStr = p.createdAt?.seconds
+                    ? new Date(p.createdAt.seconds * 1000).toLocaleDateString('pt-BR')
+                    : '—';
+                const isReceived = p.status === 'recebido';
+                const statusColor = isReceived ? '#006e2c' : '#e65100';
+                const statusBg = isReceived ? 'rgba(0,110,44,0.1)' : 'rgba(230,81,0,0.1)';
+                const statusLabel = isReceived ? 'Recebido' : 'Pendente';
+
+                return `
+                    <div class="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm flex flex-col">
+                        <div class="relative">
+                            <img src="${escapeHtmlAttr(p.imageUrl)}" alt="${escapeHtmlAttr(p.descricao)}" class="w-full h-48 object-cover cursor-pointer" onclick="openProductImageLightbox('${escapeHtmlAttr(p.imageUrl)}')" loading="lazy">
+                            <span class="absolute top-2 right-2 text-xs font-bold px-2 py-1 rounded-full" style="background:${statusBg}; color:${statusColor};">${statusLabel}</span>
+                        </div>
+                        <div class="p-4 flex-1 flex flex-col">
+                            <p class="text-sm font-semibold text-slate-800 mb-1 flex-1">${escapeHtml(p.descricao)}</p>
+                            <p class="text-xs text-slate-500 mb-3">📅 ${dateStr}${p.createdBy ? ` · 👤 ${escapeHtml(p.createdBy)}` : ''}</p>
+                            <div class="flex gap-2 mt-auto">
+                                ${!isReceived ? `
+                                    <button onclick="markAsReceived('${p.id}')" class="flex-1 px-3 py-2 rounded-lg text-xs font-bold text-white transition hover:opacity-90" style="background:#006e2c;">
+                                        Recebido
+                                    </button>
+                                ` : ''}
+                                <button onclick="deletePurchaseRequest('${p.id}')" class="${isReceived ? 'flex-1' : ''} px-3 py-2 rounded-lg text-xs font-bold text-white transition hover:opacity-90" style="background:#ba1a1a;">
+                                    Excluir
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        window.markAsReceived = markAsReceived;
+        window.deletePurchaseRequest = deletePurchaseRequest;
+
+        // Event listeners da Solicitação de Compra
+        const setupPurchaseRequestListeners = () => {
+            const addBtn = document.getElementById('add-purchase-request-btn');
+            const modalClose = document.getElementById('pr-modal-close');
+            const backdrop = document.getElementById('pr-modal-backdrop');
+            const form = document.getElementById('pr-form');
+            const imageInput = document.getElementById('pr-image-input');
+            const imagePreviewWrap = document.getElementById('pr-image-preview-wrap');
+            const imagePreview = document.getElementById('pr-image-preview');
+
+            if (addBtn) addBtn.addEventListener('click', openPRModal);
+            if (modalClose) modalClose.addEventListener('click', closePRModal);
+            if (backdrop) backdrop.addEventListener('click', closePRModal);
+
+            // Preview da imagem
+            if (imageInput) {
+                imageInput.addEventListener('change', () => {
+                    const file = imageInput.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            imagePreview.src = e.target.result;
+                            imagePreviewWrap.classList.remove('hidden');
+                        };
+                        reader.readAsDataURL(file);
+                    } else {
+                        imagePreviewWrap.classList.add('hidden');
+                        imagePreview.removeAttribute('src');
+                    }
+                });
+            }
+
+            // Submit do formulário
+            if (form) {
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const btn = document.getElementById('pr-submit-btn');
+                    const file = imageInput?.files[0];
+                    const descricao = document.getElementById('pr-description')?.value.trim();
+
+                    if (!file || !descricao) {
+                        showToast('Preencha todos os campos obrigatórios.', true);
+                        return;
+                    }
+
+                    btn.disabled = true;
+                    btn.textContent = 'Enviando...';
+
+                    const imageUrl = await uploadToImgBB(file);
+                    if (imageUrl) {
+                        await addPurchaseRequest(imageUrl, descricao);
+                        closePRModal();
+                    }
+
+                    btn.disabled = false;
+                    btn.textContent = 'Adicionar Pedido';
+                });
+            }
+
+            // Filtros
+            document.querySelectorAll('.pr-filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.pr-filter-btn').forEach(b => {
+                        b.style.background = 'transparent';
+                        b.style.color = '#414754';
+                    });
+                    btn.style.background = '#005bbf';
+                    btn.style.color = '#fff';
+                    prFilter = btn.dataset.prFilter;
+                    renderPurchaseRequests();
+                });
+            });
+        };
+
+        // Inicializar listeners (chamado com um pequeno delay para garantir que o DOM está pronto)
+        setTimeout(setupPurchaseRequestListeners, 500);

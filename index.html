@@ -192,6 +192,13 @@
                         <span>Relatórios</span>
                     </button>
 
+                    <!-- SEÇÃO: COMPRAS -->
+                    <p class="nav-section-label">Compras</p>
+                    <button data-view="purchase-requests-view" type="button" class="tab-btn">
+                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">receipt_long</span></span>
+                        <span>Solicitação de Compra</span>
+                    </button>
+
                     <!-- Rodapé da sidebar -->
                     <div class="mt-3 pt-3" style="border-top: 1px solid #e5e7eb;">
                         <div id="sidebar-user-info" class="flex items-center gap-2.5 px-3 py-2 rounded-xl">
@@ -1208,6 +1215,71 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- ═══════════════════════════════════════════════════════ -->
+                <!-- SOLICITAÇÂO DE COMPRA VIEW                             -->
+                <!-- ═══════════════════════════════════════════════════════ -->
+                <div id="purchase-requests-view" class="view-content hidden">
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                        <div>
+                            <h2 class="text-2xl font-semibold text-slate-800">Solicitação de Compra</h2>
+                            <p class="text-sm text-slate-500 mt-0.5">Acompanhe seus pedidos de compra pendentes e recebidos</p>
+                        </div>
+                    </div>
+
+                    <!-- Abas de filtro -->
+                    <div class="flex gap-1 p-1 rounded-xl mb-6" style="background:#f3f4f5;">
+                        <button data-pr-filter="all" class="pr-filter-btn active flex-1 py-2.5 px-4 rounded-lg text-sm font-bold transition-all" style="background:#005bbf; color:#fff;">
+                            Todos
+                        </button>
+                        <button data-pr-filter="pendente" class="pr-filter-btn flex-1 py-2.5 px-4 rounded-lg text-sm font-bold transition-all" style="background:transparent; color:#414754;">
+                            Pendentes
+                        </button>
+                        <button data-pr-filter="recebido" class="pr-filter-btn flex-1 py-2.5 px-4 rounded-lg text-sm font-bold transition-all" style="background:transparent; color:#414754;">
+                            Recebidos
+                        </button>
+                    </div>
+
+                    <!-- Botão adicionar -->
+                    <button id="add-purchase-request-btn" class="flex items-center gap-2 px-5 py-3 rounded-lg font-semibold text-sm text-white shadow-sm transition hover:opacity-90 mb-6" style="background:#005bbf;">
+                        <span class="material-symbols-outlined" style="font-size:20px;">add_circle</span>
+                        Novo Pedido de Compra
+                    </button>
+
+                    <!-- Grid de cards -->
+                    <div id="purchase-requests-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                    <div id="no-purchase-requests" class="text-center py-16 text-slate-500 hidden">
+                        <span class="material-symbols-outlined" style="font-size:48px; color:#c1c6d6;">receipt_long</span>
+                        <p class="mt-2 font-medium">Nenhum pedido de compra encontrado</p>
+                    </div>
+
+                    <!-- Modal para adicionar pedido -->
+                    <div id="pr-modal-backdrop" class="hidden fixed inset-0" style="z-index:59;background:rgba(15,23,42,0.45);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);"></div>
+                    <div id="pr-modal" class="hidden fixed" style="z-index:60;top:50%;left:50%;transform:translate(-50%,-50%);width:90%;max-width:480px;max-height:90vh;overflow-y-auto;background:rgba(255,255,255,0.98);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(0,0,0,0.08);border-radius:16px;box-shadow:0 24px 64px rgba(0,0,0,0.18);padding:24px;">
+                        <div class="flex items-start justify-between gap-2 mb-4">
+                            <h3 class="text-lg font-bold text-slate-800">Novo Pedido de Compra</h3>
+                            <button type="button" id="pr-modal-close" class="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 shrink-0">
+                                <span class="material-symbols-outlined" style="font-size:22px;">close</span>
+                            </button>
+                        </div>
+                        <form id="pr-form" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Foto do Pedido / Print</label>
+                                <input type="file" id="pr-image-input" accept="image/*" class="w-full p-2 border border-slate-200 rounded-lg text-sm file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" required>
+                                <div id="pr-image-preview-wrap" class="mt-2 hidden">
+                                    <img id="pr-image-preview" alt="Preview" class="max-h-40 rounded-lg border border-slate-200 object-contain bg-slate-50 mx-auto">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Descrição do Pedido</label>
+                                <textarea id="pr-description" rows="3" class="w-full p-3 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500" placeholder="Ex: Pedido de parafusos e porcas para manutenção..." required></textarea>
+                            </div>
+                            <button type="submit" id="pr-submit-btn" class="w-full py-3 rounded-lg font-semibold text-sm text-white shadow-sm transition hover:opacity-90" style="background:#005bbf;">
+                                Adicionar Pedido
+                            </button>
+                        </form>
+                    </div>
+                </div>
             </main>
         </div>
     </div>
@@ -1282,6 +1354,10 @@
                 <span class="material-symbols-outlined" style="font-size:26px; color:#e65100;">shopping_cart</span>
                 <span class="text-xs font-semibold" style="color:#414754;">Compras</span>
             </button>
+            <button data-view="purchase-requests-view" class="drawer-btn flex flex-col items-center justify-center gap-1.5 p-4 rounded-2xl" style="background:#fff;">
+                <span class="material-symbols-outlined" style="font-size:26px; color:#e65100;">receipt_long</span>
+                <span class="text-xs font-semibold" style="color:#414754;">Solicitação</span>
+            </button>
             <button data-view="estrela-view" class="drawer-btn flex flex-col items-center justify-center gap-1.5 p-4 rounded-2xl" style="background:#fff; border:2px solid #fbbc05;">
                 <span class="material-symbols-outlined" style="font-size:26px; color:#fbbc05;">star</span>
                 <span class="text-xs font-semibold" style="color:#414754;">UHE Estrela</span>
@@ -1321,15 +1397,32 @@
         </form>
     </div>
 
-    <!-- Lightbox: foto do produto no estoque (ampliar) -->
-    <div id="product-image-lightbox" class="hidden fixed inset-0 p-3 sm:p-6" style="z-index:70;" aria-hidden="true">
+    <!-- Lightbox: foto do produto com zoom, pan, scroll wheel e pinch -->
+    <div id="product-image-lightbox" class="hidden fixed inset-0" style="z-index:70;" aria-hidden="true">
         <button type="button" id="product-image-lightbox-backdrop" class="absolute inset-0 w-full h-full border-0 cursor-default bg-slate-900/80 backdrop-blur-sm" style="-webkit-backdrop-filter:blur(4px);" aria-label="Fechar visualização"></button>
-        <div class="absolute left-1/2 top-1/2 z-10 w-full max-w-4xl max-h-[90vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-2xl border border-slate-200/80 overflow-hidden flex flex-col">
-            <button type="button" id="product-image-lightbox-close" class="absolute top-2 right-2 z-20 flex items-center justify-center w-10 h-10 rounded-full bg-white text-slate-700 shadow-md border border-slate-200 hover:bg-slate-50 transition" title="Fechar" aria-label="Fechar">
-                <span class="material-symbols-outlined" style="font-size:26px;">close</span>
-            </button>
-            <div class="flex items-center justify-center p-4 pt-14 pb-6 min-h-0 overflow-auto">
-                <img id="product-image-lightbox-img" src="" alt="Foto do produto ampliada" class="max-w-full max-h-[min(80vh,720px)] w-auto h-auto object-contain rounded-lg" decoding="async" referrerpolicy="no-referrer">
+        <div class="absolute left-1/2 top-1/2 z-10 w-full max-w-5xl max-h-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-neutral-900 shadow-2xl border border-white/10 overflow-hidden flex flex-col" style="width:min(95vw,1100px);">
+            <!-- Toolbar -->
+            <div class="flex items-center justify-between px-2 sm:px-4 py-1.5 sm:py-2.5 shrink-0" style="background:rgba(0,0,0,0.6);">
+                <div class="flex items-center gap-1 sm:gap-2">
+                    <button type="button" id="lbox-zoom-out" class="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition active:bg-white/20" title="Reduzir zoom">
+                        <span class="material-symbols-outlined" style="font-size:22px;">zoom_out</span>
+                    </button>
+                    <span id="lbox-zoom-level" class="text-xs font-mono text-white/60 min-w-[42px] sm:min-w-[48px] text-center select-none">100%</span>
+                    <button type="button" id="lbox-zoom-in" class="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition active:bg-white/20" title="Aumentar zoom">
+                        <span class="material-symbols-outlined" style="font-size:22px;">zoom_in</span>
+                    </button>
+                    <button type="button" id="lbox-zoom-reset" class="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition active:bg-white/20" title="Resetar zoom">
+                        <span class="material-symbols-outlined" style="font-size:20px;">fit_screen</span>
+                    </button>
+                </div>
+                <button type="button" id="product-image-lightbox-close" class="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition active:bg-white/20" title="Fechar" aria-label="Fechar">
+                    <span class="material-symbols-outlined" style="font-size:24px;">close</span>
+                </button>
+            </div>
+            <!-- Área da imagem com zoom e pan -->
+            <div id="lbox-img-container" class="relative flex-1 min-h-0 overflow-hidden cursor-grab active:cursor-grabbing" style="background:#0a0a0a;">
+                <img id="product-image-lightbox-img" src="" alt="Foto ampliada" class="absolute select-none" style="transform-origin:0 0;image-rendering:auto;" decoding="async" referrerpolicy="no-referrer" draggable="false">
+                <div id="lbox-pinch-hint" class="absolute bottom-3 left-1/2 -translate-x-1/2 text-xs text-white/40 pointer-events-none transition-opacity duration-700 text-center px-2 leading-relaxed">Role ou belisque para zoom · Arraste para mover</div>
             </div>
         </div>
     </div>
