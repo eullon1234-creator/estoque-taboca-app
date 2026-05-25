@@ -1502,16 +1502,24 @@
             lboxPanY = 0;
 
             img.referrerPolicy = 'no-referrer';
-            img.onload = () => {
-                // Position image centered at natural size
+
+            // Must set onload BEFORE src to handle cached images
+            const onLoadHandler = () => {
                 layoutLightboxImage();
             };
+            img.onload = onLoadHandler;
             img.src = safe;
+
+            // If image is already cached, onload won't fire
+            if (img.complete && img.naturalWidth) {
+                layoutLightboxImage();
+            }
+
             root.classList.remove('hidden');
             root.setAttribute('aria-hidden', 'false');
             document.body.style.overflow = 'hidden';
 
-            // Hide hint after a few seconds
+            // Show hint
             const hint = document.getElementById('lbox-pinch-hint');
             if (hint) {
                 hint.style.opacity = '1';
