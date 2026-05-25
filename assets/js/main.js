@@ -8096,79 +8096,78 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         window.markAsReceived = markAsReceived;
         window.deletePurchaseRequest = deletePurchaseRequest;
 
-        // Event listeners da Solicitação de Compra
-        const setupPurchaseRequestListeners = () => {
-            const addBtn = document.getElementById('add-purchase-request-btn');
-            const modalClose = document.getElementById('pr-modal-close');
-            const backdrop = document.getElementById('pr-modal-backdrop');
-            const form = document.getElementById('pr-form');
+        // ── Delegação de eventos para Solicitação de Compra ──
+        document.body.addEventListener('click', (e) => {
+            const addBtn = e.target.closest('#add-purchase-request-btn');
+            if (addBtn) { openPRModal(); return; }
+
+            const closeBtn = e.target.closest('#pr-modal-close');
+            if (closeBtn) { closePRModal(); return; }
+
+            const backdrop = e.target.closest('#pr-modal-backdrop');
+            if (backdrop) { closePRModal(); return; }
+
+            const filterBtn = e.target.closest('.pr-filter-btn');
+            if (filterBtn) {
+                document.querySelectorAll('.pr-filter-btn').forEach(b => {
+                    b.style.background = 'transparent';
+                    b.style.color = '#414754';
+                });
+                filterBtn.style.background = '#005bbf';
+                filterBtn.style.color = '#fff';
+                prFilter = filterBtn.dataset.prFilter;
+                renderPurchaseRequests();
+                return;
+            }
+        });
+
+        // Preview de imagem (change event não sobe)
+        document.body.addEventListener('change', (e) => {
+            const input = e.target.closest('#pr-image-input');
+            if (!input) return;
+            const file = input.files[0];
+            const previewWrap = document.getElementById('pr-image-preview-wrap');
+            const preview = document.getElementById('pr-image-preview');
+            if (!previewWrap || !preview) return;
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    preview.src = ev.target.result;
+                    previewWrap.classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            } else {
+                previewWrap.classList.add('hidden');
+                preview.removeAttribute('src');
+            }
+        });
+
+        // Submit do formulário
+        document.body.addEventListener('submit', async (e) => {
+            const form = e.target.closest('#pr-form');
+            if (!form) return;
+            e.preventDefault();
+
+            const btn = document.getElementById('pr-submit-btn');
             const imageInput = document.getElementById('pr-image-input');
-            const imagePreviewWrap = document.getElementById('pr-image-preview-wrap');
-            const imagePreview = document.getElementById('pr-image-preview');
+            const descricaoInput = document.getElementById('pr-description');
+            const file = imageInput?.files[0];
+            const descricao = descricaoInput?.value.trim();
 
-            if (addBtn) addBtn.addEventListener('click', openPRModal);
-            if (modalClose) modalClose.addEventListener('click', closePRModal);
-            if (backdrop) backdrop.addEventListener('click', closePRModal);
-
-            // Preview da imagem
-            if (imageInput) {
-                imageInput.addEventListener('change', () => {
-                    const file = imageInput.files[0];
-                    if (file) {
-                        const reader = new FileReader();
-                        reader.onload = (e) => {
-                            imagePreview.src = e.target.result;
-                            imagePreviewWrap.classList.remove('hidden');
-                        };
-                        reader.readAsDataURL(file);
-                    } else {
-                        imagePreviewWrap.classList.add('hidden');
-                        imagePreview.removeAttribute('src');
-                    }
-                });
+            if (!file || !descricao) {
+                showToast('Preencha todos os campos obrigatórios.', true);
+                return;
             }
 
-            // Submit do formulário
-            if (form) {
-                form.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    const btn = document.getElementById('pr-submit-btn');
-                    const file = imageInput?.files[0];
-                    const descricao = document.getElementById('pr-description')?.value.trim();
+            btn.disabled = true;
+            btn.textContent = 'Enviando...';
 
-                    if (!file || !descricao) {
-                        showToast('Preencha todos os campos obrigatórios.', true);
-                        return;
-                    }
-
-                    btn.disabled = true;
-                    btn.textContent = 'Enviando...';
-
-                    const imageUrl = await uploadToImgBB(file);
-                    if (imageUrl) {
-                        await addPurchaseRequest(imageUrl, descricao);
-                        closePRModal();
-                    }
-
-                    btn.disabled = false;
-                    btn.textContent = 'Adicionar Pedido';
-                });
+            const imageUrl = await uploadToImgBB(file);
+            if (imageUrl) {
+                await addPurchaseRequest(imageUrl, descricao);
+                closePRModal();
             }
 
-            // Filtros
-            document.querySelectorAll('.pr-filter-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    document.querySelectorAll('.pr-filter-btn').forEach(b => {
-                        b.style.background = 'transparent';
-                        b.style.color = '#414754';
-                    });
-                    btn.style.background = '#005bbf';
-                    btn.style.color = '#fff';
-                    prFilter = btn.dataset.prFilter;
-                    renderPurchaseRequests();
-                });
-            });
-        };
-
-        // Inicializar listeners (chamado com um pequeno delay para garantir que o DOM está pronto)
-        setTimeout(setupPurchaseRequestListeners, 500);
+            btn.disabled = false;
+            btn.textContent = 'Adicionar Pedido';
+        });
