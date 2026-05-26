@@ -10,8 +10,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <link rel="stylesheet" href="assets/css/tailwind.css?v=2.0.4">
-    <link rel="stylesheet" href="assets/css/main.css?v=2.0.4">
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.1.0/dist/fuse.min.js"></script>
+    <link rel="stylesheet" href="assets/css/tailwind.css?v=2.1.0">
+    <link rel="stylesheet" href="assets/css/main.css?v=2.1.0">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0066FF">
     <meta name="mobile-web-app-capable" content="yes">
@@ -211,7 +212,7 @@
                                 <p id="sidebar-user-role" class="text-xs truncate" style="color:#6b7280;">—</p>
                             </div>
                         </div>
-                        <p class="text-center mt-2 mb-1" style="font-size:0.6rem; font-weight:600; color:#9ca3af; letter-spacing:0.08em;">EULLON 2.0.4</p>
+                         <p id="version-footer" class="text-center mt-2 mb-1" style="font-size:0.6rem; font-weight:600; color:#9ca3af; letter-spacing:0.08em;"></p>
                     </div>
                 </nav>
             </aside>
@@ -1373,7 +1374,7 @@
                 Sugerir melhoria no app
             </button>
             <p class="text-center text-sm text-slate-500 m-0">
-                Criado por Eullon — <span style="font-weight:600; color:#9ca3af;">EULLON 2.0.4</span>
+                Criado por Eullon — <span id="version-footer-modal" style="font-weight:600; color:#9ca3af;"></span>
             </p>
         </div>
     </footer>

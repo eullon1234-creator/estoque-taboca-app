@@ -30,6 +30,7 @@
         // Sem Firebase Auth — autenticação gerenciada pelo próprio app
 
         // --- Estado da Aplicação ---
+        const APP_VERSION = '2.1.0';
         let products = [];
         let history = [];
         let requisitions = [];
@@ -824,6 +825,9 @@
             if (logoutBtn) logoutBtn.classList.remove('hidden');
 
             updateUIBasedOnPermissions();
+            document.querySelectorAll('#version-footer, #version-footer-modal').forEach(el => {
+                if (el) el.textContent = `EULLON ${APP_VERSION}`;
+            });
             setupListeners();
 
             if (userRole === 'visitante') {
@@ -923,7 +927,6 @@
                     renderProducts();
                     updateDashboard();
                     renderEntryView();
-                    renderExitView();
                     renderToolLoans();
                 }
             }, (error) => handleFirestoreError(error, 'produtos')));
@@ -1442,6 +1445,30 @@
                 .trim();
         };
 
+        const debounce = (fn, delay) => {
+            let timer;
+            return (...args) => {
+                clearTimeout(timer);
+                timer = setTimeout(() => fn(...args), delay);
+            };
+        };
+
+        const createFuse = (list, keys, { threshold = 0.4, ...rest } = {}) => {
+            return new Fuse(list, {
+                keys,
+                threshold,
+                ignoreLocation: true,
+                findAllMatches: true,
+                ...rest
+            });
+        };
+
+        const fuseSearch = (list, query, keys, options = {}) => {
+            if (!query || !String(query).trim()) return list;
+            const fuse = createFuse(list, keys, options);
+            return fuse.search(String(query).trim()).map(r => r.item);
+        };
+
         const toUpperText = (value = '') => String(value ?? '').trim().toLocaleUpperCase('pt-BR');
 
         /** Só http/https; evita javascript: e lixo no src de <img>. */
@@ -1837,10 +1864,6 @@
             }
         });
 
-        const buildProductSearchText = (p) => {
-            return [p.name, p.codeRM, p.code, p.location, p.group, p.unit].filter(Boolean).join(' ');
-        };
-
         const generateNextProductCode = () => {
             if (products.length === 0) return '1';
             const maxCode = products.reduce((max, p) => {
@@ -1884,7 +1907,6 @@
 
         const renderProducts = () => {
             populateLocationFilter();
-            const filterText = searchInput.value.toLowerCase();
             let processedProducts = [...products]; 
             if (inventoryFilter === 'low_stock') {
                 processedProducts = processedProducts.filter(p => p.quantity <= p.minQuantity);
@@ -1892,15 +1914,13 @@
             if (inventoryLocationFilter && inventoryLocationFilter !== 'all') {
                 processedProducts = processedProducts.filter(p => (p.location || '').trim() === inventoryLocationFilter);
             }
-            if (filterText) {
-                processedProducts = processedProducts.filter(p =>
-                    (p.name && p.name.toLowerCase().includes(filterText)) ||
-                    (p.code && p.code.toLowerCase().includes(filterText)) ||
-                    (p.codeRM && p.codeRM.toLowerCase().includes(filterText)) ||
-                    (p.location && p.location.toLowerCase().includes(filterText)) ||
-                    (p.observation && p.observation.toLowerCase().includes(filterText))
-                );
-            }
+            processedProducts = fuseSearch(processedProducts, searchInput.value, [
+                { name: 'name', weight: 0.5 },
+                { name: 'code', weight: 0.15 },
+                { name: 'codeRM', weight: 0.15 },
+                { name: 'location', weight: 0.1 },
+                { name: 'observation', weight: 0.1 }
+            ]);
             if (inventorySortOrder === 'name_asc') processedProducts.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
             else if (inventorySortOrder === 'code_asc') processedProducts.sort((a, b) => (a.codeRM || '').localeCompare(b.codeRM || ''));
             else if (inventorySortOrder === 'location_asc') processedProducts.sort((a, b) => (a.location || '').localeCompare(b.location || ''));
@@ -2016,19 +2036,16 @@
         };
         
         const renderRequisitions = () => {
-            const filterText = (requisitionsSearchInput?.value || '').toLowerCase();
+            const filterText = requisitionsSearchInput?.value || '';
             const obraFilter = requisitionsObraFilter?.value || 'all';
 
             let filtered = [...requisitions].sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
 
-            if (filterText) {
-                filtered = filtered.filter(req =>
-                    (req.number && req.number.toLowerCase().includes(filterText)) ||
-                    (req.requester && req.requester.toLowerCase().includes(filterText)) ||
-                    (req.applicationLocation && req.applicationLocation.toLowerCase().includes(filterText)) ||
-                    (req.date && new Date(req.date.seconds * 1000).toLocaleDateString('pt-BR').includes(filterText))
-                );
-            }
+            filtered = fuseSearch(filtered, filterText, [
+                { name: 'number', weight: 0.4 },
+                { name: 'requester', weight: 0.3 },
+                { name: 'applicationLocation', weight: 0.3 }
+            ]);
             if (obraFilter && obraFilter !== 'all') {
                 filtered = filtered.filter(req => (req.obra || '').toUpperCase() === obraFilter);
             }
@@ -2163,13 +2180,13 @@
         const populateToolLoanProducts = () => {
             if (!toolLoanProductSelect) return;
             const currentValue = toolLoanProductSelect.value;
-            const searchTerm = normalizeSearchText(toolLoanSearchInput?.value || '');
-            const tokens = searchTerm.split(/\s+/).filter(Boolean);
-            const filteredProducts = products.filter(product => {
-                if (tokens.length === 0) return true;
-                const haystack = normalizeSearchText([product.name, product.codeRM, product.code, product.location, product.group].filter(Boolean).join(' '));
-                return tokens.every(token => haystack.includes(token));
-            });
+            const filteredProducts = fuseSearch(products, toolLoanSearchInput?.value || '', [
+                { name: 'name', weight: 0.4 },
+                { name: 'codeRM', weight: 0.2 },
+                { name: 'code', weight: 0.2 },
+                { name: 'location', weight: 0.1 },
+                { name: 'group', weight: 0.1 }
+            ], { threshold: 0.3 });
             const sortedProducts = filteredProducts.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
             toolLoanProductSelect.innerHTML = `<option value="">${sortedProducts.length ? 'Selecione a ferramenta' : 'Nenhuma ferramenta encontrada'}</option>` + sortedProducts
@@ -2308,14 +2325,16 @@
         };
 
         const renderExitLog = (filter = '') => {
-            const lowerCaseFilter = filter.toLowerCase();
-            const exitHistory = history.filter(h => 
-                (h.type === 'Saída' || h.type === 'Saída por Requisição') && 
-                ((h.productName && h.productName.toLowerCase().includes(lowerCaseFilter)) || 
-                 (h.productCode && h.productCode.toLowerCase().includes(lowerCaseFilter)) ||
-                 (h.withdrawnBy && h.withdrawnBy.toLowerCase().includes(lowerCaseFilter)) ||
-                 (h.applicationLocation && h.applicationLocation.toLowerCase().includes(lowerCaseFilter)))
-            ).sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
+            let exitHistory = history.filter(h => 
+                (h.type === 'Saída' || h.type === 'Saída por Requisição')
+            );
+            exitHistory = fuseSearch(exitHistory, filter, [
+                { name: 'productName', weight: 0.4 },
+                { name: 'productCode', weight: 0.2 },
+                { name: 'withdrawnBy', weight: 0.2 },
+                { name: 'applicationLocation', weight: 0.2 }
+            ]);
+            exitHistory.sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
 
             exitsList.innerHTML = '';
             noExitsMessage.classList.toggle('hidden', !(exitHistory.length === 0 && isDataLoaded));
@@ -2343,11 +2362,6 @@
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;');
 
-        const buildActivityLogHaystack = (h) => [h.type, h.productName, h.productCode, h.productCodeRM, h.withdrawnBy, h.performedBy, h.receivedBy, h.supplier, h.nfNumber, h.applicationLocation, h.teamLeader, h.details, h.obra]
-            .filter((v) => v != null && String(v).trim() !== '')
-            .map((v) => String(v).toLowerCase())
-            .join(' ');
-
         const buildActivityLogDetail = (h) => {
             const parts = [];
             const actor = h.performedBy || h.receivedBy || h.withdrawnBy;
@@ -2374,21 +2388,34 @@
 
         const renderActivityLog = (filter = '') => {
             if (!activityLogList || !noActivityLogMessage) return;
-            const q = (filter || '').toLowerCase().trim();
-            const filtered = [...history].filter((h) => {
-                if (!q) return true;
-                return buildActivityLogHaystack(h).includes(q);
-            }).sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
+            const q = (filter || '').trim();
+            const filtered = [...history];
+            const actLogFiltered = fuseSearch(filtered, q, [
+                { name: 'type', weight: 0.1 },
+                { name: 'productName', weight: 0.2 },
+                { name: 'productCode', weight: 0.1 },
+                { name: 'productCodeRM', weight: 0.1 },
+                { name: 'withdrawnBy', weight: 0.1 },
+                { name: 'performedBy', weight: 0.1 },
+                { name: 'receivedBy', weight: 0.1 },
+                { name: 'supplier', weight: 0.05 },
+                { name: 'nfNumber', weight: 0.05 },
+                { name: 'applicationLocation', weight: 0.05 },
+                { name: 'teamLeader', weight: 0.05 },
+                { name: 'details', weight: 0.05 },
+                { name: 'obra', weight: 0.05 }
+            ], { threshold: 0.5 });
+            actLogFiltered.sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
 
             activityLogList.innerHTML = '';
-            noActivityLogMessage.classList.toggle('hidden', !(filtered.length === 0 && isDataLoaded));
-            if (filtered.length === 0 && isDataLoaded) {
+            noActivityLogMessage.classList.toggle('hidden', !(actLogFiltered.length === 0 && isDataLoaded));
+            if (actLogFiltered.length === 0 && isDataLoaded) {
                 noActivityLogMessage.innerHTML = q
                     ? '<p class="text-lg">Nenhum registro encontrado para esta busca.</p>'
                     : '<p class="text-lg">Nenhuma atividade registrada ainda.</p>';
             }
 
-            filtered.forEach((h) => {
+            actLogFiltered.forEach((h) => {
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-slate-50 transition-colors duration-150';
                 const dateStr = h.date ? new Date(h.date.seconds * 1000).toLocaleString('pt-BR') : '…';
@@ -2407,14 +2434,16 @@
         };
 
         const renderRMView = (filter = '') => {
-            const lowerCaseFilter = filter.toLowerCase();
-            const exitHistory = history.filter(h => 
-                (h.type === 'Saída' || h.type === 'Saída por Requisição') &&
-                ((h.productName && h.productName.toLowerCase().includes(lowerCaseFilter)) || 
-                 (h.productCodeRM && h.productCodeRM.toLowerCase().includes(lowerCaseFilter)) ||
-                 (h.withdrawnBy && h.withdrawnBy.toLowerCase().includes(lowerCaseFilter)) ||
-                 (h.applicationLocation && h.applicationLocation.toLowerCase().includes(lowerCaseFilter)))
-            ).sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
+            let exitHistory = history.filter(h => 
+                (h.type === 'Saída' || h.type === 'Saída por Requisição')
+            );
+            exitHistory = fuseSearch(exitHistory, filter, [
+                { name: 'productName', weight: 0.4 },
+                { name: 'productCodeRM', weight: 0.2 },
+                { name: 'withdrawnBy', weight: 0.2 },
+                { name: 'applicationLocation', weight: 0.2 }
+            ]);
+            exitHistory.sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
 
             rmList.innerHTML = '';
             noRmMessage.classList.toggle('hidden', !(exitHistory.length === 0 && isDataLoaded));
@@ -2577,45 +2606,14 @@
             const reqItemsContainer = document.getElementById('req-items-container');
             const reqItemSearch = document.getElementById('req-item-search');
 
-            const normalizeSearchText = (value = '') => {
-                return String(value)
-                    .normalize('NFD')
-                    .replace(/[\u0300-\u036f]/g, '')
-                    .toLowerCase()
-                    .trim();
-            };
-
-            const buildProductSearchText = (p) => {
-                return [p.name, p.codeRM, p.code, p.location, p.group, p.unit].filter(Boolean).join(' ');
-            };
-
             const getFilteredProducts = (rawSearchTerm = '') => {
-                const normalizedTerm = normalizeSearchText(rawSearchTerm);
-                if (!normalizedTerm) return sortedProducts;
-
-                const tokens = normalizedTerm.split(/\s+/).filter(Boolean);
-
-                return sortedProducts
-                    .map((p) => {
-                        const haystack = normalizeSearchText(buildProductSearchText(p));
-                        if (!tokens.every(token => haystack.includes(token))) return null;
-
-                        const normalizedName = normalizeSearchText(p.name || '');
-                        const normalizedCodeRm = normalizeSearchText(p.codeRM || '');
-                        const normalizedCode = normalizeSearchText(p.code || '');
-
-                        let score = 0;
-                        tokens.forEach(token => {
-                            if (normalizedName.startsWith(token)) score += 8;
-                            else if (normalizedName.includes(token)) score += 5;
-                            if (normalizedCodeRm.startsWith(token) || normalizedCode.startsWith(token)) score += 4;
-                        });
-
-                        return { p, score };
-                    })
-                    .filter(Boolean)
-                    .sort((a, b) => b.score - a.score || (a.p.name || '').localeCompare(b.p.name || ''))
-                    .map(entry => entry.p);
+                return fuseSearch(sortedProducts, rawSearchTerm, [
+                    { name: 'name', weight: 0.5 },
+                    { name: 'codeRM', weight: 0.2 },
+                    { name: 'code', weight: 0.15 },
+                    { name: 'location', weight: 0.1 },
+                    { name: 'group', weight: 0.05 }
+                ], { threshold: 0.3 });
             };
             
             reqItemSearch.addEventListener('input', () => {
@@ -3360,33 +3358,13 @@
 
             const renderProductOptions = (searchTerm = '') => {
                 entryProductsContainer.innerHTML = '';
-                const normalizedTerm = normalizeSearchText(searchTerm);
-                let filteredProducts = sortedProducts;
-
-                if (normalizedTerm) {
-                    const tokens = normalizedTerm.split(/\s+/).filter(Boolean);
-                    filteredProducts = sortedProducts
-                        .map((p) => {
-                            const haystack = normalizeSearchText(buildProductSearchText(p));
-                            if (!tokens.every(token => haystack.includes(token))) return null;
-
-                            const normalizedName = normalizeSearchText(p.name || '');
-                            const normalizedCodeRm = normalizeSearchText(p.codeRM || '');
-                            const normalizedCode = normalizeSearchText(p.code || '');
-
-                            let score = 0;
-                            tokens.forEach(token => {
-                                if (normalizedName.startsWith(token)) score += 8;
-                                else if (normalizedName.includes(token)) score += 5;
-                                if (normalizedCodeRm.startsWith(token) || normalizedCode.startsWith(token)) score += 4;
-                            });
-
-                            return { p, score };
-                        })
-                        .filter(Boolean)
-                        .sort((a, b) => b.score - a.score || (a.p.name || '').localeCompare(b.p.name || ''))
-                        .map(entry => entry.p);
-                }
+                const filteredProducts = fuseSearch(sortedProducts, searchTerm, [
+                    { name: 'name', weight: 0.5 },
+                    { name: 'codeRM', weight: 0.2 },
+                    { name: 'code', weight: 0.15 },
+                    { name: 'location', weight: 0.1 },
+                    { name: 'group', weight: 0.05 }
+                ], { threshold: 0.3 });
 
                 if (filteredProducts.length === 0) {
                     entryProductsContainer.innerHTML = '<div class="p-3 text-slate-500 text-center">Nenhum produto encontrado</div>';
@@ -3416,9 +3394,9 @@
                 renderProductOptions(freshSearch.value);
             });
 
-            freshSearch.addEventListener('input', () => {
+            freshSearch.addEventListener('input', debounce(() => {
                 renderProductOptions(freshSearch.value);
-            });
+            }, 200));
 
             // Fechar container quando clicar fora
             const closeContainer = (e) => {
@@ -4018,7 +3996,7 @@
             }
 
             const activeFilter  = document.querySelector('.compras-filter-btn[style*="background:#191c1d"]')?.dataset.filter || 'all';
-            const searchQuery   = (document.getElementById('compras-search')?.value || '').trim().toLowerCase(); // #6
+            const searchQuery   = (document.getElementById('compras-search')?.value || '').trim(); // #6
             const groupFilter   = document.getElementById('compras-group-filter')?.value || '';                   // #5
 
             // ── Montar itens ─────────────────────────────────────────────────
@@ -4186,12 +4164,11 @@
             let filtered = activeFilter === 'all' ? items : items.filter(i => i.status === activeFilter);
 
             // #6: busca por nome ou código
-            if (searchQuery) {
-                filtered = filtered.filter(i =>
-                    (i.p.name || '').toLowerCase().includes(searchQuery) ||
-                    (i.p.codeRM || i.p.code || '').toLowerCase().includes(searchQuery)
-                );
-            }
+            filtered = fuseSearch(filtered, searchQuery, [
+                { name: 'p.name', weight: 0.6 },
+                { name: 'p.codeRM', weight: 0.2 },
+                { name: 'p.code', weight: 0.2 }
+            ], { threshold: 0.4 });
             // #5: filtro por grupo
             if (groupFilter) {
                 filtered = filtered.filter(i => (i.p.group || 'Sem Grupo') === groupFilter);
@@ -4783,7 +4760,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                     userUid: currentUser?.uid || null,
                     obraId: currentObraId || null,
                     userAgent: (navigator.userAgent || '').slice(0, 400),
-                    appVersion: '2.0.4'
+                    appVersion: APP_VERSION
                 });
                 feedbackForm.reset();
                 setFeedbackPanelOpen(false);
@@ -6750,18 +6727,18 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             }
         });
 
-        searchInput.addEventListener('input', () => {
-            currentPage = 1; // 🚀 Resetar para primeira página ao buscar
+        searchInput.addEventListener('input', debounce(() => {
+            currentPage = 1;
             renderProducts();
-        });
-        exitsSearchInput.addEventListener('input', (e) => renderExitLog(e.target.value));
-        activityLogSearchInput?.addEventListener('input', (e) => renderActivityLog(e.target.value));
-        rmSearchInput.addEventListener('input', (e) => renderRMView(e.target.value));
-        toolLoanSearchInput?.addEventListener('input', populateToolLoanProducts);
-        requisitionsSearchInput?.addEventListener('input', () => {
+        }, 250));
+        exitsSearchInput.addEventListener('input', debounce((e) => renderExitLog(e.target.value), 250));
+        activityLogSearchInput?.addEventListener('input', debounce((e) => renderActivityLog(e.target.value), 250));
+        rmSearchInput.addEventListener('input', debounce((e) => renderRMView(e.target.value), 250));
+        toolLoanSearchInput?.addEventListener('input', debounce(populateToolLoanProducts, 250));
+        requisitionsSearchInput?.addEventListener('input', debounce(() => {
             reqCurrentPage = 1;
             renderRequisitions();
-        });
+        }, 250));
         requisitionsObraFilter?.addEventListener('change', () => {
             reqCurrentPage = 1;
             renderRequisitions();
@@ -6931,15 +6908,15 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         // --- Busca no estoque ---
         const estrelaSearchInput = document.getElementById('estrela-search');
         if (estrelaSearchInput) {
-            estrelaSearchInput.addEventListener('input', () => renderEstrelaEstoque(estrelaSearchInput.value));
+            estrelaSearchInput.addEventListener('input', debounce(() => renderEstrelaEstoque(estrelaSearchInput.value), 250));
         }
         const estrelaEntrySearchInput = document.getElementById('estrela-entry-search');
         if (estrelaEntrySearchInput) {
-            estrelaEntrySearchInput.addEventListener('input', () => renderEstrelaEntradas(estrelaEntrySearchInput.value));
+            estrelaEntrySearchInput.addEventListener('input', debounce(() => renderEstrelaEntradas(estrelaEntrySearchInput.value), 250));
         }
         const estrelaExitSearchInput = document.getElementById('estrela-exit-search');
         if (estrelaExitSearchInput) {
-            estrelaExitSearchInput.addEventListener('input', () => renderEstrelaSaidas(estrelaExitSearchInput.value));
+            estrelaExitSearchInput.addEventListener('input', debounce(() => renderEstrelaSaidas(estrelaExitSearchInput.value), 250));
         }
 
         // --- Populate selects ---
@@ -6974,16 +6951,13 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             if (!tbody) return;
 
             let filtered = [...estrelaProducts];
-            if (search.trim()) {
-                const q = search.toLowerCase();
-                filtered = filtered.filter(p =>
-                    (p.name || '').toLowerCase().includes(q) ||
-                    (p.code || '').toLowerCase().includes(q) ||
-                    (p.codeRM || '').toLowerCase().includes(q) ||
-                    (p.location || '').toLowerCase().includes(q) ||
-                    (p.group || '').toLowerCase().includes(q)
-                );
-            }
+            filtered = fuseSearch(filtered, search, [
+                { name: 'name', weight: 0.5 },
+                { name: 'code', weight: 0.15 },
+                { name: 'codeRM', weight: 0.15 },
+                { name: 'location', weight: 0.1 },
+                { name: 'group', weight: 0.1 }
+            ]);
             filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
             // Summary cards
@@ -7057,15 +7031,12 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 return db2 - da;
             });
 
-            if (search.trim()) {
-                const q = search.toLowerCase();
-                filtered = filtered.filter(e =>
-                    (e.productName || '').toLowerCase().includes(q) ||
-                    (e.nf || '').toLowerCase().includes(q) ||
-                    (e.supplier || '').toLowerCase().includes(q) ||
-                    (e.receivedBy || '').toLowerCase().includes(q)
-                );
-            }
+            filtered = fuseSearch(filtered, search, [
+                { name: 'productName', weight: 0.4 },
+                { name: 'nf', weight: 0.2 },
+                { name: 'supplier', weight: 0.2 },
+                { name: 'receivedBy', weight: 0.2 }
+            ]);
 
             if (filtered.length === 0) {
                 tbody.innerHTML = '';
@@ -7104,16 +7075,13 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 return db2 - da;
             });
 
-            if (search.trim()) {
-                const q = search.toLowerCase();
-                filtered = filtered.filter(e =>
-                    (e.productName || '').toLowerCase().includes(q) ||
-                    (e.who || '').toLowerCase().includes(q) ||
-                    (e.leader || '').toLowerCase().includes(q) ||
-                    (e.applicationLocation || '').toLowerCase().includes(q) ||
-                    (e.os || '').toLowerCase().includes(q)
-                );
-            }
+            filtered = fuseSearch(filtered, search, [
+                { name: 'productName', weight: 0.3 },
+                { name: 'who', weight: 0.2 },
+                { name: 'leader', weight: 0.2 },
+                { name: 'applicationLocation', weight: 0.2 },
+                { name: 'os', weight: 0.1 }
+            ]);
 
             if (filtered.length === 0) {
                 tbody.innerHTML = '';
