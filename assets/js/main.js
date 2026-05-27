@@ -50,6 +50,7 @@
         let inventoryFilter = 'all';
         let inventorySortOrder = 'default';
         let inventoryLocationFilter = 'all';
+        let actLogTypeFilter = 'all';
         let isDataLoaded = false;
         let currentAudio = null;
         let selectedProductIds = new Set();
@@ -111,6 +112,9 @@
         const noExitsMessage = document.getElementById('no-exits-message');
         const activityLogList = document.getElementById('activity-log-list');
         const activityLogSearchInput = document.getElementById('activity-log-search-input');
+        const activityLogNfInput = document.getElementById('activity-log-nf-input');
+        const activityLogSupplierInput = document.getElementById('activity-log-supplier-input');
+        const activityLogReqInput = document.getElementById('activity-log-req-input');
         const noActivityLogMessage = document.getElementById('no-activity-log-message');
         const sortOrderSelect = document.getElementById('sort-order');
         const locationFilterSelect = document.getElementById('location-filter');
@@ -936,7 +940,7 @@
                 if (isDataLoaded) {
                     updateDashboard();
                     renderExitLog(exitsSearchInput.value);
-                    renderActivityLog(activityLogSearchInput?.value || '');
+                    renderActivityLog();
                     renderRMView(rmSearchInput.value);
                     tryOpenPlaqueDeepLink();
                 }
@@ -2386,36 +2390,69 @@
             return `<span class="font-bold text-lg ${cls}">${sym}${q}</span>`;
         };
 
-        const renderActivityLog = (filter = '') => {
+        const renderActivityLog = () => {
             if (!activityLogList || !noActivityLogMessage) return;
-            const q = (filter || '').trim();
-            const filtered = [...history];
-            const actLogFiltered = fuseSearch(filtered, q, [
-                { name: 'type', weight: 0.1 },
-                { name: 'productName', weight: 0.2 },
-                { name: 'productCode', weight: 0.1 },
-                { name: 'productCodeRM', weight: 0.1 },
-                { name: 'withdrawnBy', weight: 0.1 },
-                { name: 'performedBy', weight: 0.1 },
-                { name: 'receivedBy', weight: 0.1 },
-                { name: 'supplier', weight: 0.05 },
-                { name: 'nfNumber', weight: 0.05 },
-                { name: 'applicationLocation', weight: 0.05 },
-                { name: 'teamLeader', weight: 0.05 },
-                { name: 'details', weight: 0.05 },
-                { name: 'obra', weight: 0.05 }
-            ], { threshold: 0.5 });
-            actLogFiltered.sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
+            const searchText = (activityLogSearchInput?.value || '').trim();
+            const nfFilter = (activityLogNfInput?.value || '').trim();
+            const supplierFilter = (activityLogSupplierInput?.value || '').trim();
+            const reqFilter = (activityLogReqInput?.value || '').trim();
+
+            let filtered = [...history];
+
+            if (actLogTypeFilter !== 'all') {
+                const typeMap = {
+                    'entradas': ['Entrada', 'Entrada por NF', 'Ajuste Entrada', 'Criação', 'Importação'],
+                    'saidas': ['Saída', 'Saída por Requisição', 'Ajuste Saída'],
+                    'ajustes': ['Ajuste Entrada', 'Ajuste Saída'],
+                    'edicoes': ['Edição']
+                };
+                const validTypes = typeMap[actLogTypeFilter] || [];
+                filtered = filtered.filter(h => validTypes.includes(h.type));
+            }
+
+            if (nfFilter) {
+                const q = nfFilter.toLowerCase();
+                filtered = filtered.filter(h => h.nfNumber && String(h.nfNumber).toLowerCase().includes(q));
+            }
+            if (supplierFilter) {
+                const q = supplierFilter.toLowerCase();
+                filtered = filtered.filter(h => h.supplier && String(h.supplier).toLowerCase().includes(q));
+            }
+            if (reqFilter) {
+                const q = reqFilter.toLowerCase();
+                filtered = filtered.filter(h => h.details && String(h.details).toLowerCase().includes(q));
+            }
+
+            if (searchText) {
+                filtered = fuseSearch(filtered, searchText, [
+                    { name: 'type', weight: 0.1 },
+                    { name: 'productName', weight: 0.2 },
+                    { name: 'productCode', weight: 0.1 },
+                    { name: 'productCodeRM', weight: 0.1 },
+                    { name: 'withdrawnBy', weight: 0.1 },
+                    { name: 'performedBy', weight: 0.1 },
+                    { name: 'receivedBy', weight: 0.1 },
+                    { name: 'supplier', weight: 0.05 },
+                    { name: 'nfNumber', weight: 0.05 },
+                    { name: 'applicationLocation', weight: 0.05 },
+                    { name: 'teamLeader', weight: 0.05 },
+                    { name: 'details', weight: 0.05 },
+                    { name: 'obra', weight: 0.05 }
+                ], { threshold: 0.5 });
+            }
+
+            filtered.sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
 
             activityLogList.innerHTML = '';
-            noActivityLogMessage.classList.toggle('hidden', !(actLogFiltered.length === 0 && isDataLoaded));
-            if (actLogFiltered.length === 0 && isDataLoaded) {
-                noActivityLogMessage.innerHTML = q
-                    ? '<p class="text-lg">Nenhum registro encontrado para esta busca.</p>'
+            noActivityLogMessage.classList.toggle('hidden', !(filtered.length === 0 && isDataLoaded));
+            if (filtered.length === 0 && isDataLoaded) {
+                const hasAnyFilter = searchText || nfFilter || supplierFilter || reqFilter || actLogTypeFilter !== 'all';
+                noActivityLogMessage.innerHTML = hasAnyFilter
+                    ? '<p class="text-lg">Nenhum registro encontrado para estes filtros.</p>'
                     : '<p class="text-lg">Nenhuma atividade registrada ainda.</p>';
             }
 
-            actLogFiltered.forEach((h) => {
+            filtered.forEach((h) => {
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-slate-50 transition-colors duration-150';
                 const dateStr = h.date ? new Date(h.date.seconds * 1000).toLocaleString('pt-BR') : '…';
@@ -4282,7 +4319,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 setupEntryViewListeners();
             }
             if (viewId === 'exit-log-view') renderExitLog(exitsSearchInput.value);
-            if (viewId === 'activity-log-view') renderActivityLog(activityLogSearchInput?.value || '');
+            if (viewId === 'activity-log-view') renderActivityLog();
             if (viewId === 'requisitions-view') {
                 reqCurrentPage = 1;
                 renderRequisitions();
@@ -4554,8 +4591,16 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             inventoryFilter = button.dataset.filter;
             document.querySelectorAll('#inventory-filters .filter-btn').forEach(btn => btn.classList.remove('active', 'bg-white', 'text-indigo-600', 'shadow-sm'));
             button.classList.add('active', 'bg-white', 'text-indigo-600', 'shadow-sm');
-            currentPage = 1; // 🚀 Resetar para primeira página ao filtrar
+            currentPage = 1;
             renderProducts();
+        });
+        document.addEventListener('click', (e) => {
+            const button = e.target.closest('.actlog-filter-btn');
+            if (!button) return;
+            actLogTypeFilter = button.dataset.actlogFilter;
+            document.querySelectorAll('.actlog-filter-btn').forEach(btn => btn.classList.remove('active', 'bg-white', 'text-indigo-600', 'shadow-sm'));
+            button.classList.add('active', 'bg-white', 'text-indigo-600', 'shadow-sm');
+            renderActivityLog();
         });
         sortOrderSelect.addEventListener('change', (e) => { 
             inventorySortOrder = e.target.value;
@@ -6732,7 +6777,10 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             renderProducts();
         }, 250));
         exitsSearchInput.addEventListener('input', debounce((e) => renderExitLog(e.target.value), 250));
-        activityLogSearchInput?.addEventListener('input', debounce((e) => renderActivityLog(e.target.value), 250));
+        activityLogSearchInput?.addEventListener('input', debounce(() => renderActivityLog(), 250));
+        activityLogNfInput?.addEventListener('input', debounce(() => renderActivityLog(), 250));
+        activityLogSupplierInput?.addEventListener('input', debounce(() => renderActivityLog(), 250));
+        activityLogReqInput?.addEventListener('input', debounce(() => renderActivityLog(), 250));
         rmSearchInput.addEventListener('input', debounce((e) => renderRMView(e.target.value), 250));
         toolLoanSearchInput?.addEventListener('input', debounce(populateToolLoanProducts, 250));
         requisitionsSearchInput?.addEventListener('input', debounce(() => {
