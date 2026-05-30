@@ -32,6 +32,7 @@
         // --- Estado da Aplicação ---
         const APP_VERSION = '2.1.0';
         let products = [];
+        window.products = products;  // Expor globalmente para acesso via index.html
         let history = [];
         let requisitions = [];
         let toolLoans = [];
@@ -475,7 +476,9 @@
             'exit-log-view',
             'activity-log-view',
             'reports-view',
-            'purchase-requests-view'
+            'purchase-requests-view',
+            'plaques-view',
+            'custom-plaques-view'
         ]);
 
         const isReadOnlyRole = () => userRole === 'visitante' || userRole === 'visualizador';
@@ -922,6 +925,8 @@
 
             coreUnsubscribers.push(onSnapshot(productsCollectionRef, (snapshot) => {
                 products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                // Atualiza também a referência global para que outras views acessem os produtos
+                try { window.products = products; } catch (e) { /* ambiente restrito */ }
 
                 if (!hasAutoFilledMissingGroups) {
                     autoFillMissingProductGroups();
@@ -4331,6 +4336,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 renderToolLoans();
             }
             if (viewId === 'plaques-view') renderPlaquesView();
+            if (viewId === 'custom-plaques-view') window.customPlaquesApp?.carregarProdutosCache?.();
             if (viewId === 'compras-view') {
                 const sel = document.getElementById('compras-period-select');
                 renderComprasView(sel ? parseInt(sel.value) : 15);

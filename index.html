@@ -20,6 +20,31 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Estoque">
     <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+    
+    <!-- Estilos para Plaquinhas Customizadas -->
+    <style>
+        /* Configurações de impressão para folha A4 */
+        @page {
+            size: A4;
+            margin: 10mm;
+        }
+        @media print {
+            .print\\:hidden { display: none !important; }
+            body { background-color: white !important; margin: 0; padding: 0; }
+            #folha-a4 { box-shadow: none !important; margin: 0 !important; width: 100% !important; max-width: none !important; }
+            #custom-plaques-view .bg-white.p-6 { display: none !important; }
+        }
+        
+        /* Estilos da etiqueta/plaquinha */
+        .etiqueta {
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+        
+        .etiqueta:hover button {
+            opacity: 1;
+        }
+    </style>
 </head>
 <body class="bg-slate-50 text-slate-800">
 
@@ -147,6 +172,10 @@
                     <button data-view="plaques-view" type="button" class="tab-btn">
                         <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">label</span></span>
                         <span>Gerar Plaquinhas</span>
+                    </button>
+                    <button data-view="custom-plaques-view" type="button" class="tab-btn">
+                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">edit_label</span></span>
+                        <span>Plaquinhas Customizadas</span>
                     </button>
                     <!-- SEÇÃO: OPERAÇÕES -->
                     <p class="nav-section-label">Operações</p>
@@ -752,6 +781,131 @@
                         <div id="no-plaques-message" class="hidden text-center text-slate-400 py-16">
                             <span class="material-symbols-outlined" style="font-size:48px; color:#cbd5e1;">label_off</span>
                             <p class="mt-2 text-sm">Nenhum produto cadastrado.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PLAQUINHAS CUSTOMIZADAS VIEW -->
+                <div id="custom-plaques-view" class="view-content hidden">
+                    <div class="space-y-6">
+                        <!-- TAB MANUAL (CUSTOMIZADO) -->
+                        <div id="manual-panel" class="space-y-4">
+                            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                                <h2 class="text-2xl font-semibold text-slate-800 mb-6">Gerador de Plaquinhas Customizadas</h2>
+                            
+                            <!-- Modal Customizado para Alertas -->
+                            <div id="custom-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 transition-opacity">
+                                <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
+                                    <p id="modal-message" class="text-gray-800 text-lg mb-6 font-medium"></p>
+                                    <div id="modal-buttons" class="flex justify-center gap-3"></div>
+                                </div>
+                            </div>
+
+                            <!-- BUSCA RÁPIDA: preencher formulário automaticamente -->
+                            <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+                                <h3 class="text-sm font-semibold text-blue-800 mb-3">🔍 Buscar Produto no Estoque</h3>
+                                <div class="relative">
+                                    <input type="text" id="quick-search" placeholder="Digite o nome do produto..." autocomplete="off" class="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500/40 text-sm">
+                                    <div id="quick-search-results" class="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto hidden"></div>
+                                </div>
+                                <p class="text-xs text-blue-600 mt-2">Clique no produto para preencher foto e nome automaticamente no formulário abaixo.</p>
+                            </div>
+
+                            <form id="form-etiqueta" class="space-y-4">
+                                <!-- Imagens -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Imagem do Item (Até 10 fotos)</label>
+                                    <div id="dropzone-item" class="border-2 border-dashed border-gray-300 rounded-md p-6 text-center cursor-pointer hover:bg-blue-50 transition relative bg-gray-50">
+                                        <input type="file" id="img-item" accept="image/*" multiple class="hidden">
+                                        
+                                        <div id="placeholder-item" class="text-gray-500 text-sm pointer-events-none">
+                                            <svg class="mx-auto h-8 w-8 mb-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                            <p>Clique, arraste ou <strong class="text-blue-600">cole</strong> até 10 fotos aqui</p>
+                                        </div>
+
+                                        <div id="preview-container-item" class="hidden flex-col items-center w-full">
+                                            <div id="preview-grid" class="flex flex-wrap gap-2 justify-center mb-2 w-full"></div>
+                                            <div class="text-xs text-gray-500 mb-2 font-medium" id="preview-count"></div>
+                                            <button type="button" onclick="window.customPlaquesApp?.removerImagensItem?.(event)" class="text-xs text-red-600 font-medium hover:underline bg-red-50 px-3 py-1 rounded z-10 relative">Remover Todas</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Logo -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Logo (Opcional)</label>
+                                    <input type="file" id="img-logo" accept="image/*" class="mt-2 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-gray-50 file:text-gray-700 hover:file:bg-gray-100 transition">
+                                </div>
+
+                                <!-- Textos -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Textos Separados por Vírgula</label>
+                                    <textarea id="texto-item" rows="2" class="mt-2 p-2 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="Ex: MARTELO, ALICATE, CHAVE... (A ordem dos nomes seguirá a ordem das fotos)"></textarea>
+                                    <p class="text-xs text-gray-500 mt-1">Coloque um nome para cada foto adicionada, separando por vírgula.</p>
+                                </div>
+
+                                <!-- Estilo -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Estilo do Texto</label>
+                                    <select id="estilo-texto" class="mt-2 p-2 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                        <option value="nome">Nome Completo (Texto Menor)</option>
+                                        <option value="tamanho">Apenas Tamanho (Texto Gigante)</option>
+                                    </select>
+                                </div>
+
+                                <!-- Botão Adicionar -->
+                                <button type="button" onclick="window.customPlaquesApp?.adicionarPlaquinha?.()" class="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 transition font-bold shadow-sm text-lg">
+                                    Adicionar à Folha
+                                </button>
+                            </form>
+
+                            <hr class="my-6 border-gray-200">
+
+                            <!-- Ações -->
+                            <div class="flex flex-col gap-2">
+                                <div class="flex gap-2">
+                                    <button onclick="window.print()" class="flex-1 bg-green-600 text-white py-2 px-3 rounded-md hover:bg-green-700 transition font-medium shadow-sm flex justify-center items-center gap-2 text-sm">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M2.5 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z"/><path d="M5 1a2 2 0 0 0-2 2v2H2a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h1v1a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-1h1a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2H5zM4 3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2H4V3zm1 5a2 2 0 0 0-2 2v1H2a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v-1a2 2 0 0 0-2-2H5zm7 2v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1z"/></svg>
+                                        Imprimir A4
+                                    </button>
+                                    <button onclick="window.customPlaquesApp?.baixarPDF?.(this)" class="flex-1 bg-blue-800 text-white py-2 px-3 rounded-md hover:bg-blue-900 transition font-medium shadow-sm flex justify-center items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M14 4.5V14a2 2 0 0 1-2 2h-1v-1h1a1 1 0 0 0 1-1V4.5h-2A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v9H2V2a2 2 0 0 1 2-2h5.5L14 4.5ZM5.76 15.27a.5.5 0 0 1-.5.5.5.5 0 0 1-.5-.5V10.5a.5.5 0 0 1 .5-.5.5.5 0 0 1 .5.5v4.77ZM8 10.5a.5.5 0 0 1 .5.5v3.793l1.146-1.147a.5.5 0 0 1 .708.708l-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 0 1 .708-.708L7.5 14.793V11a.5.5 0 0 1 .5-.5Z"/></svg>
+                                        <span>Baixar PDF</span>
+                                    </button>
+                                </div>
+                                <button onclick="window.customPlaquesApp?.confirmarLimpeza?.()" class="w-full bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 transition font-medium shadow-sm flex justify-center items-center gap-2 text-sm mt-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                                    Limpar Folha Inteira
+                                </button>
+                            </div>
+                        </div>
+                        </div>
+
+                        <!-- ADICIONAR MÚLTIPLOS DO ESTOQUE -->
+                        <div class="bg-white p-4 rounded-xl border border-slate-200">
+                            <h3 class="text-sm font-semibold text-slate-700 mb-3">📦 Adicionar Múltiplos do Estoque</h3>
+                            <div class="flex gap-2 mb-3 flex-wrap">
+                                <input type="text" id="multi-search" placeholder="🔍 Buscar por nome..." class="flex-1 min-w-[160px] px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/40">
+                                <button id="multi-select-all" type="button" class="px-3 py-1.5 bg-blue-100 text-blue-600 font-medium rounded-lg hover:bg-blue-200 text-sm cursor-pointer">Selecionar Tudo</button>
+                                <button id="multi-clear-all" type="button" class="px-3 py-1.5 bg-slate-100 text-slate-600 font-medium rounded-lg hover:bg-slate-200 text-sm cursor-pointer">Limpar Seleção</button>
+                            </div>
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-sm font-semibold text-slate-600"><span id="multi-selected-count">0</span> produto(s) selecionado(s)</span>
+                                <button id="multi-add-btn" disabled class="bg-blue-600 text-white font-bold py-1.5 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm cursor-pointer flex items-center gap-1.5">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M6.271 5.055a.5.5 0 0 1 .52.038l3.5 2.5a.5.5 0 0 1 0 .814l-3.5 2.5A.5.5 0 0 1 6 10.5v-5a.5.5 0 0 1 .271-.445z"/></svg>
+                                    Adicionar à Folha
+                                </button>
+                            </div>
+                            <div id="multi-products-list" class="max-h-60 overflow-y-auto space-y-1 border border-slate-100 rounded-lg p-2 bg-slate-50">
+                                <p class="text-slate-400 text-sm text-center py-4">Carregando produtos...</p>
+                            </div>
+                        </div>
+
+                        <!-- Área de Visualização A4 -->
+                        <div class="flex justify-center">
+                            <div id="folha-a4" class="bg-white shadow-xl p-0 flex flex-wrap content-start" style="width:210mm; min-height:297mm;">
+                                <!-- Etiquetas serão inseridas aqui -->
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1362,6 +1516,10 @@
                 <span class="material-symbols-outlined" style="font-size:26px; color:#0066FF;">label</span>
                 <span class="text-xs font-semibold" style="color:#414754;">Plaquinhas</span>
             </button>
+            <button data-view="custom-plaques-view" class="drawer-btn flex flex-col items-center justify-center gap-1.5 p-4 rounded-2xl" style="background:#fff;">
+                <span class="material-symbols-outlined" style="font-size:26px; color:#0066FF;">edit_label</span>
+                <span class="text-xs font-semibold" style="color:#414754;">Customizado</span>
+            </button>
             <button data-view="reports-view" class="drawer-btn flex flex-col items-center justify-center gap-1.5 p-4 rounded-2xl" style="background:#fff;">
                 <span class="material-symbols-outlined" style="font-size:26px; color:#414754;">bar_chart</span>
                 <span class="text-xs font-semibold" style="color:#414754;">Relatórios</span>
@@ -1442,6 +1600,466 @@
     </div>
 
     <script type="module" src="assets/js/main.js?v=2.0.4"></script>
+
+    <!-- Script Gerador de Plaquinhas Customizadas -->
+    <script>
+        // App de Plaquinhas Customizadas
+        window.customPlaquesApp = {
+            imagensItens: [],
+            productsCache: [],
+            selectedMultipleIds: new Set(),
+
+            // Carregar produtos do estoque para busca e multi-select
+            carregarProdutosCache() {
+                if (typeof products !== 'undefined' && Array.isArray(products)) {
+                    this.productsCache = [...products];
+                    this.renderizarListaMulti(document.getElementById('multi-search')?.value || '');
+                }
+            },
+
+            // Preencher formulário com dados de um produto (busca rápida)
+            selecionarProdutoForm(productId) {
+                const product = this.productsCache.find(p => String(p.id) === String(productId));
+                if (!product) return;
+
+                if (product.image) {
+                    this.imagensItens = [product.image];
+                    this.renderizarPreviews();
+                }
+
+                document.getElementById('texto-item').value = product.name || '';
+            },
+
+            // Renderizar lista de produtos para seleção múltipla
+            renderizarListaMulti(filtro = '') {
+                const container = document.getElementById('multi-products-list');
+                if (!container) return;
+
+                let produtos = this.productsCache;
+                if (filtro.trim()) {
+                    const termo = filtro.toLowerCase().trim();
+                    produtos = produtos.filter(p => p.name.toLowerCase().includes(termo));
+                }
+
+                if (produtos.length === 0) {
+                    container.innerHTML = '<p class="text-slate-400 text-sm text-center py-4">Nenhum produto encontrado.</p>';
+                    return;
+                }
+
+                container.innerHTML = produtos.map(p => `
+                    <label class="flex items-center gap-3 p-2 rounded-lg hover:bg-white cursor-pointer transition">
+                        <input type="checkbox" data-product-id="${p.id}" class="multi-product-checkbox w-4 h-4 accent-blue-600" ${this.selectedMultipleIds.has(p.id) ? 'checked' : ''}>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-slate-800 truncate text-sm">${p.name}</p>
+                            <p class="text-xs text-slate-500">Qtd: ${p.quantity || 0}</p>
+                        </div>
+                    </label>
+                `).join('');
+
+                container.querySelectorAll('.multi-product-checkbox').forEach(cb => {
+                    cb.addEventListener('change', (e) => {
+                        const id = e.target.dataset.productId;
+                        if (e.target.checked) this.selectedMultipleIds.add(id);
+                        else this.selectedMultipleIds.delete(id);
+                        this.atualizarContadorMulti();
+                    });
+                });
+            },
+
+            atualizarContadorMulti() {
+                const countEl = document.getElementById('multi-selected-count');
+                const btnEl = document.getElementById('multi-add-btn');
+                if (countEl) countEl.textContent = this.selectedMultipleIds.size;
+                if (btnEl) btnEl.disabled = this.selectedMultipleIds.size === 0;
+            },
+
+            // Adicionar múltiplos produtos selecionados direto na folha A4
+            adicionarSelecionadosFolha() {
+                if (this.selectedMultipleIds.size === 0) {
+                    this.showModal('Selecione pelo menos um produto!');
+                    return;
+                }
+
+                const folha = document.getElementById('folha-a4');
+                const produtos = this.productsCache.filter(p => this.selectedMultipleIds.has(p.id));
+
+                for (const product of produtos) {
+                    const div = document.createElement('div');
+                    div.className = 'etiqueta group';
+                    div.style.cssText = 'width:86mm;height:52mm;border:2px solid #333;border-radius:6px;position:relative;display:inline-block;margin:2mm;box-sizing:border-box;background-color:#fff;vertical-align:top;page-break-inside:avoid;break-inside:avoid;';
+
+                    const imagemUrl = product.image || '';
+                    const nomeProduct = product.name || 'SEM NOME';
+
+                    div.innerHTML = `
+                        <div style="position:absolute;left:2mm;top:2mm;width:48mm;height:48mm;display:flex;align-items:center;justify-content:center;border-radius:4px;background:#f0f0f0;">
+                            ${imagemUrl ? `<img src="${imagemUrl}" alt="${nomeProduct}" style="max-width:100%;max-height:100%;object-fit:contain;" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext x=%2250%22 y=%2250%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22%3E?%3C/text%3E%3C/svg%3E'">` : '<div style="font-size:14px;color:#999;">Sem foto</div>'}
+                        </div>
+                        <div style="position:absolute;left:52mm;top:2mm;width:32mm;height:48mm;border-left:2px dashed #ccc;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2mm;font-size:9pt;font-weight:bold;color:#222;line-height:1.2;word-wrap:break-word;overflow:hidden;">
+                            ${nomeProduct}
+                        </div>
+                        <button onclick="this.parentElement.remove()" title="Remover Etiqueta" style="position:absolute;top:-8px;right:-8px;background:#ef4444;color:white;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,0.2);opacity:0;transition:opacity 0.3s;cursor:pointer;z-index:10;border:none;padding:0;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0'" class="print:hidden">\n                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16"><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg>\n                        </button>\n                    `;
+
+                    folha.appendChild(div);
+                }
+
+                this.selectedMultipleIds.clear();
+                this.atualizarContadorMulti();
+                this.renderizarListaMulti(document.getElementById('multi-search')?.value || '');
+
+                this.showModal(`${produtos.length} plaquinha(s) adicionada(s) à folha!`);
+            },
+
+            // Sistema de Modal Customizado
+            showModal(message, isConfirm = false, onConfirm = null) {
+                const modal = document.getElementById('custom-modal');
+                const msgEl = document.getElementById('modal-message');
+                const btnContainer = document.getElementById('modal-buttons');
+
+                msgEl.textContent = message;
+                btnContainer.innerHTML = '';
+
+                if (isConfirm) {
+                    const btnCancel = document.createElement('button');
+                    btnCancel.className = 'px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition font-medium';
+                    btnCancel.textContent = 'Cancelar';
+                    btnCancel.onclick = () => { modal.classList.add('hidden'); };
+
+                    const btnOk = document.createElement('button');
+                    btnOk.className = 'px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition font-medium';
+                    btnOk.textContent = 'Confirmar';
+                    btnOk.onclick = () => {
+                        modal.classList.add('hidden');
+                        if (onConfirm) onConfirm();
+                    };
+
+                    btnContainer.appendChild(btnCancel);
+                    btnContainer.appendChild(btnOk);
+                } else {
+                    const btnOk = document.createElement('button');
+                    btnOk.className = 'px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition font-medium w-full max-w-[120px]';
+                    btnOk.textContent = 'OK';
+                    btnOk.onclick = () => { modal.classList.add('hidden'); };
+                    btnContainer.appendChild(btnOk);
+                }
+
+                modal.classList.remove('hidden');
+            },
+
+            lerArquivo(fileObj) {
+                return new Promise((resolve) => {
+                    if (fileObj && fileObj.files && fileObj.files[0]) {
+                        const reader = new FileReader();
+                        reader.onload = function (e) { resolve(e.target.result); };
+                        reader.readAsDataURL(fileObj.files[0]);
+                    } else {
+                        resolve(null);
+                    }
+                });
+            },
+
+            async processarArquivos(files) {
+                let adicionados = 0;
+                for (let i = 0; i < files.length; i++) {
+                    if (this.imagensItens.length >= 10) {
+                        this.showModal("Você atingiu o limite máximo de 10 imagens por vez.");
+                        break;
+                    }
+                    if (files[i] && files[i].type && files[i].type.startsWith('image/')) {
+                        const base64 = await this.lerArquivo({ files: [files[i]] });
+                        if(base64) {
+                            this.imagensItens.push(base64);
+                            adicionados++;
+                        }
+                    }
+                }
+                if(adicionados > 0) this.renderizarPreviews();
+            },
+
+            renderizarPreviews() {
+                const placeholder = document.getElementById('placeholder-item');
+                const previewContainer = document.getElementById('preview-container-item');
+                const previewGrid = document.getElementById('preview-grid');
+                const previewCount = document.getElementById('preview-count');
+                
+                if (this.imagensItens.length === 0) {
+                    placeholder.classList.remove('hidden');
+                    previewContainer.classList.add('hidden');
+                    previewContainer.classList.remove('flex');
+                    previewGrid.innerHTML = '';
+                } else {
+                    placeholder.classList.add('hidden');
+                    previewContainer.classList.remove('hidden');
+                    previewContainer.classList.add('flex');
+                    
+                    previewGrid.innerHTML = '';
+                    this.imagensItens.forEach((src) => {
+                        const img = document.createElement('img');
+                        img.src = src;
+                        img.className = 'h-14 w-14 object-cover rounded shadow-sm bg-white p-1 border border-gray-200';
+                        previewGrid.appendChild(img);
+                    });
+                    
+                    previewCount.textContent = `${this.imagensItens.length} de 10 foto(s) adicionada(s)`;
+                }
+            },
+
+            removerImagensItem(event) {
+                if(event) event.stopPropagation();
+                this.imagensItens = [];
+                document.getElementById('img-item').value = ''; 
+                this.renderizarPreviews();
+            },
+
+            async adicionarPlaquinha() {
+                const inputLogo = document.getElementById('img-logo');
+                const textoRaw = document.getElementById('texto-item').value;
+                const estilo = document.getElementById('estilo-texto').value;
+
+                const textos = textoRaw.split(',').map(t => t.trim());
+
+                if (this.imagensItens.length === 0 && textos.join('').length === 0) {
+                    this.showModal("Por favor, adicione imagens ou textos para criar a plaquinha.");
+                    return;
+                }
+
+                const srcLogo = await this.lerArquivo(inputLogo) || '';
+                const folha = document.getElementById('folha-a4');
+                
+                const quantidadeDeLacos = Math.max(this.imagensItens.length, textos.length);
+
+                for (let i = 0; i < quantidadeDeLacos; i++) {
+                    const srcItem = this.imagensItens[i] || '';
+                    const textoAtual = textos[i] || '';
+                    
+                    if(!srcItem && !textoAtual) continue;
+
+                    const div = document.createElement('div');
+                    div.className = 'etiqueta group';
+                    div.style.cssText = 'width:86mm;height:52mm;border:2px solid #333;border-radius:6px;position:relative;display:inline-block;margin:2mm;box-sizing:border-box;background-color:#fff;vertical-align:top;page-break-inside:avoid;break-inside:avoid;';
+
+                    let infoHtml = '';
+                    
+                    if (srcLogo) {
+                        infoHtml += `<img src="${srcLogo}" style="width:100%;height:16mm;margin-bottom:2mm;object-fit:contain;" alt="Logo">`;
+                    } else if (estilo === 'tamanho') {
+                         infoHtml += `<div style="font-size:10px;color:#999;font-weight:bold;margin-bottom:1mm;letter-spacing:0.08em;text-transform:uppercase;">Tamanho</div>`;
+                    }
+
+                    if (estilo === 'tamanho') {
+                        infoHtml += `<div style="font-size:24pt;font-weight:bold;color:#222;">${textoAtual}</div>`;
+                    } else {
+                        infoHtml += `<div style="font-size:9pt;font-weight:bold;color:#222;line-height:1.2;display:flex;align-items:center;justify-content:center;flex:1;">${textoAtual.replace(/\\n/g, '<br>')}</div>`;
+                    }
+
+                    div.innerHTML = `
+                        <div style="position:absolute;left:2mm;top:2mm;width:48mm;height:48mm;display:flex;align-items:center;justify-content:center;">
+                            ${srcItem ? `<img src="${srcItem}" alt="Item" style="max-width:100%;max-height:100%;object-fit:contain;">` : ''}
+                        </div>
+                        <div style="position:absolute;left:52mm;top:2mm;width:32mm;height:48mm;border-left:2px dashed #ccc;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2mm;">
+                            ${infoHtml}
+                        </div>
+                        <button onclick="this.parentElement.remove()" title="Remover Etiqueta" style="position:absolute;top:-8px;right:-8px;background:#ef4444;color:white;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,0.2);opacity:0;transition:opacity 0.3s;cursor:pointer;z-index:10;border:none;padding:0;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0'" class="print:hidden">\n                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16"><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg>\n                        </button>\n                    `;
+
+                    folha.appendChild(div);
+                }
+
+                this.removerImagensItem();
+                document.getElementById('texto-item').value = '';
+            },
+
+            baixarPDF(btnElement) {
+                const folha = document.getElementById('folha-a4');
+                if(folha.children.length === 0) {
+                    this.showModal("A folha está vazia. Adicione plaquinhas antes de gerar o PDF.");
+                    return;
+                }
+
+                const spanTexto = btnElement.querySelector('span') || btnElement;
+                const originalText = spanTexto.textContent;
+                spanTexto.textContent = 'Gerando...';
+                btnElement.disabled = true;
+
+                const opt = {
+                    margin:       5,
+                    filename:     'Plaquinhas_Almoxarifado.pdf',
+                    image:        { type: 'jpeg', quality: 1.0 },
+                    html2canvas:  { 
+                        scale: 2, 
+                        useCORS: true, 
+                        logging: false,
+                        scrollY: 0
+                    },
+                    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                    pagebreak:    { mode: 'css', avoid: '.etiqueta' }
+                };
+
+                if (typeof html2pdf !== 'undefined') {
+                    html2pdf().set(opt).from(folha).save().then(() => {
+                        spanTexto.textContent = originalText;
+                        btnElement.disabled = false;
+                    }).catch(err => {
+                        spanTexto.textContent = originalText;
+                        btnElement.disabled = false;
+                        this.showModal("Houve um erro ao gerar o PDF. Tente imprimir como PDF através do botão 'Imprimir A4'.");
+                    });
+                } else {
+                    this.showModal("Biblioteca PDF não carregada. Recarregue a página e tente novamente.");
+                    spanTexto.textContent = originalText;
+                    btnElement.disabled = false;
+                }
+            },
+
+            confirmarLimpeza() {
+                const folha = document.getElementById('folha-a4');
+                if(folha.children.length === 0) return; 
+                
+                this.showModal("Tem certeza que deseja apagar todas as plaquinhas da folha?", true, () => {
+                    folha.innerHTML = '';
+                });
+            }
+        };
+
+        // Inicializar ao carregar a página
+        document.addEventListener('DOMContentLoaded', () => {
+            // Dropzone para tab manual
+            const dropzone = document.getElementById('dropzone-item');
+            const fileInput = document.getElementById('img-item');
+
+            if (dropzone && fileInput) {
+                dropzone.addEventListener('click', (e) => {
+                    if(e.target.tagName !== 'BUTTON') fileInput.click();
+                });
+
+                fileInput.addEventListener('change', async function() {
+                    await window.customPlaquesApp.processarArquivos(this.files);
+                });
+
+                document.addEventListener('paste', async function(e) {
+                    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+                    const filesToProcess = [];
+                    for (let index in items) {
+                        const item = items[index];
+                        if (item.kind === 'file' && item.type.startsWith('image/')) {
+                            filesToProcess.push(item.getAsFile());
+                        }
+                    }
+                    if(filesToProcess.length > 0) await window.customPlaquesApp.processarArquivos(filesToProcess);
+                });
+
+                dropzone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    dropzone.classList.add('border-blue-500', 'bg-blue-100');
+                });
+                dropzone.addEventListener('dragleave', (e) => {
+                    e.preventDefault();
+                    dropzone.classList.remove('border-blue-500', 'bg-blue-100');
+                });
+                dropzone.addEventListener('drop', async (e) => {
+                    e.preventDefault();
+                    dropzone.classList.remove('border-blue-500', 'bg-blue-100');
+                    if (e.dataTransfer.files) await window.customPlaquesApp.processarArquivos(e.dataTransfer.files);
+                });
+            }
+
+            // Busca rápida: preencher formulário
+            const quickSearch = document.getElementById('quick-search');
+            const quickResults = document.getElementById('quick-search-results');
+
+            if (quickSearch && quickResults) {
+                quickSearch.addEventListener('input', (e) => {
+                    const termo = e.target.value.trim();
+                    if (!termo) { quickResults.classList.add('hidden'); return; }
+
+                    const resultados = window.customPlaquesApp.productsCache.filter(p =>
+                        p.name.toLowerCase().includes(termo.toLowerCase())
+                    ).slice(0, 10);
+
+                    if (resultados.length === 0) {
+                        quickResults.innerHTML = '<p class="p-3 text-sm text-slate-400">Nenhum produto encontrado</p>';
+                        quickResults.classList.remove('hidden');
+                        return;
+                    }
+
+                    quickResults.innerHTML = resultados.map(p => `
+                        <button type="button" data-product-id="${p.id}" class="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-slate-100 last:border-b-0 flex items-center gap-2 cursor-pointer">
+                            ${p.image ? `<img src="${p.image}" class="w-8 h-8 object-cover rounded" onerror="this.style.display='none'">` : '<div class="w-8 h-8 bg-slate-100 rounded flex items-center justify-center text-xs text-slate-400 shrink-0">?</div>'}
+                            <span class="font-medium">${p.name}</span>
+                        </button>
+                    `).join('');
+                    quickResults.classList.remove('hidden');
+
+                    quickResults.querySelectorAll('button').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            window.customPlaquesApp.selecionarProdutoForm(btn.dataset.productId);
+                            quickSearch.value = '';
+                            quickResults.classList.add('hidden');
+                        });
+                    });
+                });
+
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('#quick-search') && !e.target.closest('#quick-search-results')) {
+                        quickResults.classList.add('hidden');
+                    }
+                });
+
+                quickSearch.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') quickResults.classList.add('hidden');
+                });
+            }
+
+            // Seleção múltipla
+            const multiSearch = document.getElementById('multi-search');
+            const multiSelectAll = document.getElementById('multi-select-all');
+            const multiClearAll = document.getElementById('multi-clear-all');
+            const multiAddBtn = document.getElementById('multi-add-btn');
+
+            if (multiSearch) {
+                multiSearch.addEventListener('input', (e) => {
+                    window.customPlaquesApp.renderizarListaMulti(e.target.value);
+                });
+            }
+
+            if (multiSelectAll) {
+                multiSelectAll.addEventListener('click', () => {
+                    const termo = document.getElementById('multi-search')?.value || '';
+                    const produtos = termo.trim()
+                        ? window.customPlaquesApp.productsCache.filter(p => p.name.toLowerCase().includes(termo.toLowerCase()))
+                        : window.customPlaquesApp.productsCache;
+                    produtos.forEach(p => window.customPlaquesApp.selectedMultipleIds.add(p.id));
+                    window.customPlaquesApp.renderizarListaMulti(termo);
+                    window.customPlaquesApp.atualizarContadorMulti();
+                });
+            }
+
+            if (multiClearAll) {
+                multiClearAll.addEventListener('click', () => {
+                    window.customPlaquesApp.selectedMultipleIds.clear();
+                    window.customPlaquesApp.renderizarListaMulti(document.getElementById('multi-search')?.value || '');
+                    window.customPlaquesApp.atualizarContadorMulti();
+                });
+            }
+
+            if (multiAddBtn) {
+                multiAddBtn.addEventListener('click', () => {
+                    window.customPlaquesApp.adicionarSelecionadosFolha();
+                });
+            }
+
+            // Carregar cache de produtos (com polling aguardando main.js)
+            (function waitForProducts() {
+                if (typeof products !== 'undefined' && Array.isArray(products)) {
+                    window.customPlaquesApp.carregarProdutosCache();
+                } else {
+                    setTimeout(waitForProducts, 200);
+                }
+            })();
+        });
+    </script>
+
+    <!-- Biblioteca para gerar PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
     <script>
         // Registrar Service Worker (PWA)
