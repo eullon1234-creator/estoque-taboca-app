@@ -1,6 +1,6 @@
-// Importações do Firebase SDK
+﻿// Importações do Firebase SDK
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, onSnapshot, serverTimestamp, runTransaction, writeBatch, Timestamp, getDoc, query, where, orderBy, limit, startAfter, getCountFromServer, getAggregateFromServer, sum } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, onSnapshot, serverTimestamp, runTransaction, writeBatch, Timestamp, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Configuração do Firebase ---
         const firebaseConfig = {
@@ -58,9 +58,6 @@
         let currentViewId = 'dashboard-view';
         let coreUnsubscribers = [];
         let estrelaUnsubscribers = [];
-        let productsUnsubscribe = null;
-        let pageCursors = [null];
-        let isAllProductsLoaded = false;
         
         // 🔐 Sistema de Autenticação e Permissões
         let currentUser = null;
@@ -428,29 +425,6 @@
 
         const normalizeUserId = (username) =>
             username.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-
-        const migrateProductsAddLowStockField = async () => {
-            if (!hasPermission('update')) return;
-            try {
-                const snap = await getDocs(productsCollectionRef);
-                const batch = writeBatch(db);
-                let count = 0;
-                snap.forEach(docSnap => {
-                    const data = docSnap.data();
-                    const isLowStock = (data.quantity || 0) <= (data.minQuantity || 0);
-                    if (data.isLowStock === undefined || data.isLowStock !== isLowStock) {
-                        batch.update(docSnap.ref, { isLowStock });
-                        count++;
-                    }
-                });
-                if (count > 0) {
-                    await batch.commit();
-                    console.log(`[Migration] Updated ${count} products with isLowStock field.`);
-                }
-            } catch (err) {
-                console.error('[Migration] Error migrating products:', err);
-            }
-        };
 
         // --- Funções de UI ---
         const showLoader = (show) => {
@@ -880,11 +854,6 @@
                 }
             }, 5000);
             
-            // Executar migração do isLowStock se o usuário for operador ou admin
-            if (hasPermission('update')) {
-                migrateProductsAddLowStockField();
-            }
-
             isAuthInitialized = true;
         };
 
@@ -954,7 +923,22 @@
                 else updateAppSettingsUI({ appName: obraDefaultName, logoUrl: null });
             }, (error) => handleFirestoreError(error, 'configurações')));
 
-            // O listener em tempo real global de produtos foi removido para implementar paginação e busca server-side.
+            coreUnsubscribers.push(onSnapshot(productsCollectionRef, (snapshot) => {
+                products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                // Atualiza também a referência global para que outras views acessem os produtos
+                try { window.products = products; } catch (e) { /* ambiente restrito */ }
+
+                if (!hasAutoFilledMissingGroups) {
+                    autoFillMissingProductGroups();
+                }
+
+                if (isDataLoaded) {
+                    renderProducts();
+                    updateDashboard();
+                    renderEntryView();
+                    renderToolLoans();
+                }
+            }, (error) => handleFirestoreError(error, 'produtos')));
 
             coreUnsubscribers.push(onSnapshot(historyCollectionRef, (snapshot) => {
                 history = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -1091,26 +1075,10 @@
             }
         };
         
-        const updateDashboard = async () => {
-            let totalProducts = 0;
-            let totalUnits = 0;
-            let lowStockItems = 0;
-
-            try {
-                const totalProductsSnap = await getCountFromServer(productsCollectionRef);
-                totalProducts = totalProductsSnap.data().count;
-
-                const totalUnitsSnap = await getAggregateFromServer(productsCollectionRef, {
-                    totalUnits: sum('quantity')
-                });
-                totalUnits = totalUnitsSnap.data().totalUnits || 0;
-
-                const lowStockSnap = await getCountFromServer(query(productsCollectionRef, where('isLowStock', '==', true)));
-                lowStockItems = lowStockSnap.data().count;
-            } catch (err) {
-                console.error("Erro ao carregar estatísticas do Dashboard:", err);
-            }
-
+        const updateDashboard = () => {
+            const totalProducts = products.length;
+            const totalUnits = products.reduce((sum, p) => sum + (p.quantity || 0), 0);
+            const lowStockItems = products.filter(p => p.quantity <= p.minQuantity).length;
             const pendingReqs = requisitions.filter(r => r.status === 'Pendente' || r.status === 'pending').length;
 
             // Cautelas abertas do dia
@@ -1905,20 +1873,13 @@
             }
         });
 
-        const generateNextProductCode = async () => {
-            try {
-                const snap = await getDocs(productsCollectionRef);
-                if (snap.empty) return '1';
-                const maxCode = snap.docs.reduce((max, docSnap) => {
-                    const p = docSnap.data();
-                    const codeNum = parseInt(p.code, 10);
-                    return !isNaN(codeNum) && codeNum > max ? codeNum : max;
-                }, 0);
-                return (maxCode + 1).toString();
-            } catch (err) {
-                console.error("Erro ao gerar SKU:", err);
-                return '1';
-            }
+        const generateNextProductCode = () => {
+            if (products.length === 0) return '1';
+            const maxCode = products.reduce((max, p) => {
+                const codeNum = parseInt(p.code, 10);
+                return !isNaN(codeNum) && codeNum > max ? codeNum : max;
+            }, 0);
+            return (maxCode + 1).toString();
         };
 
         const generateNextRequisitionNumber = () => {
@@ -1934,9 +1895,9 @@
         const populateLocationFilter = () => {
             if (!locationFilterSelect) return;
             const uniqueLocations = [...new Set(
-                locations
-                    .map(loc => (loc.name || '').trim())
-                    .filter(name => name.length > 0)
+                products
+                    .map(p => (p.location || '').trim())
+                    .filter(loc => loc.length > 0)
             )].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
             const previousValue = inventoryLocationFilter;
@@ -1953,149 +1914,85 @@
             }
         };
 
-        const buildProductsQuery = (opts = {}) => {
-            const { limitCount = itemsPerPage, lastDoc = null, searchPrefix = '' } = opts;
-            let q = query(productsCollectionRef);
-
-            // 1. Filtrar por estoque baixo
-            if (inventoryFilter === 'low_stock') {
-                q = query(q, where('isLowStock', '==', true));
-            }
-
-            // 2. Filtrar por localização
-            if (inventoryLocationFilter && inventoryLocationFilter !== 'all') {
-                q = query(q, where('location', '==', inventoryLocationFilter));
-            }
-
-            // 3. Filtrar por busca (nome ou SKU exato)
-            if (searchPrefix) {
-                const searchClean = searchPrefix.trim().toUpperCase();
-                const isNumeric = /^\d+$/.test(searchClean);
-                if (isNumeric) {
-                    q = query(q, where('code', '==', searchClean));
-                } else {
-                    q = query(q, where('name', '>=', searchClean), where('name', '<=', searchClean + '\uf8ff'));
-                }
-            }
-
-            // 4. Ordenação
-            if (searchPrefix && !/^\d+$/.test(searchPrefix)) {
-                q = query(q, orderBy('name', 'asc'));
-            } else {
-                if (inventorySortOrder === 'name_asc') {
-                    q = query(q, orderBy('name', 'asc'));
-                } else if (inventorySortOrder === 'code_asc') {
-                    q = query(q, orderBy('codeRM', 'asc'));
-                } else if (inventorySortOrder === 'location_asc') {
-                    q = query(q, orderBy('location', 'asc'));
-                } else {
-                    q = query(q, orderBy('name', 'asc'));
-                }
-            }
-
-            // 5. Cursores de paginação
-            if (lastDoc) {
-                q = query(q, startAfter(lastDoc));
-            }
-
-            // 6. Limite da página
-            q = query(q, limit(limitCount));
-
-            return q;
-        };
-
-        const renderProducts = async () => {
+        const renderProducts = () => {
             populateLocationFilter();
+            let processedProducts = [...products]; 
+            if (inventoryFilter === 'low_stock') {
+                processedProducts = processedProducts.filter(p => p.quantity <= p.minQuantity);
+            }
+            if (inventoryLocationFilter && inventoryLocationFilter !== 'all') {
+                processedProducts = processedProducts.filter(p => (p.location || '').trim() === inventoryLocationFilter);
+            }
+            processedProducts = fuseSearch(processedProducts, searchInput.value, [
+                { name: 'name', weight: 0.5 },
+                { name: 'code', weight: 0.15 },
+                { name: 'codeRM', weight: 0.15 },
+                { name: 'location', weight: 0.1 },
+                { name: 'observation', weight: 0.1 }
+            ]);
+            if (inventorySortOrder === 'name_asc') processedProducts.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            else if (inventorySortOrder === 'code_asc') processedProducts.sort((a, b) => (a.codeRM || '').localeCompare(b.codeRM || ''));
+            else if (inventorySortOrder === 'location_asc') processedProducts.sort((a, b) => (a.location || '').localeCompare(b.location || ''));
 
-            if (productsUnsubscribe) {
-                productsUnsubscribe();
-                productsUnsubscribe = null;
+            // 🚀 Paginação
+            const totalProducts = processedProducts.length;
+            const totalPages = Math.ceil(totalProducts / itemsPerPage);
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedProducts = processedProducts.slice(startIndex, endIndex);
+
+            productList.innerHTML = '';
+            noProductsMessage.classList.toggle('hidden', !(processedProducts.length === 0 && isDataLoaded));
+            if (processedProducts.length === 0 && isDataLoaded) {
+                noProductsMessage.innerHTML = `<p class="mb-4 text-lg">Nenhum produto encontrado.</p><button id="go-to-add-product" class="bg-indigo-600 text-white font-semibold px-5 py-2 rounded-lg hover:bg-indigo-700 transition">Cadastrar primeiro produto</button>`;
             }
 
-            showProductsSkeleton(true, 5);
+            // Renderizar apenas produtos da página atual
+            paginatedProducts.forEach(p => {
+                const isLowStock = p.quantity <= p.minQuantity;
+                const isChecked = selectedProductIds.has(p.id);
+                const safeImg = sanitizeProductImageUrl(p.imageUrl);
+                const thumbBlock = safeImg
+                    ? `<button type="button" class="product-thumb-lightbox shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-lg border border-slate-200 bg-slate-100 overflow-hidden relative flex items-center justify-center p-0 cursor-zoom-in hover:ring-2 hover:ring-indigo-400/60 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition" data-image-url="${escapeHtmlAttr(safeImg)}" title="Ver foto maior" aria-label="Ampliar foto do produto">
+                        <img src="${escapeHtmlAttr(safeImg)}" alt="" width="80" height="80" class="pointer-events-none w-full h-full object-cover" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.classList.add('hidden');this.nextElementSibling.classList.remove('hidden');">
+                        <span class="material-symbols-outlined pointer-events-none text-slate-300 text-4xl hidden" style="font-variation-settings:'FILL' 0;">broken_image</span>
+                       </button>`
+                    : `<div class="shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-lg border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-slate-300" title="Sem foto">
+                        <span class="material-symbols-outlined text-3xl">image</span>
+                       </div>`;
+                const readonlyRow = isReadOnlyRole();
+                const checkboxCell = readonlyRow ? '' : `<td class="p-3 sm:p-4 text-center"><input type="checkbox" class="product-checkbox h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600" data-id="${p.id}" ${isChecked ? 'checked' : ''}></td>`;
+                const editDeleteBtns = readonlyRow ? '' : `<button data-id="${p.id}" class="edit-btn text-slate-500 hover:text-blue-600 p-1.5 sm:p-2 rounded-full hover:bg-blue-100 transition" title="Editar"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button><button data-id="${p.id}" class="delete-btn text-slate-500 hover:text-red-600 p-1.5 sm:p-2 rounded-full hover:bg-red-100 transition" title="Excluir"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>`;
+                const tr = document.createElement('tr');
+                tr.className = `hover:bg-slate-50 transition-colors duration-150`;
+                tr.innerHTML = `
+                    ${checkboxCell}
+                    <td class="p-3 sm:p-4 align-top">
+                        <div class="flex gap-3 items-start">
+                            ${thumbBlock}
+                            <div class="min-w-0 flex-1">
+                                <p class="font-bold text-slate-800 text-sm sm:text-base leading-tight">${p.name}</p>
+                                <p class="text-xs text-slate-500 mt-0.5">RM: <span class="font-medium">${p.codeRM || 'N/A'}</span></p>
+                                <p class="text-xs text-slate-400">SKU: ${p.code}</p>
+                                <p class="text-xs text-slate-500 sm:hidden mt-0.5">${p.location || ''}</p>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="p-3 sm:p-4 align-top text-slate-600 text-sm hidden md:table-cell">${p.group || 'N/A'}</td>
+                    <td class="p-3 sm:p-4 align-top text-slate-600 text-sm hidden md:table-cell">${p.unit || 'N/A'}</td>
+                    <td class="p-3 sm:p-4 align-top"><div class="flex flex-col sm:flex-row sm:items-center gap-1"><p class="text-base sm:text-lg font-bold text-slate-800">${p.quantity}</p>${isLowStock ? '<span class="px-1.5 py-0.5 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">Baixo</span>' : ''}</div></td>
+                    <td class="p-3 sm:p-4 align-top text-slate-600 text-sm hidden sm:table-cell">${p.minQuantity}</td>
+                    <td class="p-3 sm:p-4 align-top text-slate-600 text-sm hidden sm:table-cell">${p.location}</td>
+                    <td class="p-3 sm:p-4 align-top text-center"><div class="flex justify-center items-center gap-0.5 sm:gap-1"><button data-id="${p.id}" class="history-btn text-slate-500 hover:text-purple-600 p-1.5 sm:p-2 rounded-full hover:bg-purple-100 transition" title="Histórico"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></button>${editDeleteBtns}</div></td>`;
+                productList.appendChild(tr);
+            });
 
-            try {
-                const searchVal = searchInput.value || '';
-
-                // Contar produtos no server
-                const countQuery = buildProductsQuery({ limitCount: 99999, searchPrefix: searchVal });
-                const countSnap = await getCountFromServer(countQuery);
-                const totalProducts = countSnap.data().count;
-                const totalPages = Math.ceil(totalProducts / itemsPerPage);
-
-                if (currentPage > totalPages && totalPages > 0) {
-                    currentPage = totalPages;
-                }
-
-                const lastDoc = pageCursors[currentPage] || null;
-                const pageQuery = buildProductsQuery({ lastDoc, searchPrefix: searchVal });
-
-                productsUnsubscribe = onSnapshot(pageQuery, (snapshot) => {
-                    const pageProducts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-                    products = pageProducts;
-                    isAllProductsLoaded = false;
-                    try { window.products = products; } catch (e) {}
-
-                    if (snapshot.docs.length > 0) {
-                        pageCursors[currentPage + 1] = snapshot.docs[snapshot.docs.length - 1];
-                    }
-
-                    productList.innerHTML = '';
-                    noProductsMessage.classList.toggle('hidden', !(pageProducts.length === 0 && isDataLoaded));
-                    if (pageProducts.length === 0 && isDataLoaded) {
-                        noProductsMessage.innerHTML = `<p class="mb-4 text-lg">Nenhum produto encontrado.</p><button id="go-to-add-product" class="bg-indigo-600 text-white font-semibold px-5 py-2 rounded-lg hover:bg-indigo-700 transition">Cadastrar primeiro produto</button>`;
-                    }
-
-                    pageProducts.forEach(p => {
-                        const isLowStock = p.quantity <= p.minQuantity;
-                        const isChecked = selectedProductIds.has(p.id);
-                        const safeImg = sanitizeProductImageUrl(p.imageUrl);
-                        const thumbBlock = safeImg
-                            ? `<button type="button" class="product-thumb-lightbox shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-lg border border-slate-200 bg-slate-100 overflow-hidden relative flex items-center justify-center p-0 cursor-zoom-in hover:ring-2 hover:ring-indigo-400/60 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition" data-image-url="${escapeHtmlAttr(safeImg)}" title="Ver foto maior" aria-label="Ampliar foto do produto">
-                                <img src="${escapeHtmlAttr(safeImg)}" alt="" width="80" height="80" class="pointer-events-none w-full h-full object-cover" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.classList.add('hidden');this.nextElementSibling.classList.remove('hidden');">
-                                <span class="material-symbols-outlined pointer-events-none text-slate-300 text-4xl hidden" style="font-variation-settings:'FILL' 0;">broken_image</span>
-                               </button>`
-                            : `<div class="shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-lg border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-slate-300" title="Sem foto">
-                                <span class="material-symbols-outlined text-3xl">image</span>
-                               </div>`;
-                        const readonlyRow = isReadOnlyRole();
-                        const checkboxCell = readonlyRow ? '' : `<td class="p-3 sm:p-4 text-center"><input type="checkbox" class="product-checkbox h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600" data-id="${p.id}" ${isChecked ? 'checked' : ''}></td>`;
-                        const editDeleteBtns = readonlyRow ? '' : `<button data-id="${p.id}" class="edit-btn text-slate-500 hover:text-blue-600 p-1.5 sm:p-2 rounded-full hover:bg-blue-100 transition" title="Editar"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button><button data-id="${p.id}" class="delete-btn text-slate-500 hover:text-red-600 p-1.5 sm:p-2 rounded-full hover:bg-red-100 transition" title="Excluir"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>`;
-                        
-                        const tr = document.createElement('tr');
-                        tr.className = `hover:bg-slate-50 transition-colors duration-150`;
-                        tr.innerHTML = `
-                            ${checkboxCell}
-                            <td class="p-3 sm:p-4 align-top">
-                                <div class="flex gap-3 items-start">
-                                    ${thumbBlock}
-                                    <div class="min-w-0 flex-1">
-                                        <p class="font-bold text-slate-800 text-sm sm:text-base leading-tight">${p.name}</p>
-                                        <p class="text-xs text-slate-500 mt-0.5">RM: <span class="font-medium">${p.codeRM || 'N/A'}</span></p>
-                                        <p class="text-xs text-slate-400">SKU: ${p.code}</p>
-                                        <p class="text-xs text-slate-500 sm:hidden mt-0.5">${p.location || ''}</p>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="p-3 sm:p-4 align-top text-slate-600 text-sm hidden md:table-cell">${p.group || 'N/A'}</td>
-                            <td class="p-3 sm:p-4 align-top text-slate-600 text-sm hidden md:table-cell">${p.unit || 'N/A'}</td>
-                            <td class="p-3 sm:p-4 align-top"><div class="flex flex-col sm:flex-row sm:items-center gap-1"><p class="text-base sm:text-lg font-bold text-slate-800">${p.quantity}</p>${isLowStock ? '<span class="px-1.5 py-0.5 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">Baixo</span>' : ''}</div></td>
-                            <td class="p-3 sm:p-4 align-top text-slate-600 text-sm hidden sm:table-cell">${p.minQuantity}</td>
-                            <td class="p-3 sm:p-4 align-top text-slate-600 text-sm hidden sm:table-cell">${p.location}</td>
-                            <td class="p-3 sm:p-4 align-top text-center"><div class="flex justify-center items-center gap-0.5 sm:gap-1"><button data-id="${p.id}" class="history-btn text-slate-500 hover:text-purple-600 p-1.5 sm:p-2 rounded-full hover:bg-purple-100 transition" title="Histórico"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></button>${editDeleteBtns}</div></td>`;
-                        productList.appendChild(tr);
-                    });
-
-                    renderPagination(totalProducts, totalPages);
-                    updateSelectionActionButtonsState();
-                });
-            } catch (err) {
-                console.error("Erro ao renderizar produtos:", err);
-                showProductsSkeleton(false);
-            }
+            // 🚀 Renderizar controles de paginação
+            renderPagination(totalProducts, totalPages);
+            updateSelectionActionButtonsState();
         };
 
+        // 🚀 Função para renderizar paginação
         const renderPagination = (totalProducts, totalPages) => {
             const paginationContainer = document.getElementById('pagination-controls');
             if (!paginationContainer) return;
@@ -2129,6 +2026,7 @@
                 </div>
             `;
 
+            // Event listeners para navegação
             document.getElementById('prev-page')?.addEventListener('click', () => {
                 if (currentPage > 1) {
                     currentPage--;
@@ -4398,23 +4296,7 @@
             });
         };
 
-         const ensureProductsLoaded = async () => {
-            if (isAllProductsLoaded) return;
-            showLoader(true);
-            try {
-                const snap = await getDocs(productsCollectionRef);
-                products = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                isAllProductsLoaded = true;
-                try { window.products = products; } catch (e) {}
-            } catch (err) {
-                console.error("Erro ao carregar produtos:", err);
-                showToast("Erro ao carregar lista de produtos do servidor.", true);
-            } finally {
-                showLoader(false);
-            }
-        };
-
-        const switchView = async (viewId) => {
+        const switchView = (viewId) => {
             if (isReadOnlyRole() && !READONLY_ALLOWED_VIEWS.has(viewId)) {
                 showToast('🔒 Modo visitante: apenas consulta e relatórios.', true);
                 return;
@@ -4423,24 +4305,6 @@
             if (viewId !== 'inventory-view' && viewId !== 'requisitions-view') {
                 selectedProductIds.clear();
             }
-
-            // Carregamento sob demanda para views que precisam de todos os produtos em memória
-            const viewsRequiringAllProducts = new Set([
-                'add-product-view',
-                'entry-view',
-                'requisitions-view',
-                'tool-loans-view',
-                'plaques-view',
-                'custom-plaques-view',
-                'compras-view',
-                'reports-view',
-                'purchase-requests-view'
-            ]);
-
-            if (viewsRequiringAllProducts.has(viewId)) {
-                await ensureProductsLoaded();
-            }
-
             views.forEach(view => view.classList.add('hidden'));
             document.getElementById(viewId).classList.remove('hidden');
             tabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.view === viewId));
@@ -4448,20 +4312,12 @@
             // Sync bottom-nav active state
             document.querySelectorAll('.bottom-nav-btn').forEach(btn => {
                 const isActive = btn.dataset.view === viewId;
-                btn.style.color = isActive ? '#0066FF' : '#6b7280';
+btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 btn.style.background = isActive ? 'rgba(0,102,255,0.08)' : 'transparent';
             });
 
-            if (viewId === 'inventory-view') {
-                currentPage = 1;
-                pageCursors = [null];
-                renderProducts();
-            }
             if (viewId === 'add-product-view') {
-                document.getElementById('product-code').value = 'Gerando...';
-                generateNextProductCode().then(code => {
-                    document.getElementById('product-code').value = code;
-                });
+                document.getElementById('product-code').value = generateNextProductCode();
             }
             if (viewId === 'entry-view') {
                 renderEntryView();
@@ -4717,7 +4573,6 @@
             isDataLoaded = false;
             isAuthInitialized = false;
             products = [];
-            isAllProductsLoaded = false;
             history = [];
             requisitions = [];
             toolLoans = [];
@@ -4743,7 +4598,6 @@
             document.querySelectorAll('#inventory-filters .filter-btn').forEach(btn => btn.classList.remove('active', 'bg-white', 'text-indigo-600', 'shadow-sm'));
             button.classList.add('active', 'bg-white', 'text-indigo-600', 'shadow-sm');
             currentPage = 1;
-            pageCursors = [null];
             renderProducts();
         });
         document.addEventListener('click', (e) => {
@@ -4757,14 +4611,12 @@
         sortOrderSelect.addEventListener('change', (e) => { 
             inventorySortOrder = e.target.value;
             currentPage = 1; // 🚀 Resetar para primeira página ao ordenar
-            pageCursors = [null];
             renderProducts();
         });
         if (locationFilterSelect) {
             locationFilterSelect.addEventListener('change', (e) => {
                 inventoryLocationFilter = e.target.value || 'all';
                 currentPage = 1;
-                pageCursors = [null];
                 renderProducts();
             });
         }
@@ -4845,10 +4697,8 @@
                 const productIdsUpdated = new Set();
                 for (const line of linesToProcess) {
                     if (!productIdsUpdated.has(line.productId)) {
-                        const pr = products.find(p => p.id === line.productId);
                         batch.update(doc(productsCollectionRef, line.productId), {
                             quantity: projectedQty[line.productId],
-                            isLowStock: projectedQty[line.productId] <= (pr?.minQuantity || 0),
                             updatedAt: serverTimestamp()
                         });
                         productIdsUpdated.add(line.productId);
@@ -4868,7 +4718,6 @@
                     });
                 }
                 await batch.commit();
-                isAllProductsLoaded = false;
                 toolLoanForm.reset();
                 document.getElementById('tool-loan-quantity').value = '1';
                 toolLoanQueue = [];
@@ -5014,7 +4863,6 @@
                             try {
                                 await deleteDoc(doc(productsCollectionRef, currentProductId));
                                 selectedProductIds.delete(currentProductId);
-                                isAllProductsLoaded = false;
                                 showToast("Produto excluído.");
                             } catch (error) { showToast("Falha ao excluir produto.", true); }
                         }
@@ -5066,7 +4914,6 @@
                         await batch.commit();
                         showToast(`${selectedProductIds.size} produtos foram excluídos.`);
                         selectedProductIds.clear();
-                        isAllProductsLoaded = false;
                         renderProducts();
                     } catch (error) {
                         console.error("Erro ao excluir produtos em lote: ", error);
@@ -5102,17 +4949,14 @@
                 return;
             }
 
-            const qtyVal = parseInt(document.getElementById('product-quantity').value);
-            const minQtyVal = parseInt(document.getElementById('product-min-quantity').value);
             const newProduct = {
                 code: document.getElementById('product-code').value.trim(),
                 codeRM: document.getElementById('product-code-rm').value.trim(),
                 name: toUpperText(document.getElementById('product-name').value),
                 unit: document.getElementById('product-unit').value,
                 group: document.getElementById('product-group').value,
-                quantity: qtyVal,
-                minQuantity: minQtyVal,
-                isLowStock: qtyVal <= minQtyVal,
+                quantity: parseInt(document.getElementById('product-quantity').value),
+                minQuantity: parseInt(document.getElementById('product-min-quantity').value),
                 location: toUpperText(document.getElementById('product-location').value),
                 observation: '',
                 createdAt: serverTimestamp(),
@@ -5165,7 +5009,6 @@
             try {
                 const docRef = await addDoc(productsCollectionRef, newProduct);
                 await addHistoryEntry(docRef.id, 'Criação', newProduct.quantity, newProduct.quantity, {}, newProduct);
-                isAllProductsLoaded = false;
                 showToast("✅ Produto adicionado com sucesso!");
                 addForm.reset();
                 document.getElementById('product-photo-preview-wrap')?.classList.add('hidden');
@@ -5239,7 +5082,7 @@
                         }
                         
                         productDataForHistory = productDoc.data();
-                        const currentQuantity = productDataForHistory.quantity || 0;
+                        const currentQuantity = productDataForHistory.quantity;
                         
                         if (type === 'entrada') {
                             newQuantity = currentQuantity + quantityChange;
@@ -5250,10 +5093,7 @@
                             newQuantity = currentQuantity - quantityChange;
                         }
                         
-                        transaction.update(productRef, { 
-                            quantity: newQuantity,
-                            isLowStock: newQuantity <= (productDataForHistory.minQuantity || 0)
-                        });
+                        transaction.update(productRef, { quantity: newQuantity });
                     });
 
                     await addHistoryEntry(
@@ -5264,7 +5104,6 @@
                         {},
                         productDataForHistory
                     );
-                    isAllProductsLoaded = false;
 
                     showToast("Estoque ajustado com sucesso!");
                     closeModal('generic-modal');
@@ -5350,7 +5189,7 @@
                         if ((productData.quantity || 0) < requestedQuantity) throw new Error(`Estoque insuficiente para ${productData.name}.`);
 
                         const newQuantity = (productData.quantity || 0) - requestedQuantity;
-                        batch.update(doc(productsCollectionRef, productId), { quantity: newQuantity, isLowStock: newQuantity <= (productData.minQuantity || 0), updatedAt: serverTimestamp() });
+                        batch.update(doc(productsCollectionRef, productId), { quantity: newQuantity, updatedAt: serverTimestamp() });
 
                         newReqData.items.push({
                             productId,
@@ -5396,7 +5235,6 @@
 
                     batch.set(doc(requisitionsCollectionRef), newReqData);
                     await batch.commit();
-                    isAllProductsLoaded = false;
                     
                     selectedProductIds.clear();
                     showToast(wantsPrint
@@ -5429,15 +5267,13 @@
                     showToast('URL da foto inválida. Use http ou https com link direto da imagem.', true);
                     return;
                 }
-                const minQtyVal = parseInt(document.getElementById('edit-product-min-quantity').value);
                 const updatedData = {
                     codeRM: document.getElementById('edit-product-code-rm').value.trim(),
                     name: toUpperText(document.getElementById('edit-product-name').value),
                     unit: document.getElementById('edit-product-unit').value,
                     group: document.getElementById('edit-product-group').value,
                     quantity: newQuantity,
-                    minQuantity: minQtyVal,
-                    isLowStock: newQuantity <= minQtyVal,
+                    minQuantity: parseInt(document.getElementById('edit-product-min-quantity').value),
                     location: toUpperText(document.getElementById('edit-product-location').value),
                     observation: document.getElementById('edit-product-observation').value.trim(),
                     updatedAt: serverTimestamp(), // 🔍 Auditoria: timestamp de atualização
@@ -5449,7 +5285,6 @@
                     await updateDoc(productRef, updatedData);
                     const product = products.find(p => p.id === id);
                     await addHistoryEntry(id, 'Edição', 0, newQuantity, { details: 'Dados do produto alterados.' }, { ...product, ...updatedData });
-                    isAllProductsLoaded = false;
                     showToast("Produto atualizado com sucesso!");
                     closeModal('generic-modal');
                 } catch (error) {
@@ -5542,12 +5377,9 @@
                             throw new Error("Produto não encontrado.");
                         }
                         productDataForHistory = productDoc.data();
-                        const currentQuantity = productDataForHistory.quantity || 0;
+                        const currentQuantity = productDataForHistory.quantity;
                         const newQuantity = currentQuantity + quantity;
-                        transaction.update(productRef, { 
-                            quantity: newQuantity,
-                            isLowStock: newQuantity <= (productDataForHistory.minQuantity || 0)
-                        });
+                        transaction.update(productRef, { quantity: newQuantity });
                         
                         const historyRef = doc(historyCollectionRef);
                         transaction.set(historyRef, {
@@ -5568,7 +5400,6 @@
                         });
                     });
 
-                    isAllProductsLoaded = false;
                     showToast(`Entrada de ${quantity} unidade(s) de ${productDataForHistory.name} registrada com sucesso! Novo estoque: ${productDataForHistory.quantity + quantity}.`);
                     e.target.reset();
                     document.getElementById('entry-product-select').value = '';
@@ -5618,14 +5449,13 @@
                         try {
                             const batch = writeBatch(db);
                             const newQuantity = (product.quantity || 0) + (loan.quantity || 0);
-                            batch.update(doc(productsCollectionRef, loan.productId), { quantity: newQuantity, isLowStock: newQuantity <= (product.minQuantity || 0), updatedAt: serverTimestamp() });
+                            batch.update(doc(productsCollectionRef, loan.productId), { quantity: newQuantity, updatedAt: serverTimestamp() });
                             batch.update(doc(toolLoansCollectionRef, loan.id), {
                                 status: 'returned',
                                 returnDate: serverTimestamp(),
                                 returnedBy: toUpperText(currentUser?.displayName || 'Anônimo')
                             });
                             await batch.commit();
-                            isAllProductsLoaded = false;
                             showToast('Ferramenta devolvida ao estoque.');
                         } catch (error) {
                             console.error('Erro ao devolver ferramenta:', error);
@@ -5932,7 +5762,7 @@
                     
                     const delimiter = lines[0].includes(';') ? ';' : ',';
                     const batch = writeBatch(db);
-                    let nextCode = parseInt(await generateNextProductCode());
+                    let nextCode = parseInt(generateNextProductCode());
 
                     for (let i = 1; i < lines.length; i++) {
                         if (lines[i].trim() === '') continue;
@@ -5946,8 +5776,6 @@
                         const importPhotoUrl = sanitizeProductImageUrl(importPhotoRaw);
 
                         if (codeRM && name) {
-                            const qtyVal = parseInt(quantity) || 0;
-                            const minQtyVal = parseInt(minQuantity) || 0;
                             const newProd = {
                                 code: (nextCode++).toString(),
                                 codeRM,
@@ -5955,9 +5783,8 @@
                                 unit,
                                 location: toUpperText(location),
                                 group: group || 'Outros',
-                                quantity: qtyVal,
-                                minQuantity: minQtyVal,
-                                isLowStock: qtyVal <= minQtyVal,
+                                quantity: parseInt(quantity) || 0,
+                                minQuantity: parseInt(minQuantity) || 0,
                                 observation: ''
                             };
                             if (importPhotoUrl) newProd.imageUrl = importPhotoUrl;
@@ -5968,7 +5795,6 @@
                     }
                     
                     await batch.commit();
-                    isAllProductsLoaded = false;
 
                     if (importedCount > 0) {
                         showToast(`${importedCount} produtos foram importados com sucesso!`);
@@ -6954,7 +6780,6 @@
 
         searchInput.addEventListener('input', debounce(() => {
             currentPage = 1;
-            pageCursors = [null];
             renderProducts();
         }, 250));
         exitsSearchInput.addEventListener('input', debounce((e) => renderExitLog(e.target.value), 250));
