@@ -385,6 +385,10 @@
                                 <label class="block text-sm font-medium text-slate-700">Quantidade Mínima</label>
                                 <input type="number" id="product-min-quantity" placeholder="0" class="mt-1 w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" required min="0">
                             </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700">Valor Unitário (R$)</label>
+                                <input type="number" step="0.01" id="product-unit-value" placeholder="0,00" class="mt-1 w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" min="0">
+                            </div>
                             <div class="md:col-span-4">
                                 <button type="submit" class="w-full bg-indigo-600 text-white font-semibold p-3 rounded-lg hover:bg-indigo-700 transition shadow-sm hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">Adicionar Produto</button>
                             </div>
@@ -403,7 +407,7 @@
                         <form id="entry-form" class="space-y-4">
                             <input type="hidden" id="entry-product-select" value="">
                             <h3 class="text-sm font-medium text-slate-700">2. Preencha os detalhes da entrada</h3>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                                 <div class="md:col-span-1">
                                     <label class="block text-sm font-medium text-slate-600">Quantidade a Receber</label>
                                     <input type="number" id="entry-quantity" class="mt-1 w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500/50 focus:border-green-500" required min="1">
@@ -411,6 +415,10 @@
                                 <div class="md:col-span-2">
                                     <label class="block text-sm font-medium text-slate-600">Nº da Nota Fiscal</label>
                                     <input type="text" id="entry-nf" class="mt-1 w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500/50 focus:border-green-500" placeholder="Ex: 123456" required>
+                                </div>
+                                <div class="md:col-span-1">
+                                    <label class="block text-sm font-medium text-slate-600">Valor Unitário (R$)</label>
+                                    <input type="number" step="0.01" id="entry-unit-value" placeholder="0,00" class="mt-1 w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500/50 focus:border-green-500" min="0">
                                 </div>
                             </div>
                             <div class="grid grid-cols-1 md:grid-cols-1 gap-4">

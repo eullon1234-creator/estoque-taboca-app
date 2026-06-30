@@ -1,4 +1,4 @@
-﻿// Importações do Firebase SDK
+// Importações do Firebase SDK
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, onSnapshot, serverTimestamp, runTransaction, writeBatch, Timestamp, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -1952,6 +1952,7 @@
                 const isLowStock = p.quantity <= p.minQuantity;
                 const isChecked = selectedProductIds.has(p.id);
                 const safeImg = sanitizeProductImageUrl(p.imageUrl);
+                const unitValueStr = p.unitValue !== undefined && p.unitValue !== null ? `R$ ${parseFloat(p.unitValue).toFixed(2).replace('.', ',')}` : 'Não informado';
                 const thumbBlock = safeImg
                     ? `<button type="button" class="product-thumb-lightbox shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-lg border border-slate-200 bg-slate-100 overflow-hidden relative flex items-center justify-center p-0 cursor-zoom-in hover:ring-2 hover:ring-indigo-400/60 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition" data-image-url="${escapeHtmlAttr(safeImg)}" title="Ver foto maior" aria-label="Ampliar foto do produto">
                         <img src="${escapeHtmlAttr(safeImg)}" alt="" width="80" height="80" class="pointer-events-none w-full h-full object-cover" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.classList.add('hidden');this.nextElementSibling.classList.remove('hidden');">
@@ -1973,6 +1974,7 @@
                             <div class="min-w-0 flex-1">
                                 <p class="font-bold text-slate-800 text-sm sm:text-base leading-tight">${p.name}</p>
                                 <p class="text-xs text-slate-500 mt-0.5">RM: <span class="font-medium">${p.codeRM || 'N/A'}</span></p>
+                                <p class="text-xs text-slate-500 mt-0.5">Val. Unit.: <span class="font-semibold text-emerald-600">${unitValueStr}</span></p>
                                 <p class="text-xs text-slate-400">SKU: ${p.code}</p>
                                 <p class="text-xs text-slate-500 sm:hidden mt-0.5">${p.location || ''}</p>
                             </div>
@@ -2967,6 +2969,7 @@
                         <div><label class="block text-sm font-medium text-slate-600">Unidade</label><select id="edit-product-unit" class="w-full mt-1 p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500">${unitOptions}</select></div>
                         <div><label class="block text-sm font-medium text-slate-600">Quantidade Atual</label><input type="number" id="edit-product-quantity" class="w-full mt-1 p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" value="${p.quantity}" required min="0"></div>
                         <div><label class="block text-sm font-medium text-slate-600">Qtd. Mínima</label><input type="number" id="edit-product-min-quantity" class="w-full mt-1 p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" value="${p.minQuantity}" required min="0"></div>
+                        <div><label class="block text-sm font-medium text-slate-600">Valor Unitário (R$)</label><input type="number" step="0.01" id="edit-product-unit-value" class="w-full mt-1 p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" value="${p.unitValue !== undefined && p.unitValue !== null ? p.unitValue : ''}" min="0"></div>
                         <div class="md:col-span-2">
                             <label class="block text-sm font-medium text-slate-600">URL da foto (opcional)</label>
                             <input type="url" id="edit-product-photo-url" class="w-full mt-1 p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" placeholder="https://..." value="${escapeHtmlAttr(p.imageUrl || '')}">
@@ -3046,6 +3049,7 @@
                     const bits = [];
                     if (h.supplier) bits.push(`<span><span class="text-slate-500">Fornecedor:</span> ${escapeHtml(String(h.supplier))}</span>`);
                     if (h.nfNumber) bits.push(`<span><span class="text-slate-500">NF:</span> ${escapeHtml(String(h.nfNumber))}</span>`);
+                    if (h.unitValue !== undefined && h.unitValue !== null) bits.push(`<span><span class="text-slate-500">Val. Unit.:</span> R$ ${parseFloat(h.unitValue).toFixed(2).replace('.', ',')}</span>`);
                     const receb = h.receivedBy || h.performedBy;
                     if (receb) bits.push(`<span><span class="text-slate-500">Recebido por:</span> ${escapeHtml(String(receb))}</span>`);
                     peopleLine = bits.join(sep);
@@ -4949,6 +4953,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 return;
             }
 
+            const unitValueVal = document.getElementById('product-unit-value')?.value;
             const newProduct = {
                 code: document.getElementById('product-code').value.trim(),
                 codeRM: document.getElementById('product-code-rm').value.trim(),
@@ -4957,6 +4962,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 group: document.getElementById('product-group').value,
                 quantity: parseInt(document.getElementById('product-quantity').value),
                 minQuantity: parseInt(document.getElementById('product-min-quantity').value),
+                unitValue: unitValueVal ? parseFloat(unitValueVal) : null,
                 location: toUpperText(document.getElementById('product-location').value),
                 observation: '',
                 createdAt: serverTimestamp(),
@@ -5267,6 +5273,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                     showToast('URL da foto inválida. Use http ou https com link direto da imagem.', true);
                     return;
                 }
+                const editUnitValueVal = document.getElementById('edit-product-unit-value')?.value || '';
                 const updatedData = {
                     codeRM: document.getElementById('edit-product-code-rm').value.trim(),
                     name: toUpperText(document.getElementById('edit-product-name').value),
@@ -5274,6 +5281,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                     group: document.getElementById('edit-product-group').value,
                     quantity: newQuantity,
                     minQuantity: parseInt(document.getElementById('edit-product-min-quantity').value),
+                    unitValue: editUnitValueVal ? parseFloat(editUnitValueVal) : deleteField(),
                     location: toUpperText(document.getElementById('edit-product-location').value),
                     observation: document.getElementById('edit-product-observation').value.trim(),
                     updatedAt: serverTimestamp(), // 🔍 Auditoria: timestamp de atualização
@@ -5357,6 +5365,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 const nfNumber = document.getElementById('entry-nf').value.trim();
                 const supplier = toUpperText(document.getElementById('entry-supplier').value);
                 const observation = toUpperText(document.getElementById('entry-observation').value);
+                const unitValueVal = document.getElementById('entry-unit-value')?.value || '';
                 const receivedBy = toUpperText(currentUser?.displayName || currentUser?.uid || 'Sistema');
 
                 if (!productId || !nfNumber || isNaN(quantity) || quantity <= 0) {
@@ -5379,7 +5388,12 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                         productDataForHistory = productDoc.data();
                         const currentQuantity = productDataForHistory.quantity;
                         const newQuantity = currentQuantity + quantity;
-                        transaction.update(productRef, { quantity: newQuantity });
+                        
+                        const updateFields = { quantity: newQuantity };
+                        if (unitValueVal) {
+                            updateFields.unitValue = parseFloat(unitValueVal);
+                        }
+                        transaction.update(productRef, updateFields);
                         
                         const historyRef = doc(historyCollectionRef);
                         transaction.set(historyRef, {
@@ -5393,6 +5407,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                             receivedBy,
                             supplier,
                             nfNumber,
+                            unitValue: unitValueVal ? parseFloat(unitValueVal) : null,
                             observation,
                             details: observation ? `Entrada da NF ${nfNumber} - ${observation}` : `Entrada da NF ${nfNumber}`,
                             rmProcessed: false,
@@ -5865,13 +5880,18 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
 
         exportBtn.addEventListener('click', () => {
             if (products.length === 0) { showToast("Não há produtos para exportar.", true); return; }
-            let csvContent = "Código RM;Nome;Unidade;Quantidade;Localização;Qtd. Mínima;Grupo;URL da foto\n";
+            let csvContent = "Código RM;Nome;Unidade;Valor Unitário;Valor Total;Quantidade;Localização;Qtd. Mínima;Grupo;URL da foto\n";
             products.forEach(p => { 
+                const qty = p.quantity || 0;
+                const unitVal = p.unitValue !== undefined && p.unitValue !== null ? `R$ ${parseFloat(p.unitValue).toFixed(2).replace('.', ',')}` : '';
+                const totalVal = p.unitValue !== undefined && p.unitValue !== null ? `R$ ${(parseFloat(p.unitValue) * qty).toFixed(2).replace('.', ',')}` : '';
                 const row = [
                     p.codeRM || '',
                     p.name || '',
                     p.unit || '',
-                    p.quantity || 0,
+                    unitVal,
+                    totalVal,
+                    qty,
                     p.location || '',
                     p.minQuantity || 0,
                     p.group || '',
@@ -7586,6 +7606,8 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             const cellEvenRedCenter = { ...cellCenter, fill: { fgColor: { rgb: 'FEF2F2' } } };
             const cellEvenPurple = { ...cellBase, fill: { fgColor: { rgb: 'FAF5FF' } } };
             const cellEvenPurpleCenter = { ...cellCenter, fill: { fgColor: { rgb: 'FAF5FF' } } };
+            const cellCurrency = { ...cellCenter, font: { sz: 10, color: { rgb: '111827' } }, border: cellBorder, numFmt: '"R$ "#,##0.00' };
+            const cellEvenCurrency = { ...cellEvenCenter, font: { sz: 10, color: { rgb: '111827' } }, border: cellBorder, numFmt: '"R$ "#,##0.00' };
 
             // Status com cores mais vibrantes
             const statusOk = { ...cellCenter, font: { sz: 9, bold: true, color: { rgb: '065F46' } }, fill: { fgColor: { rgb: 'D1FAE5' } }, border: cellBorder };
@@ -7710,7 +7732,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             // ─────────────────────────────────────────────
             // ABA 1: ESTOQUE COMPLETO (dados reais)
             // ─────────────────────────────────────────────
-            const estoqueHeaders = ['Nº', 'Código SKU', 'Código RM', 'Produto', 'Grupo', 'Unidade', 'Qtd. Atual', 'Qtd. Mínima', 'Falta', 'Localização', 'Status'];
+            const estoqueHeaders = ['Nº', 'Código SKU', 'Código RM', 'Produto', 'Grupo', 'Unidade', 'Valor Unitário (R$)', 'Valor Total (R$)', 'Qtd. Atual', 'Qtd. Mínima', 'Falta', 'Localização', 'Status'];
             const sortedProducts = [...products].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
             const estoqueRows = sortedProducts.map((p, i) => {
                 const qty = p.quantity || 0;
@@ -7719,7 +7741,9 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 let status = '✅ OK';
                 if (qty === 0) status = '🔴 ZERADO';
                 else if (qty <= min) status = '🟡 BAIXO';
-                return [i + 1, p.code || '', p.codeRM || '', p.name || '', p.group || '', p.unit || 'Un', qty, min, falta, p.location || '', status];
+                const unitVal = p.unitValue !== undefined && p.unitValue !== null ? p.unitValue : '';
+                const totalVal = p.unitValue !== undefined && p.unitValue !== null ? (p.unitValue * qty) : '';
+                return [i + 1, p.code || '', p.codeRM || '', p.name || '', p.group || '', p.unit || 'Un', unitVal, totalVal, qty, min, falta, p.location || '', status];
             });
 
             const wsE = XLS.utils.aoa_to_sheet([
@@ -7731,11 +7755,11 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             ]);
             wsE['!cols'] = [
                 { wch: 5 }, { wch: 14 }, { wch: 14 }, { wch: 36 }, { wch: 20 },
-                { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 24 }, { wch: 14 }
+                { wch: 10 }, { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 24 }, { wch: 14 }
             ];
             wsE['!merges'] = [
-                { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
-                { s: { r: 1, c: 0 }, e: { r: 1, c: 10 } }
+                { s: { r: 0, c: 0 }, e: { r: 0, c: 12 } },
+                { s: { r: 1, c: 0 }, e: { r: 1, c: 12 } }
             ];
             wsE['!rows'] = [{ hpt: 32 }, { hpt: 20 }, { hpt: 8 }, { hpt: 28 }];
             wsE['!freeze'] = { xSplit: 0, ySplit: 4 };
@@ -7748,15 +7772,18 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             }
             applyStyles(wsE, 4, estoqueRows.length, estoqueHeaders.length, (r, c, v) => {
                 const isEven = r % 2 === 1;
-                if (c === 10) {
+                if (c === 12) {
                     if (String(v).includes('ZERADO')) return isEven ? statusZeradoEven : statusZerado;
                     if (String(v).includes('BAIXO')) return isEven ? statusBaixoEven : statusBaixo;
                     return isEven ? statusOkEven : statusOk;
                 }
-                if (c === 6 || c === 7 || c === 8) {
+                if (c === 8 || c === 9 || c === 10) {
                     const val = parseFloat(v) || 0;
-                    if (c === 8 && val > 0) return isEven ? { ...qtyRedEven, font: { bold: true, sz: 10, color: { rgb: 'DC2626' } } } : { ...qtyRed, font: { bold: true, sz: 10, color: { rgb: 'DC2626' } } };
+                    if (c === 10 && val > 0) return isEven ? { ...qtyRedEven, font: { bold: true, sz: 10, color: { rgb: 'DC2626' } } } : { ...qtyRed, font: { bold: true, sz: 10, color: { rgb: 'DC2626' } } };
                     return isEven ? cellEvenCenter : cellCenter;
+                }
+                if (c === 6 || c === 7) {
+                    return isEven ? cellEvenCurrency : cellCurrency;
                 }
                 if (c === 0 || c === 1 || c === 2) return isEven ? cellEvenBold : cellBold;
                 return isEven ? cellEven : cellBase;
