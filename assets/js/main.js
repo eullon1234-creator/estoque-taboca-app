@@ -8620,6 +8620,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         };
 
         window.openNoteModal = openNoteModal;
+        window.closeNoteModal = closeNoteModal;
         window.deleteNote = deleteNote;
 
         // Delegação de eventos de clique para anotações

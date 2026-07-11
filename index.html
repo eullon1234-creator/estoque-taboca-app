@@ -1506,7 +1506,7 @@
                             <h2 class="text-2xl font-semibold text-slate-800">Bloco de Notas</h2>
                             <p class="text-sm text-slate-500 mt-0.5">Deixe anotações rápidas e lembretes para a equipe</p>
                         </div>
-                        <button id="add-note-btn" class="flex items-center gap-2 px-5 py-3 rounded-lg font-semibold text-sm text-white shadow-sm transition hover:opacity-90 bg-indigo-600 hover:bg-indigo-700" style="box-shadow:0 4px 12px rgba(79,70,229,0.25);">
+                        <button id="add-note-btn" onclick="openNoteModal()" class="flex items-center gap-2 px-5 py-3 rounded-lg font-semibold text-sm text-white shadow-sm transition hover:opacity-90 bg-indigo-600 hover:bg-indigo-700" style="box-shadow:0 4px 12px rgba(79,70,229,0.25);">
                             <span class="material-symbols-outlined" style="font-size:20px;">add_circle</span>
                             Nova Anotação
                         </button>
@@ -1520,11 +1520,11 @@
                     </div>
 
                     <!-- Modal para adicionar/editar anotação -->
-                    <div id="note-modal-backdrop" class="hidden fixed inset-0" style="z-index:59;background:rgba(15,23,42,0.45);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);"></div>
+                    <div id="note-modal-backdrop" onclick="closeNoteModal()" class="hidden fixed inset-0" style="z-index:59;background:rgba(15,23,42,0.45);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);"></div>
                     <div id="note-modal" class="hidden fixed" style="z-index:60;top:50%;left:50%;transform:translate(-50%,-50%);width:90%;max-width:480px;max-height:90vh;overflow-y-auto;background:rgba(255,255,255,0.98);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(0,0,0,0.08);border-radius:16px;box-shadow:0 24px 64px rgba(0,0,0,0.18);padding:24px;">
                         <div class="flex items-start justify-between gap-2 mb-4">
                             <h3 id="note-modal-title" class="text-lg font-bold text-slate-800">Nova Anotação</h3>
-                            <button type="button" id="note-modal-close" class="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 shrink-0">
+                            <button type="button" id="note-modal-close" onclick="closeNoteModal()" class="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 shrink-0">
                                 <span class="material-symbols-outlined" style="font-size:22px;">close</span>
                             </button>
                         </div>
