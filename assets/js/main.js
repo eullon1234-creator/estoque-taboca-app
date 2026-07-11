@@ -53,6 +53,9 @@
         let inventoryLocationFilter = 'all';
         let actLogTypeFilter = 'all';
         let isDataLoaded = false;
+        let activeInventoryTab = 'balance'; // 'balance' ou 'observations'
+        let observationCurrentPage = 1;
+        const observationItemsPerPage = 30;
         let currentAudio = null;
         let selectedProductIds = new Set();
         let currentViewId = 'dashboard-view';
@@ -933,7 +936,7 @@
                 }
 
                 if (isDataLoaded) {
-                    renderProducts();
+                    refreshInventoryView();
                     updateDashboard();
                     renderEntryView();
                     renderToolLoans();
@@ -947,6 +950,7 @@
                     renderExitLog(exitsSearchInput.value);
                     renderActivityLog();
                     renderRMView(rmSearchInput.value);
+                    refreshInventoryView();
                     tryOpenPlaqueDeepLink();
                 }
             }, (error) => handleFirestoreError(error, 'histórico')));
@@ -977,7 +981,7 @@
                     isDataLoaded = true;
                     showLoader(false);
                     showProductsSkeleton(false); // 🎨 Remover skeleton ao carregar
-                    renderProducts();
+                    refreshInventoryView();
                     updateDashboard();
                     renderRequisitions();
                     renderLocations();
@@ -1914,6 +1918,192 @@
             }
         };
 
+        const refreshInventoryView = () => {
+            if (activeInventoryTab === 'balance') {
+                renderProducts();
+            } else {
+                renderObservationEntries();
+            }
+        };
+
+        const renderObservationEntries = () => {
+            const listContainer = document.getElementById('observation-entries-list');
+            const noMessage = document.getElementById('no-observation-entries-message');
+            const paginationContainer = document.getElementById('observation-pagination-controls');
+            if (!listContainer || !noMessage) return;
+
+            const query = (searchInput?.value || '').trim();
+
+            const entryTypes = ['Entrada', 'Entrada por NF', 'Ajuste Entrada', 'Criação', 'Importação'];
+            let entries = history.filter(h => entryTypes.includes(h.type));
+
+            if (query) {
+                entries = fuseSearch(entries, query, [
+                    { name: 'productName', weight: 0.3 },
+                    { name: 'productCodeRM', weight: 0.15 },
+                    { name: 'productCode', weight: 0.15 },
+                    { name: 'observation', weight: 0.4 },
+                    { name: 'supplier', weight: 0.1 },
+                    { name: 'nfNumber', weight: 0.1 },
+                    { name: 'receivedBy', weight: 0.1 }
+                ], { threshold: 0.5 });
+            }
+
+            entries.sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
+
+            const totalEntries = entries.length;
+            const totalPages = Math.ceil(totalEntries / observationItemsPerPage);
+            const startIndex = (observationCurrentPage - 1) * observationItemsPerPage;
+            const endIndex = startIndex + observationItemsPerPage;
+            const paginatedEntries = entries.slice(startIndex, endIndex);
+
+            listContainer.innerHTML = '';
+            noMessage.classList.toggle('hidden', !(entries.length === 0 && isDataLoaded));
+            if (entries.length === 0 && isDataLoaded) {
+                noMessage.innerHTML = query 
+                    ? `<p class="mb-4 text-lg">Nenhum resultado encontrado para "${escHtmlText(query)}".</p>` 
+                    : `<p class="mb-4 text-lg">Nenhuma entrada com observação registrada ainda.</p>`;
+            }
+
+            paginatedEntries.forEach(h => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 transition-colors duration-150';
+                
+                const dateStr = h.date ? new Date(h.date.seconds * 1000).toLocaleString('pt-BR') : '—';
+                const quantityStr = `<span class="font-bold text-green-600">+${h.quantity}</span>`;
+                const nfSupplierStr = `
+                    <div class="text-sm font-semibold text-slate-800">${h.nfNumber ? 'NF ' + h.nfNumber : 'Sem NF'}</div>
+                    <div class="text-xs text-slate-500">${h.supplier || 'Sem Fornecedor'}</div>
+                `;
+                const productStr = `
+                    <div class="text-sm font-semibold text-slate-800">${h.productName || '—'}</div>
+                    <div class="text-xs text-slate-500">RM: ${h.productCodeRM || 'N/A'} · SKU: ${h.productCode || 'N/A'}</div>
+                `;
+                const obsStr = h.observation 
+                    ? `<div class="text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-lg py-1.5 px-2 inline-block max-w-xs break-words shadow-sm">
+                        👥 ${escHtmlText(h.observation)}
+                       </div>`
+                    : '<span class="text-slate-400 italic text-xs">Nenhuma</span>';
+
+                tr.innerHTML = `
+                    <td class="p-3 sm:p-4 text-xs text-slate-600 whitespace-nowrap align-top">${dateStr}</td>
+                    <td class="p-3 sm:p-4 align-top">${productStr}</td>
+                    <td class="p-3 sm:p-4 text-center align-top">${quantityStr}</td>
+                    <td class="p-3 sm:p-4 align-top">${nfSupplierStr}</td>
+                    <td class="p-3 sm:p-4 align-top">${obsStr}</td>
+                    <td class="p-3 sm:p-4 text-xs text-slate-600 whitespace-nowrap align-top">${escHtmlText(h.receivedBy || '—')}</td>
+                `;
+                listContainer.appendChild(tr);
+            });
+
+            if (paginationContainer) {
+                if (totalPages <= 1) {
+                    paginationContainer.innerHTML = `<p class="text-sm text-slate-500">Mostrando ${totalEntries} entradas</p>`;
+                    return;
+                }
+
+                const startItem = (observationCurrentPage - 1) * observationItemsPerPage + 1;
+                const endItem = Math.min(observationCurrentPage * observationItemsPerPage, totalEntries);
+
+                paginationContainer.innerHTML = `
+                    <div class="flex items-center justify-between gap-4">
+                        <p class="text-sm text-slate-600">
+                            Mostrando <span class="font-semibold">${startItem}-${endItem}</span> de <span class="font-semibold">${totalEntries}</span> entradas
+                        </p>
+                        <div class="flex gap-2">
+                            <button id="obs-prev-page" ${observationCurrentPage === 1 ? 'disabled' : ''} 
+                                class="px-3 py-1 text-sm font-medium rounded-lg transition ${observationCurrentPage === 1 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'}">
+                                ← Anterior
+                            </button>
+                            <span class="px-3 py-1 text-sm font-semibold text-slate-700">
+                                Página ${observationCurrentPage} de ${totalPages}
+                            </span>
+                            <button id="obs-next-page" ${observationCurrentPage === totalPages ? 'disabled' : ''} 
+                                class="px-3 py-1 text-sm font-medium rounded-lg transition ${observationCurrentPage === totalPages ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'}">
+                                Próxima →
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                document.getElementById('obs-prev-page')?.addEventListener('click', () => {
+                    if (observationCurrentPage > 1) {
+                        observationCurrentPage--;
+                        renderObservationEntries();
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                });
+
+                document.getElementById('obs-next-page')?.addEventListener('click', () => {
+                    if (observationCurrentPage < totalPages) {
+                        observationCurrentPage++;
+                        renderObservationEntries();
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                });
+            }
+        };
+
+        const setupInventoryTabs = () => {
+            const tabBalance = document.getElementById('inventory-tab-balance');
+            const tabObs = document.getElementById('inventory-tab-observations');
+            const balanceContainer = document.getElementById('product-list-container');
+            const obsContainer = document.getElementById('observations-list-container');
+            const filtersBar = document.getElementById('inventory-filters-bar');
+            const initiateBtn = document.getElementById('initiate-requisition-btn');
+            const deleteBtn = document.getElementById('delete-selected-btn');
+            const aiBtn = document.getElementById('ai-describe-btn');
+
+            if (!tabBalance || !tabObs) return;
+
+            const selectTab = (tab) => {
+                activeInventoryTab = tab;
+                
+                if (tab === 'balance') {
+                    tabBalance.classList.add('active');
+                    tabBalance.style.background = '#4F46E5';
+                    tabBalance.style.color = '#fff';
+                    
+                    tabObs.classList.remove('active');
+                    tabObs.style.background = 'transparent';
+                    tabObs.style.color = '#475569';
+
+                    balanceContainer.classList.remove('hidden');
+                    obsContainer.classList.add('hidden');
+                    if (filtersBar) filtersBar.style.display = '';
+                    
+                    updateSelectionActionButtonsState();
+                    if (searchInput) searchInput.placeholder = "Buscar produto, código, local ou observação...";
+                } else {
+                    tabObs.classList.add('active');
+                    tabObs.style.background = '#4F46E5';
+                    tabObs.style.color = '#fff';
+                    
+                    tabBalance.classList.remove('active');
+                    tabBalance.style.background = 'transparent';
+                    tabBalance.style.color = '#475569';
+
+                    obsContainer.classList.remove('hidden');
+                    balanceContainer.classList.add('hidden');
+                    if (filtersBar) filtersBar.style.display = 'none';
+                    
+                    if (initiateBtn) initiateBtn.classList.add('hidden');
+                    if (deleteBtn) deleteBtn.classList.add('hidden');
+                    if (aiBtn) aiBtn.classList.add('hidden');
+                    
+                    if (searchInput) searchInput.placeholder = "Buscar colaborador, local de aplicação, NF ou produto...";
+                }
+                
+                if (searchInput) searchInput.value = '';
+                currentPage = 1;
+                observationCurrentPage = 1;
+                refreshInventoryView();
+            };
+
+            tabBalance.addEventListener('click', () => selectTab('balance'));
+            tabObs.addEventListener('click', () => selectTab('observations'));
+        };
+
         const renderProducts = () => {
             populateLocationFilter();
             let processedProducts = [...products]; 
@@ -1923,13 +2113,40 @@
             if (inventoryLocationFilter && inventoryLocationFilter !== 'all') {
                 processedProducts = processedProducts.filter(p => (p.location || '').trim() === inventoryLocationFilter);
             }
+
+            // Map recent observations and build searchable text from entry history
+            processedProducts = processedProducts.map(p => {
+                const productEntries = history.filter(h => h.productId === p.id && (h.type === 'Entrada por NF' || h.type === 'Entrada') && h.observation);
+                const sortedEntries = [...productEntries].sort((a, b) => (b.date?.seconds || 0) - (a.date?.seconds || 0));
+                
+                const uniqueRecentObs = [];
+                const seenObs = new Set();
+                for (const entry of sortedEntries) {
+                    const obs = (entry.observation || '').trim();
+                    if (obs && !seenObs.has(obs.toLowerCase())) {
+                        seenObs.add(obs.toLowerCase());
+                        uniqueRecentObs.push(entry);
+                    }
+                    if (uniqueRecentObs.length >= 3) break;
+                }
+                
+                const obsText = productEntries.map(e => e.observation).join(' ');
+                
+                return {
+                    ...p,
+                    recentObservations: uniqueRecentObs,
+                    observationsText: obsText
+                };
+            });
+
             processedProducts = fuseSearch(processedProducts, searchInput.value, [
-                { name: 'name', weight: 0.5 },
-                { name: 'code', weight: 0.15 },
-                { name: 'codeRM', weight: 0.15 },
+                { name: 'name', weight: 0.4 },
+                { name: 'code', weight: 0.1 },
+                { name: 'codeRM', weight: 0.1 },
                 { name: 'location', weight: 0.1 },
-                { name: 'observation', weight: 0.1 }
+                { name: 'observationsText', weight: 0.3 }
             ]);
+
             if (inventorySortOrder === 'name_asc') processedProducts.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
             else if (inventorySortOrder === 'code_asc') processedProducts.sort((a, b) => (a.codeRM || '').localeCompare(b.codeRM || ''));
             else if (inventorySortOrder === 'location_asc') processedProducts.sort((a, b) => (a.location || '').localeCompare(b.location || ''));
@@ -1964,6 +2181,15 @@
                 const readonlyRow = isReadOnlyRole();
                 const checkboxCell = readonlyRow ? '' : `<td class="p-3 sm:p-4 text-center"><input type="checkbox" class="product-checkbox h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600" data-id="${p.id}" ${isChecked ? 'checked' : ''}></td>`;
                 const editDeleteBtns = readonlyRow ? '' : `<button data-id="${p.id}" class="edit-btn text-slate-500 hover:text-blue-600 p-1.5 sm:p-2 rounded-full hover:bg-blue-100 transition" title="Editar"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button><button data-id="${p.id}" class="delete-btn text-slate-500 hover:text-red-600 p-1.5 sm:p-2 rounded-full hover:bg-red-100 transition" title="Excluir"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>`;
+
+                const obsPills = (p.recentObservations || []).map(entry => {
+                    const d = entry.date ? new Date(entry.date.seconds * 1000).toLocaleDateString('pt-BR') : '';
+                    return `<span class="inline-flex items-center bg-indigo-50 text-indigo-700 text-[10px] font-semibold px-2 py-0.5 rounded border border-indigo-100/60 shadow-sm" title="NF ${entry.nfNumber || 'Sem NF'} · ${d}">
+                        👥 ${escHtmlText(entry.observation)}
+                    </span>`;
+                }).join(' ');
+                const obsBlock = obsPills ? `<div class="flex flex-wrap gap-1 mt-1.5">${obsPills}</div>` : '';
+
                 const tr = document.createElement('tr');
                 tr.className = `hover:bg-slate-50 transition-colors duration-150`;
                 tr.innerHTML = `
@@ -1977,6 +2203,7 @@
                                 <p class="text-xs text-slate-500 mt-0.5">Val. Unit.: <span class="font-semibold text-emerald-600">${unitValueStr}</span></p>
                                 <p class="text-xs text-slate-400">SKU: ${p.code}</p>
                                 <p class="text-xs text-slate-500 sm:hidden mt-0.5">${p.location || ''}</p>
+                                ${obsBlock}
                             </div>
                         </div>
                     </td>
@@ -4320,6 +4547,9 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 btn.style.background = isActive ? 'rgba(0,102,255,0.08)' : 'transparent';
             });
 
+            if (viewId === 'inventory-view') {
+                refreshInventoryView();
+            }
             if (viewId === 'add-product-view') {
                 document.getElementById('product-code').value = generateNextProductCode();
             }
@@ -4352,6 +4582,12 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         };
 
         const updateSelectionActionButtonsState = () => {
+            if (activeInventoryTab === 'observations') {
+                deleteSelectedBtn.classList.add('hidden');
+                document.getElementById('initiate-requisition-btn')?.classList.add('hidden');
+                aiDescribeBtn.classList.add('hidden');
+                return;
+            }
             const count = selectedProductIds.size;
             const initiateRequisitionBtn = document.getElementById('initiate-requisition-btn');
             
@@ -4595,6 +4831,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
 
         settingsBtn.addEventListener('click', showSettingsModal);
         tabButtons.forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.view)));
+        setupInventoryTabs();
         inventoryFilters.addEventListener('click', (e) => { 
             const button = e.target.closest('.filter-btn');
             if (!button) return;
@@ -6800,7 +7037,8 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
 
         searchInput.addEventListener('input', debounce(() => {
             currentPage = 1;
-            renderProducts();
+            observationCurrentPage = 1;
+            refreshInventoryView();
         }, 250));
         exitsSearchInput.addEventListener('input', debounce((e) => renderExitLog(e.target.value), 250));
         activityLogSearchInput?.addEventListener('input', debounce(() => renderActivityLog(), 250));

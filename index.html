@@ -253,6 +253,16 @@
                 </div>
         
                 <div id="inventory-view" class="view-content hidden">
+                    <!-- Sub-abas do Estoque -->
+                    <div class="flex gap-2 mb-6 bg-slate-100 p-1 rounded-xl max-w-md">
+                        <button id="inventory-tab-balance" class="inventory-tab-btn active flex-1 py-2 px-3 rounded-lg text-sm font-bold transition-all" style="background:#4F46E5; color:#fff;">
+                            <span class="material-symbols-outlined align-middle mr-1.5" style="font-size:18px;">shelves</span>Saldo do Estoque
+                        </button>
+                        <button id="inventory-tab-observations" class="inventory-tab-btn flex-1 py-2 px-3 rounded-lg text-sm font-bold transition-all" style="background:transparent; color:#475569;">
+                            <span class="material-symbols-outlined align-middle mr-1.5" style="font-size:18px;">person_search</span>Buscar por Colaborador
+                        </button>
+                    </div>
+
                     <div class="flex flex-col gap-3 mb-6">
                         <!-- Linha 1: título + filtros (rola horizontalmente no mobile) -->
                         <div class="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -298,7 +308,10 @@
                             </button>
                         </div>
                     </div>
-                    <div class="overflow-x-auto -mx-2 sm:mx-0">
+
+                    <!-- Container 1: Saldo do Estoque (Produtos) -->
+                    <div id="product-list-container">
+                        <div class="overflow-x-auto -mx-2 sm:mx-0">
                             <table class="w-full text-left min-w-[400px]">
                                 <thead class="bg-slate-50 text-xs text-slate-600 uppercase tracking-wider font-semibold">
                                     <tr>
@@ -319,6 +332,30 @@
                             <!-- 🚀 Controles de Paginação -->
                             <div id="pagination-controls" class="mt-6 pb-4"></div>
                         </div>
+                    </div>
+
+                    <!-- Container 2: Entradas por Colaborador / Local (Observações) -->
+                    <div id="observations-list-container" class="hidden">
+                        <div class="overflow-x-auto -mx-2 sm:mx-0">
+                            <table class="w-full text-left min-w-[600px]">
+                                <thead class="bg-slate-50 text-xs text-slate-600 uppercase tracking-wider font-semibold">
+                                    <tr>
+                                        <th class="p-3 sm:p-4 rounded-l-lg">Data</th>
+                                        <th class="p-3 sm:p-4">Produto</th>
+                                        <th class="p-3 sm:p-4 text-center">Qtd. Entrada</th>
+                                        <th class="p-3 sm:p-4">Nota Fiscal / Fornecedor</th>
+                                        <th class="p-3 sm:p-4">Observação / Destino</th>
+                                        <th class="p-3 sm:p-4 rounded-r-lg">Recebido Por</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="observation-entries-list" class="divide-y divide-slate-200"></tbody>
+                            </table>
+                            <div id="no-observation-entries-message" class="text-center text-slate-500 py-16 hidden"></div>
+                            
+                            <!-- 🚀 Controles de Paginação Observações -->
+                            <div id="observation-pagination-controls" class="mt-6 pb-4"></div>
+                        </div>
+                    </div>
                 </div>
         
                 <div id="add-product-view" class="view-content hidden">
