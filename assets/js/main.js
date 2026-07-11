@@ -93,6 +93,10 @@
         let purchaseRequests = [];
         let purchaseRequestsRef;
 
+        // 📝 Bloco de Notas State
+        let notes = [];
+        let notesCollectionRef;
+
         // ⭐ UHE Estrela State
         let estrelaProducts = [];
         let estrelaEntries = [];
@@ -775,6 +779,7 @@
             toolLoansCollectionRef = collection(db, `${obraBase}/tool_loans`);
             locationsCollectionRef = collection(db, `${obraBase}/locations`);
             purchaseRequestsRef = collection(db, `${obraBase}/purchase_requests`);
+            notesCollectionRef = collection(db, `${obraBase}/notes`);
             settingsDocRef = doc(db, `${obraBase}/app_settings/main`);
             usersCollectionRef = collection(db, `/artifacts/${appId}/public/data/users`);
 
@@ -1005,6 +1010,11 @@
                 purchaseRequests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 if (isDataLoaded && currentViewId === 'purchase-requests-view') renderPurchaseRequests();
             }, (error) => handleFirestoreError(error, 'solicitações de compra')));
+
+            coreUnsubscribers.push(onSnapshot(notesCollectionRef, (snapshot) => {
+                notes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                if (isDataLoaded && currentViewId === 'notes-view') renderNotes();
+            }, (error) => handleFirestoreError(error, 'anotações')));
         }
 
         function startEstrelaListeners() {
@@ -4577,6 +4587,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             }
             if (viewId === 'estrela-view') renderEstrelaView();
             if (viewId === 'purchase-requests-view') renderPurchaseRequests();
+            if (viewId === 'notes-view') renderNotes();
 
             syncRealtimeListeners();
         };
@@ -8465,4 +8476,181 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
 
             btn.disabled = false;
             btn.textContent = 'Adicionar Pedido';
+        });
+
+        // 📝 ── LOGICA DO BLOCO DE NOTAS ──
+        const renderNotes = () => {
+            const listContainer = document.getElementById('notes-list');
+            const emptyMsg = document.getElementById('no-notes');
+            if (!listContainer) return;
+
+            const sortedNotes = [...notes].sort((a, b) => {
+                const aTime = a.createdAt?.seconds || 0;
+                const bTime = b.createdAt?.seconds || 0;
+                return bTime - aTime;
+            });
+
+            if (sortedNotes.length === 0) {
+                listContainer.innerHTML = '';
+                emptyMsg?.classList.remove('hidden');
+                return;
+            }
+            emptyMsg?.classList.add('hidden');
+
+            listContainer.innerHTML = sortedNotes.map(n => {
+                const dateStr = n.createdAt?.seconds
+                    ? new Date(n.createdAt.seconds * 1000).toLocaleDateString('pt-BR')
+                    : '—';
+                const colorClass = n.color || 'bg-amber-100';
+                
+                return `
+                    <div class="rounded-2xl border border-slate-200/60 ${colorClass} p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition duration-200 min-h-[160px] relative group">
+                        <div class="mb-4">
+                            ${n.title ? `<h4 class="font-bold text-base text-slate-800 mb-1.5 truncate">${escHtmlText(n.title)}</h4>` : ''}
+                            <p class="text-sm font-medium text-slate-800 leading-relaxed whitespace-pre-wrap break-words">${escHtmlText(n.content)}</p>
+                        </div>
+                        <div class="flex items-center justify-between mt-auto pt-3 border-t border-black/5 text-[11px] text-slate-500">
+                            <span>📅 ${dateStr}${n.createdBy ? ` · 👤 ${escHtmlText(n.createdBy)}` : ''}</span>
+                            <div class="flex gap-1.5 opacity-80 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onclick="openNoteModal('${n.id}')" class="p-1 rounded-lg hover:bg-black/5 text-slate-700 transition" title="Editar anotação">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                </button>
+                                <button onclick="deleteNote('${n.id}')" class="p-1 rounded-lg hover:bg-black/5 text-red-700 transition" title="Excluir anotação">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        const openNoteModal = (id = null) => {
+            const backdrop = document.getElementById('note-modal-backdrop');
+            const modal = document.getElementById('note-modal');
+            const form = document.getElementById('note-form');
+            const titleInput = document.getElementById('note-title');
+            const contentInput = document.getElementById('note-content');
+            const idInput = document.getElementById('note-id');
+            const submitBtn = document.getElementById('note-submit-btn');
+            const modalTitle = document.getElementById('note-modal-title');
+
+            if (!backdrop || !modal || !form) return;
+
+            form.reset();
+            idInput.value = id || '';
+
+            if (id) {
+                const note = notes.find(n => n.id === id);
+                if (note) {
+                    if (modalTitle) modalTitle.textContent = 'Editar Anotação';
+                    if (titleInput) titleInput.value = note.title || '';
+                    if (contentInput) contentInput.value = note.content || '';
+                    if (submitBtn) submitBtn.textContent = 'Salvar Alterações';
+                    
+                    const radio = form.querySelector(`input[name="note-color"][value="${note.color || 'bg-amber-100'}"]`);
+                    if (radio) radio.checked = true;
+                }
+            } else {
+                if (modalTitle) modalTitle.textContent = 'Nova Anotação';
+                if (submitBtn) submitBtn.textContent = 'Adicionar Anotação';
+                const defaultRadio = form.querySelector('input[name="note-color"][value="bg-amber-100"]');
+                if (defaultRadio) defaultRadio.checked = true;
+            }
+
+            backdrop.classList.remove('hidden');
+            modal.classList.remove('hidden');
+        };
+
+        const closeNoteModal = () => {
+            const backdrop = document.getElementById('note-modal-backdrop');
+            const modal = document.getElementById('note-modal');
+            if (backdrop) backdrop.classList.add('hidden');
+            if (modal) modal.classList.add('hidden');
+        };
+
+        const addOrUpdateNote = async (id, title, content, color) => {
+            if (!content.trim()) {
+                showToast('O conteúdo da anotação é obrigatório.', true);
+                return;
+            }
+
+            const username = toUpperText(currentUser?.displayName || currentUser?.uid || 'Anônimo');
+
+            const noteData = {
+                title: title.trim(),
+                content: content.trim(),
+                color: color || 'bg-amber-100',
+                updatedAt: serverTimestamp()
+            };
+
+            try {
+                if (id) {
+                    const noteRef = doc(notesCollectionRef, id);
+                    await updateDoc(noteRef, noteData);
+                    showToast('Anotação atualizada!');
+                } else {
+                    noteData.createdAt = serverTimestamp();
+                    noteData.createdBy = username;
+                    await addDoc(notesCollectionRef, noteData);
+                    showToast('Anotação adicionada!');
+                }
+                closeNoteModal();
+            } catch (error) {
+                console.error("Erro ao salvar anotação:", error);
+                showToast("Erro ao salvar anotação.", true);
+            }
+        };
+
+        const deleteNote = (id) => {
+            showConfirmationModal(
+                'Excluir Anotação',
+                'Tem certeza que deseja excluir esta anotação? Esta ação não pode ser desfeita.',
+                async () => {
+                    try {
+                        const noteRef = doc(notesCollectionRef, id);
+                        await deleteDoc(noteRef);
+                        showToast('Anotação excluída.');
+                    } catch (error) {
+                        console.error("Erro ao excluir anotação:", error);
+                        showToast("Erro ao excluir anotação.", true);
+                    }
+                }
+            );
+        };
+
+        window.openNoteModal = openNoteModal;
+        window.deleteNote = deleteNote;
+
+        // Delegação de eventos de clique para anotações
+        document.body.addEventListener('click', (e) => {
+            const addBtn = e.target.closest('#add-note-btn');
+            if (addBtn) { openNoteModal(); return; }
+
+            const closeBtn = e.target.closest('#note-modal-close');
+            if (closeBtn) { closeNoteModal(); return; }
+
+            const backdrop = e.target.closest('#note-modal-backdrop');
+            if (backdrop) { closeNoteModal(); return; }
+        });
+
+        // Submit do formulário de anotações
+        document.body.addEventListener('submit', async (e) => {
+            const form = e.target.closest('#note-form');
+            if (!form) return;
+            e.preventDefault();
+
+            const id = document.getElementById('note-id').value;
+            const title = document.getElementById('note-title').value;
+            const content = document.getElementById('note-content').value;
+            const color = form.querySelector('input[name="note-color"]:checked')?.value || 'bg-amber-100';
+
+            const submitBtn = document.getElementById('note-submit-btn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `<div class="spinner-small"></div>`;
+
+            await addOrUpdateNote(id, title, content, color);
+
+            submitBtn.disabled = false;
+            submitBtn.textContent = id ? 'Salvar Alterações' : 'Adicionar Anotação';
         });

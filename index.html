@@ -201,6 +201,10 @@
                         <span>Cautela</span>
                         <span id="nav-tool-loans-badge" class="ml-auto text-xs font-bold px-1.5 py-0.5 rounded-full hidden" style="background:#dc2626; color:#fff;">0</span>
                     </button>
+                    <button data-view="notes-view" type="button" class="tab-btn">
+                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">sticky_note</span></span>
+                        <span>Bloco de Notas</span>
+                    </button>
 
                     <!-- SEÇÃO: UHE ESTRELA -->
                     <p id="nav-section-estrela" class="nav-section-label">UHE Estrela</p>
@@ -1489,8 +1493,78 @@
                                 <label class="block text-sm font-medium text-slate-700 mb-1">Descrição do Pedido</label>
                                 <textarea id="pr-description" rows="3" class="w-full p-3 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500" placeholder="Ex: Pedido de parafusos e porcas para manutenção..." required></textarea>
                             </div>
-                            <button type="submit" id="pr-submit-btn" class="w-full py-3 rounded-lg font-semibold text-sm text-white shadow-sm transition hover:opacity-90" style="background:#005bbf;">
-                                Adicionar Pedido
+                        </form>
+                    </div>
+                </div>
+
+                <!-- ═══════════════════════════════════════════════════════ -->
+                <!-- BLOCO DE NOTAS VIEW                                    -->
+                <!-- ═══════════════════════════════════════════════════════ -->
+                <div id="notes-view" class="view-content hidden">
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                        <div>
+                            <h2 class="text-2xl font-semibold text-slate-800">Bloco de Notas</h2>
+                            <p class="text-sm text-slate-500 mt-0.5">Deixe anotações rápidas e lembretes para a equipe</p>
+                        </div>
+                        <button id="add-note-btn" class="flex items-center gap-2 px-5 py-3 rounded-lg font-semibold text-sm text-white shadow-sm transition hover:opacity-90 bg-indigo-600 hover:bg-indigo-700" style="box-shadow:0 4px 12px rgba(79,70,229,0.25);">
+                            <span class="material-symbols-outlined" style="font-size:20px;">add_circle</span>
+                            Nova Anotação
+                        </button>
+                    </div>
+
+                    <!-- Grid de Anotações -->
+                    <div id="notes-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+                    <div id="no-notes" class="text-center py-16 text-slate-500 hidden">
+                        <span class="material-symbols-outlined" style="font-size:48px; color:#c1c6d6;">sticky_note</span>
+                        <p class="mt-2 font-medium">Nenhuma anotação criada ainda</p>
+                    </div>
+
+                    <!-- Modal para adicionar/editar anotação -->
+                    <div id="note-modal-backdrop" class="hidden fixed inset-0" style="z-index:59;background:rgba(15,23,42,0.45);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);"></div>
+                    <div id="note-modal" class="hidden fixed" style="z-index:60;top:50%;left:50%;transform:translate(-50%,-50%);width:90%;max-width:480px;max-height:90vh;overflow-y-auto;background:rgba(255,255,255,0.98);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(0,0,0,0.08);border-radius:16px;box-shadow:0 24px 64px rgba(0,0,0,0.18);padding:24px;">
+                        <div class="flex items-start justify-between gap-2 mb-4">
+                            <h3 id="note-modal-title" class="text-lg font-bold text-slate-800">Nova Anotação</h3>
+                            <button type="button" id="note-modal-close" class="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 shrink-0">
+                                <span class="material-symbols-outlined" style="font-size:22px;">close</span>
+                            </button>
+                        </div>
+                        <form id="note-form" class="space-y-4">
+                            <input type="hidden" id="note-id">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Título (Opcional)</label>
+                                <input type="text" id="note-title" placeholder="Ex: Solicitação João" class="w-full p-3 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Conteúdo da Anotação</label>
+                                <textarea id="note-content" rows="4" class="w-full p-3 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" placeholder="Digite sua anotação aqui..." required></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1.5">Cor do Bloco</label>
+                                <div class="flex gap-2">
+                                    <label class="cursor-pointer">
+                                        <input type="radio" name="note-color" value="bg-amber-100" class="sr-only peer" checked>
+                                        <div class="w-8 h-8 rounded-full bg-amber-100 border-2 border-transparent peer-checked:border-amber-500 shadow-sm"></div>
+                                    </label>
+                                    <label class="cursor-pointer">
+                                        <input type="radio" name="note-color" value="bg-emerald-100" class="sr-only peer">
+                                        <div class="w-8 h-8 rounded-full bg-emerald-100 border-2 border-transparent peer-checked:border-emerald-500 shadow-sm"></div>
+                                    </label>
+                                    <label class="cursor-pointer">
+                                        <input type="radio" name="note-color" value="bg-sky-100" class="sr-only peer">
+                                        <div class="w-8 h-8 rounded-full bg-sky-100 border-2 border-transparent peer-checked:border-sky-500 shadow-sm"></div>
+                                    </label>
+                                    <label class="cursor-pointer">
+                                        <input type="radio" name="note-color" value="bg-rose-100" class="sr-only peer">
+                                        <div class="w-8 h-8 rounded-full bg-rose-100 border-2 border-transparent peer-checked:border-rose-500 shadow-sm"></div>
+                                    </label>
+                                    <label class="cursor-pointer">
+                                        <input type="radio" name="note-color" value="bg-purple-100" class="sr-only peer">
+                                        <div class="w-8 h-8 rounded-full bg-purple-100 border-2 border-transparent peer-checked:border-purple-500 shadow-sm"></div>
+                                    </label>
+                                </div>
+                            </div>
+                            <button type="submit" id="note-submit-btn" class="w-full py-3 rounded-lg font-semibold text-sm text-white shadow-sm transition hover:opacity-90 bg-indigo-600 hover:bg-indigo-700">
+                                Salvar Anotação
                             </button>
                         </form>
                     </div>
@@ -1576,6 +1650,10 @@
             <button data-view="purchase-requests-view" class="drawer-btn flex flex-col items-center justify-center gap-1.5 p-4 rounded-2xl" style="background:#fff;">
                 <span class="material-symbols-outlined" style="font-size:26px; color:#e65100;">receipt_long</span>
                 <span class="text-xs font-semibold" style="color:#414754;">Solicitação</span>
+            </button>
+            <button data-view="notes-view" class="drawer-btn flex flex-col items-center justify-center gap-1.5 p-4 rounded-2xl" style="background:#fff;">
+                <span class="material-symbols-outlined" style="font-size:26px; color:#4F46E5;">sticky_note</span>
+                <span class="text-xs font-semibold" style="color:#414754;">Anotações</span>
             </button>
             <button data-view="estrela-view" class="drawer-btn flex flex-col items-center justify-center gap-1.5 p-4 rounded-2xl" style="background:#fff; border:2px solid #fbbc05;">
                 <span class="material-symbols-outlined" style="font-size:26px; color:#fbbc05;">star</span>
