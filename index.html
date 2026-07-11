@@ -1472,28 +1472,6 @@
                         <p class="mt-2 font-medium">Nenhum pedido de compra encontrado</p>
                     </div>
 
-                    <!-- Modal para adicionar pedido -->
-                    <div id="pr-modal-backdrop" class="hidden fixed inset-0" style="z-index:59;background:rgba(15,23,42,0.45);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);"></div>
-                    <div id="pr-modal" class="hidden fixed" style="z-index:60;top:50%;left:50%;transform:translate(-50%,-50%);width:90%;max-width:480px;max-height:90vh;overflow-y-auto;background:rgba(255,255,255,0.98);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(0,0,0,0.08);border-radius:16px;box-shadow:0 24px 64px rgba(0,0,0,0.18);padding:24px;">
-                        <div class="flex items-start justify-between gap-2 mb-4">
-                            <h3 class="text-lg font-bold text-slate-800">Novo Pedido de Compra</h3>
-                            <button type="button" id="pr-modal-close" class="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 shrink-0">
-                                <span class="material-symbols-outlined" style="font-size:22px;">close</span>
-                            </button>
-                        </div>
-                        <form id="pr-form" class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-1">Foto do Pedido / Print</label>
-                                <input type="file" id="pr-image-input" accept="image/*" class="w-full p-2 border border-slate-200 rounded-lg text-sm file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" required>
-                                <div id="pr-image-preview-wrap" class="mt-2 hidden">
-                                    <img id="pr-image-preview" alt="Preview" class="max-h-40 rounded-lg border border-slate-200 object-contain bg-slate-50 mx-auto">
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-1">Descrição do Pedido</label>
-                                <textarea id="pr-description" rows="3" class="w-full p-3 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500" placeholder="Ex: Pedido de parafusos e porcas para manutenção..." required></textarea>
-                            </div>
-                        </form>
                     </div>
                 </div>
 
@@ -1525,97 +1503,6 @@
                         <p class="mt-2 font-medium">Nenhuma anotação encontrada</p>
                     </div>
 
-                    <!-- Modal para adicionar/editar anotação -->
-                    <div id="note-modal-backdrop" onclick="closeNoteModal()" class="hidden fixed inset-0" style="z-index:59;background:rgba(15,23,42,0.45);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);"></div>
-                    <div id="note-modal" class="hidden fixed" style="z-index:60;top:50%;left:50%;transform:translate(-50%,-50%);width:90%;max-width:480px;max-height:90vh;overflow-y-auto;background:rgba(255,255,255,0.98);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(0,0,0,0.08);border-radius:16px;box-shadow:0 24px 64px rgba(0,0,0,0.18);padding:24px;">
-                        <div class="flex items-start justify-between gap-2 mb-4">
-                            <h3 id="note-modal-title" class="text-lg font-bold text-slate-800">Nova Anotação</h3>
-                            <button type="button" id="note-modal-close" onclick="closeNoteModal()" class="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 shrink-0">
-                                <span class="material-symbols-outlined" style="font-size:22px;">close</span>
-                            </button>
-                        </div>
-                        <form id="note-form" class="space-y-4">
-                            <input type="hidden" id="note-id">
-                            <div>
-                                <label class="block text-sm font-semibold text-slate-700 mb-1">Título (Opcional)</label>
-                                <input type="text" id="note-title" placeholder="Ex: Solicitação João" class="w-full p-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-slate-700 mb-1">Conteúdo da Anotação</label>
-                                <textarea id="note-content" rows="4" class="w-full p-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none" placeholder="Digite sua anotação aqui..." required></textarea>
-                            </div>
-                            
-                            <!-- Marcador / Categoria -->
-                            <div>
-                                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Marcador</label>
-                                <div class="flex flex-wrap gap-2">
-                                    <label class="cursor-pointer">
-                                        <input type="radio" name="note-tag" value="none" class="sr-only peer" checked>
-                                        <div class="px-3 py-1.5 rounded-full text-xs font-semibold border border-slate-200 text-slate-600 bg-slate-50 peer-checked:bg-slate-200 peer-checked:border-slate-300 transition shadow-sm">Nenhum</div>
-                                    </label>
-                                    <label class="cursor-pointer">
-                                        <input type="radio" name="note-tag" value="lembrete" class="sr-only peer">
-                                        <div class="px-3 py-1.5 rounded-full text-xs font-semibold border border-blue-200 text-blue-700 bg-blue-50 peer-checked:bg-blue-200 peer-checked:border-blue-300 transition shadow-sm">📌 Lembrete</div>
-                                    </label>
-                                    <label class="cursor-pointer">
-                                        <input type="radio" name="note-tag" value="compra" class="sr-only peer">
-                                        <div class="px-3 py-1.5 rounded-full text-xs font-semibold border border-emerald-200 text-emerald-700 bg-emerald-50 peer-checked:bg-emerald-200 peer-checked:border-emerald-300 transition shadow-sm">🛒 Compra</div>
-                                    </label>
-                                    <label class="cursor-pointer">
-                                        <input type="radio" name="note-tag" value="urgente" class="sr-only peer">
-                                        <div class="px-3 py-1.5 rounded-full text-xs font-semibold border border-red-200 text-red-700 bg-red-50 peer-checked:bg-red-200 peer-checked:border-red-300 transition shadow-sm">🚨 Urgente</div>
-                                    </label>
-                                    <label class="cursor-pointer">
-                                        <input type="radio" name="note-tag" value="aviso" class="sr-only peer">
-                                        <div class="px-3 py-1.5 rounded-full text-xs font-semibold border border-purple-200 text-purple-700 bg-purple-50 peer-checked:bg-purple-200 peer-checked:border-purple-300 transition shadow-sm">📢 Aviso</div>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <!-- Cor do Bloco -->
-                            <div>
-                                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Cor do Bloco</label>
-                                <div class="flex gap-2.5">
-                                    <label class="cursor-pointer">
-                                        <input type="radio" name="note-color" value="bg-amber-50 border-amber-200" class="sr-only peer" checked>
-                                        <div class="w-8 h-8 rounded-full bg-amber-100 border-2 border-transparent peer-checked:border-amber-500 shadow-sm transition hover:scale-110 duration-150"></div>
-                                    </label>
-                                    <label class="cursor-pointer">
-                                        <input type="radio" name="note-color" value="bg-emerald-50 border-emerald-200" class="sr-only peer">
-                                        <div class="w-8 h-8 rounded-full bg-emerald-100 border-2 border-transparent peer-checked:border-emerald-500 shadow-sm transition hover:scale-110 duration-150"></div>
-                                    </label>
-                                    <label class="cursor-pointer">
-                                        <input type="radio" name="note-color" value="bg-sky-50 border-sky-200" class="sr-only peer">
-                                        <div class="w-8 h-8 rounded-full bg-sky-100 border-2 border-transparent peer-checked:border-sky-500 shadow-sm transition hover:scale-110 duration-150"></div>
-                                    </label>
-                                    <label class="cursor-pointer">
-                                        <input type="radio" name="note-color" value="bg-rose-50 border-rose-200" class="sr-only peer">
-                                        <div class="w-8 h-8 rounded-full bg-rose-100 border-2 border-transparent peer-checked:border-rose-500 shadow-sm transition hover:scale-110 duration-150"></div>
-                                    </label>
-                                    <label class="cursor-pointer">
-                                        <input type="radio" name="note-color" value="bg-indigo-50 border-indigo-200" class="sr-only peer">
-                                        <div class="w-8 h-8 rounded-full bg-indigo-100 border-2 border-transparent peer-checked:border-indigo-500 shadow-sm transition hover:scale-110 duration-150"></div>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <!-- Fixar no topo -->
-                            <div class="flex items-center justify-between py-2 border-t border-slate-100">
-                                <span class="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
-                                    <span class="material-symbols-outlined text-slate-500" style="font-size:20px;">push_pin</span>
-                                    Fixar no topo
-                                </span>
-                                <label class="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" id="note-pin-switch" class="sr-only peer">
-                                    <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                                </label>
-                            </div>
-
-                            <button type="submit" id="note-submit-btn" class="w-full py-3 rounded-xl font-bold text-sm text-white shadow-sm transition hover:opacity-90 bg-indigo-600 hover:bg-indigo-700">
-                                Salvar Anotação
-                            </button>
-                        </form>
-                    </div>
                 </div>
             </main>
         </div>
@@ -1623,6 +1510,125 @@
 
     <div id="generic-modal-backdrop" class="modal-backdrop"></div>
     <div id="generic-modal" class="modal bg-white p-6 md:p-8 rounded-xl shadow-xl w-11/12 max-w-md"></div>
+    
+    <!-- Modal para adicionar pedido de compra (Root Stack) -->
+    <div id="pr-modal-backdrop" class="hidden fixed inset-0" style="z-index:90;background:rgba(15,23,42,0.45);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);"></div>
+    <div id="pr-modal" class="hidden fixed" style="z-index:100;top:50%;left:50%;transform:translate(-50%,-50%);width:90%;max-width:480px;max-height:90vh;overflow-y-auto;background:rgba(255,255,255,0.98);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(0,0,0,0.08);border-radius:16px;box-shadow:0 24px 64px rgba(0,0,0,0.18);padding:24px;">
+        <div class="flex items-start justify-between gap-2 mb-4">
+            <h3 class="text-lg font-bold text-slate-800">Novo Pedido de Compra</h3>
+            <button type="button" id="pr-modal-close" class="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 shrink-0">
+                <span class="material-symbols-outlined" style="font-size:22px;">close</span>
+            </button>
+        </div>
+        <form id="pr-form" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Foto do Pedido / Print</label>
+                <input type="file" id="pr-image-input" accept="image/*" class="w-full p-2 border border-slate-200 rounded-lg text-sm file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" required>
+                <div id="pr-image-preview-wrap" class="mt-2 hidden">
+                    <img id="pr-image-preview" alt="Preview" class="max-h-40 rounded-lg border border-slate-200 object-contain bg-slate-50 mx-auto">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Descrição do Pedido</label>
+                <textarea id="pr-description" rows="3" class="w-full p-3 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500" placeholder="Ex: Pedido de parafusos e porcas para manutenção..." required></textarea>
+            </div>
+            <button type="submit" id="pr-submit-btn" class="w-full py-3 rounded-lg font-semibold text-sm text-white shadow-sm transition hover:opacity-90" style="background:#005bbf;">
+                Adicionar Pedido
+            </button>
+        </form>
+    </div>
+
+    <!-- Modal para adicionar/editar anotação (Root Stack) -->
+    <div id="note-modal-backdrop" onclick="closeNoteModal()" class="hidden fixed inset-0" style="z-index:90;background:rgba(15,23,42,0.45);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);"></div>
+    <div id="note-modal" class="hidden fixed" style="z-index:100;top:50%;left:50%;transform:translate(-50%,-50%);width:90%;max-width:480px;max-height:90vh;overflow-y-auto;background:rgba(255,255,255,0.98);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(0,0,0,0.08);border-radius:16px;box-shadow:0 24px 64px rgba(0,0,0,0.18);padding:24px;">
+        <div class="flex items-start justify-between gap-2 mb-4">
+            <h3 id="note-modal-title" class="text-lg font-bold text-slate-800">Nova Anotação</h3>
+            <button type="button" id="note-modal-close" onclick="closeNoteModal()" class="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 shrink-0">
+                <span class="material-symbols-outlined" style="font-size:22px;">close</span>
+            </button>
+        </div>
+        <form id="note-form" class="space-y-4">
+            <input type="hidden" id="note-id">
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">Título (Opcional)</label>
+                <input type="text" id="note-title" placeholder="Ex: Solicitação João" class="w-full p-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">Conteúdo da Anotação</label>
+                <textarea id="note-content" rows="4" class="w-full p-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none" placeholder="Digite sua anotação aqui..." required></textarea>
+            </div>
+            
+            <!-- Marcador / Categoria -->
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Marcador</label>
+                <div class="flex flex-wrap gap-2">
+                    <label class="cursor-pointer">
+                        <input type="radio" name="note-tag" value="none" class="sr-only peer" checked>
+                        <div class="px-3 py-1.5 rounded-full text-xs font-semibold border border-slate-200 text-slate-600 bg-slate-50 peer-checked:bg-slate-200 peer-checked:border-slate-300 transition shadow-sm">Nenhum</div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="note-tag" value="lembrete" class="sr-only peer">
+                        <div class="px-3 py-1.5 rounded-full text-xs font-semibold border border-blue-200 text-blue-700 bg-blue-50 peer-checked:bg-blue-200 peer-checked:border-blue-300 transition shadow-sm">📌 Lembrete</div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="note-tag" value="compra" class="sr-only peer">
+                        <div class="px-3 py-1.5 rounded-full text-xs font-semibold border border-emerald-200 text-emerald-700 bg-emerald-50 peer-checked:bg-emerald-200 peer-checked:border-emerald-300 transition shadow-sm">🛒 Compra</div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="note-tag" value="urgente" class="sr-only peer">
+                        <div class="px-3 py-1.5 rounded-full text-xs font-semibold border border-red-200 text-red-700 bg-red-50 peer-checked:bg-red-200 peer-checked:border-red-300 transition shadow-sm">🚨 Urgente</div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="note-tag" value="aviso" class="sr-only peer">
+                        <div class="px-3 py-1.5 rounded-full text-xs font-semibold border border-purple-200 text-purple-700 bg-purple-50 peer-checked:bg-purple-200 peer-checked:border-purple-300 transition shadow-sm">📢 Aviso</div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Cor do Bloco -->
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Cor do Bloco</label>
+                <div class="flex gap-2.5">
+                    <label class="cursor-pointer">
+                        <input type="radio" name="note-color" value="bg-amber-50 border-amber-200" class="sr-only peer" checked>
+                        <div class="w-8 h-8 rounded-full bg-amber-100 border-2 border-transparent peer-checked:border-amber-500 shadow-sm transition hover:scale-110 duration-150"></div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="note-color" value="bg-emerald-50 border-emerald-200" class="sr-only peer">
+                        <div class="w-8 h-8 rounded-full bg-emerald-100 border-2 border-transparent peer-checked:border-emerald-500 shadow-sm transition hover:scale-110 duration-150"></div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="note-color" value="bg-sky-50 border-sky-200" class="sr-only peer">
+                        <div class="w-8 h-8 rounded-full bg-sky-100 border-2 border-transparent peer-checked:border-sky-500 shadow-sm transition hover:scale-110 duration-150"></div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="note-color" value="bg-rose-50 border-rose-200" class="sr-only peer">
+                        <div class="w-8 h-8 rounded-full bg-rose-100 border-2 border-transparent peer-checked:border-rose-500 shadow-sm transition hover:scale-110 duration-150"></div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="note-color" value="bg-indigo-50 border-indigo-200" class="sr-only peer">
+                        <div class="w-8 h-8 rounded-full bg-indigo-100 border-2 border-transparent peer-checked:border-indigo-500 shadow-sm transition hover:scale-110 duration-150"></div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Fixar no topo -->
+            <div class="flex items-center justify-between py-2 border-t border-slate-100">
+                <span class="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-slate-500" style="font-size:20px;">push_pin</span>
+                    Fixar no topo
+                </span>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="note-pin-switch" class="sr-only peer">
+                    <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                </label>
+            </div>
+
+            <button type="submit" id="note-submit-btn" class="w-full py-3 rounded-xl font-bold text-sm text-white shadow-sm transition hover:opacity-90 bg-indigo-600 hover:bg-indigo-700">
+                Salvar Anotação
+            </button>
+        </form>
+    </div>
     
     <div id="toast"></div>
     
