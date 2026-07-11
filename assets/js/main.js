@@ -8482,40 +8482,83 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         const renderNotes = () => {
             const listContainer = document.getElementById('notes-list');
             const emptyMsg = document.getElementById('no-notes');
+            const searchInput = document.getElementById('note-search-input');
             if (!listContainer) return;
 
-            const sortedNotes = [...notes].sort((a, b) => {
+            const query = (searchInput?.value || '').trim().toLowerCase();
+            let filteredNotes = [...notes];
+
+            if (query) {
+                filteredNotes = filteredNotes.filter(n => 
+                    (n.title || '').toLowerCase().includes(query) || 
+                    (n.content || '').toLowerCase().includes(query)
+                );
+            }
+
+            // Ordena: Pinned primeiro, depois por data decrescente
+            filteredNotes.sort((a, b) => {
+                const aPinned = a.isPinned ? 1 : 0;
+                const bPinned = b.isPinned ? 1 : 0;
+                if (aPinned !== bPinned) return bPinned - aPinned;
+                
                 const aTime = a.createdAt?.seconds || 0;
                 const bTime = b.createdAt?.seconds || 0;
                 return bTime - aTime;
             });
 
-            if (sortedNotes.length === 0) {
+            if (filteredNotes.length === 0) {
                 listContainer.innerHTML = '';
                 emptyMsg?.classList.remove('hidden');
                 return;
             }
             emptyMsg?.classList.add('hidden');
 
-            listContainer.innerHTML = sortedNotes.map(n => {
+            listContainer.innerHTML = filteredNotes.map(n => {
                 const dateStr = n.createdAt?.seconds
                     ? new Date(n.createdAt.seconds * 1000).toLocaleDateString('pt-BR')
                     : '—';
-                const colorClass = n.color || 'bg-amber-100';
-                
+                const colorClass = n.color || 'bg-amber-50 border-amber-200';
+                const isPinned = !!n.isPinned;
+                const tag = n.tag || 'none';
+
+                // Determinar badge do marcador
+                let tagBadge = '';
+                if (tag === 'lembrete') {
+                    tagBadge = `<span class="inline-flex items-center gap-1 bg-blue-100/70 border border-blue-200/80 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">📌 Lembrete</span>`;
+                } else if (tag === 'compra') {
+                    tagBadge = `<span class="inline-flex items-center gap-1 bg-emerald-100/70 border border-emerald-200/80 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">🛒 Compra</span>`;
+                } else if (tag === 'urgente') {
+                    tagBadge = `<span class="inline-flex items-center gap-1 bg-red-100/70 border border-red-200/80 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm animate-pulse">🚨 Urgente</span>`;
+                } else if (tag === 'aviso') {
+                    tagBadge = `<span class="inline-flex items-center gap-1 bg-purple-100/70 border border-purple-200/80 text-purple-800 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">📢 Aviso</span>`;
+                }
+
                 return `
-                    <div class="rounded-2xl border border-slate-200/60 ${colorClass} p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition duration-200 min-h-[160px] relative group">
-                        <div class="mb-4">
-                            ${n.title ? `<h4 class="font-bold text-base text-slate-800 mb-1.5 truncate">${escHtmlText(n.title)}</h4>` : ''}
-                            <p class="text-sm font-medium text-slate-800 leading-relaxed whitespace-pre-wrap break-words">${escHtmlText(n.content)}</p>
+                    <div class="rounded-3xl border p-6 shadow-sm flex flex-col justify-between hover:shadow-md hover:scale-[1.01] transition duration-200 min-h-[170px] relative group ${colorClass}">
+                        <!-- Topo: Tag e Alfinete -->
+                        <div class="flex justify-between items-start mb-3 gap-2">
+                            <div class="flex flex-wrap gap-1.5">
+                                ${tagBadge}
+                            </div>
+                            <button onclick="togglePinNote('${n.id}', event)" class="p-1 rounded-lg text-slate-400 hover:text-indigo-600 transition duration-150 flex items-center justify-center" title="${isPinned ? 'Desafixar do topo' : 'Fixar no topo'}">
+                                <span class="material-symbols-outlined" style="font-size:20px; font-variation-settings: 'FILL' ${isPinned ? '1' : '0'}, 'wght' 500; color: ${isPinned ? '#4F46E5' : 'inherit'}">push_pin</span>
+                            </button>
                         </div>
-                        <div class="flex items-center justify-between mt-auto pt-3 border-t border-black/5 text-[11px] text-slate-500">
+                        
+                        <!-- Conteúdo -->
+                        <div class="mb-4 flex-1">
+                            ${n.title ? `<h4 class="font-bold text-base text-slate-800 mb-1.5 truncate pr-6">${escHtmlText(n.title)}</h4>` : ''}
+                            <p class="text-sm font-medium text-slate-700 leading-relaxed whitespace-pre-wrap break-words">${escHtmlText(n.content)}</p>
+                        </div>
+                        
+                        <!-- Rodapé -->
+                        <div class="flex items-center justify-between pt-3 border-t border-black/5 text-[11px] text-slate-500">
                             <span>📅 ${dateStr}${n.createdBy ? ` · 👤 ${escHtmlText(n.createdBy)}` : ''}</span>
                             <div class="flex gap-1.5 opacity-80 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onclick="openNoteModal('${n.id}')" class="p-1 rounded-lg hover:bg-black/5 text-slate-700 transition" title="Editar anotação">
+                                <button onclick="openNoteModal('${n.id}')" class="p-1.5 rounded-lg hover:bg-black/5 text-slate-700 transition" title="Editar anotação">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                                 </button>
-                                <button onclick="deleteNote('${n.id}')" class="p-1 rounded-lg hover:bg-black/5 text-red-700 transition" title="Excluir anotação">
+                                <button onclick="deleteNote('${n.id}')" class="p-1.5 rounded-lg hover:bg-black/5 text-red-700 transition" title="Excluir anotação">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                 </button>
                             </div>
@@ -8532,6 +8575,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             const titleInput = document.getElementById('note-title');
             const contentInput = document.getElementById('note-content');
             const idInput = document.getElementById('note-id');
+            const pinSwitch = document.getElementById('note-pin-switch');
             const submitBtn = document.getElementById('note-submit-btn');
             const modalTitle = document.getElementById('note-modal-title');
 
@@ -8539,6 +8583,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
 
             form.reset();
             idInput.value = id || '';
+            if (pinSwitch) pinSwitch.checked = false;
 
             if (id) {
                 const note = notes.find(n => n.id === id);
@@ -8546,16 +8591,22 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                     if (modalTitle) modalTitle.textContent = 'Editar Anotação';
                     if (titleInput) titleInput.value = note.title || '';
                     if (contentInput) contentInput.value = note.content || '';
+                    if (pinSwitch) pinSwitch.checked = !!note.isPinned;
                     if (submitBtn) submitBtn.textContent = 'Salvar Alterações';
                     
-                    const radio = form.querySelector(`input[name="note-color"][value="${note.color || 'bg-amber-100'}"]`);
-                    if (radio) radio.checked = true;
+                    const radioColor = form.querySelector(`input[name="note-color"][value="${note.color || 'bg-amber-50 border-amber-200'}"]`);
+                    if (radioColor) radioColor.checked = true;
+
+                    const radioTag = form.querySelector(`input[name="note-tag"][value="${note.tag || 'none'}"]`);
+                    if (radioTag) radioTag.checked = true;
                 }
             } else {
                 if (modalTitle) modalTitle.textContent = 'Nova Anotação';
                 if (submitBtn) submitBtn.textContent = 'Adicionar Anotação';
-                const defaultRadio = form.querySelector('input[name="note-color"][value="bg-amber-100"]');
-                if (defaultRadio) defaultRadio.checked = true;
+                const defaultColor = form.querySelector('input[name="note-color"][value="bg-amber-50 border-amber-200"]');
+                if (defaultColor) defaultColor.checked = true;
+                const defaultTag = form.querySelector('input[name="note-tag"][value="none"]');
+                if (defaultTag) defaultTag.checked = true;
             }
 
             backdrop.classList.remove('hidden');
@@ -8569,7 +8620,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             if (modal) modal.classList.add('hidden');
         };
 
-        const addOrUpdateNote = async (id, title, content, color) => {
+        const addOrUpdateNote = async (id, title, content, color, tag, isPinned) => {
             if (!content.trim()) {
                 showToast('O conteúdo da anotação é obrigatório.', true);
                 return;
@@ -8580,7 +8631,9 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             const noteData = {
                 title: title.trim(),
                 content: content.trim(),
-                color: color || 'bg-amber-100',
+                color: color || 'bg-amber-50 border-amber-200',
+                tag: tag || 'none',
+                isPinned: !!isPinned,
                 updatedAt: serverTimestamp()
             };
 
@@ -8619,21 +8672,31 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             );
         };
 
+        const togglePinNote = async (id, event) => {
+            if (event) event.stopPropagation();
+            const note = notes.find(n => n.id === id);
+            if (!note) return;
+            const newPinned = !note.isPinned;
+            try {
+                const noteRef = doc(notesCollectionRef, id);
+                await updateDoc(noteRef, { isPinned: newPinned });
+                showToast(newPinned ? 'Anotação fixada no topo!' : 'Anotação desafixada.');
+            } catch (error) {
+                console.error("Erro ao alterar fixação da anotação:", error);
+                showToast("Erro ao alterar fixação.", true);
+            }
+        };
+
         window.openNoteModal = openNoteModal;
         window.closeNoteModal = closeNoteModal;
         window.deleteNote = deleteNote;
+        window.togglePinNote = togglePinNote;
 
-        // Delegação de eventos de clique para anotações
-        document.body.addEventListener('click', (e) => {
-            const addBtn = e.target.closest('#add-note-btn');
-            if (addBtn) { openNoteModal(); return; }
-
-            const closeBtn = e.target.closest('#note-modal-close');
-            if (closeBtn) { closeNoteModal(); return; }
-
-            const backdrop = e.target.closest('#note-modal-backdrop');
-            if (backdrop) { closeNoteModal(); return; }
-        });
+        // Ouvinte do campo de busca de anotações
+        const noteSearchInput = document.getElementById('note-search-input');
+        noteSearchInput?.addEventListener('input', debounce(() => {
+            renderNotes();
+        }, 150));
 
         // Submit do formulário de anotações
         document.body.addEventListener('submit', async (e) => {
@@ -8644,13 +8707,15 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             const id = document.getElementById('note-id').value;
             const title = document.getElementById('note-title').value;
             const content = document.getElementById('note-content').value;
-            const color = form.querySelector('input[name="note-color"]:checked')?.value || 'bg-amber-100';
+            const color = form.querySelector('input[name="note-color"]:checked')?.value || 'bg-amber-50 border-amber-200';
+            const tag = form.querySelector('input[name="note-tag"]:checked')?.value || 'none';
+            const isPinned = document.getElementById('note-pin-switch')?.checked || false;
 
             const submitBtn = document.getElementById('note-submit-btn');
             submitBtn.disabled = true;
             submitBtn.innerHTML = `<div class="spinner-small"></div>`;
 
-            await addOrUpdateNote(id, title, content, color);
+            await addOrUpdateNote(id, title, content, color, tag, isPinned);
 
             submitBtn.disabled = false;
             submitBtn.textContent = id ? 'Salvar Alterações' : 'Adicionar Anotação';
