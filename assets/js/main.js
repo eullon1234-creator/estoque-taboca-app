@@ -6478,6 +6478,30 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 };
 
                 const top3 = getTopExits(3), top7 = getTopExits(7), top30 = getTopExits(30);
+                const deadStockCount = deadStock.length;
+                const deadStockUnits = deadStock.reduce((s, p) => s + (parseInt(p.quantity, 10) || 0), 0);
+                const deadStockValue = deadStock.reduce((s, p) => s + ((parseFloat(p.price) || 0) * (parseInt(p.quantity, 10) || 0)), 0);
+
+                const recentExitsMap = new Map();
+                history.filter(h => (h.type === 'Saída' || h.type === 'Saída por Requisição') && tsMs(h) > 0)
+                    .forEach(h => {
+                        const k = h.productId || h.productName;
+                        const t = tsMs(h);
+                        const cur = recentExitsMap.get(k) || 0;
+                        if (t > cur) recentExitsMap.set(k, t);
+                    });
+
+                const dormantProducts = products.filter(p => (p.quantity || 0) > 0).map(p => {
+                    const lastExitTime = recentExitsMap.get(p.id) || recentExitsMap.get(p.name) || 0;
+                    const daysWithoutExit = lastExitTime > 0 ? Math.floor((Date.now() - lastExitTime) / 864e5) : null;
+                    return {
+                        ...p,
+                        lastExitTime,
+                        daysWithoutExit
+                    };
+                }).filter(p => p.daysWithoutExit === null || p.daysWithoutExit >= 30)
+                  .sort((a, b) => (b.daysWithoutExit ?? 9999) - (a.daysWithoutExit ?? 9999));
+
                 const e7 = entQty(7), s7 = saiQty(7), e30 = entQty(30), s30 = saiQty(30);
 
                 const groupMap = new Map();
@@ -6652,7 +6676,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 renderTop('TOP SAÍDAS — ÚLTIMOS 7 DIAS',  top7,  '7C2D12', 'C2410C');
                 renderTop('TOP SAÍDAS — ÚLTIMOS 30 DIAS', top30, '78350F', 'D97706');
 
-                // Rodapé
+                // Rodapé Aba 1
                 sc(row, 0, `UHE Estrela  ·  KPI Report  ·  ${today} às ${hora}`, sFooter);
                 merge(row, 0, row, 7); hpt(row, 18); row++;
 
@@ -6719,9 +6743,122 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 ws2['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r2 - 1, c: 7 } });
                 XLS.utils.book_append_sheet(wb, ws2, 'Estoque Baixo');
 
+                // ────────────────────────────────────────────────────────────────
+                // ABA 3 — ESTOQUE MORTO & ITENS SEM GIRO
+                // ────────────────────────────────────────────────────────────────
+                const ws3 = XLS.utils.aoa_to_sheet([]);
+                ws3['!cols'] = [{ wch: 5 }, { wch: 38 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 20 }, { wch: 24 }, { wch: 16 }, { wch: 36 }];
+                ws3['!merges'] = [];
+                ws3['!rows'] = [];
+
+                let r3 = 0;
+                const sc3  = (r, c, v, style, t = 's') => { ws3[XLS.utils.encode_cell({ r, c })] = { v, t, s: style }; };
+                const scN3 = (r, c, v, style)           => sc3(r, c, v, style, 'n');
+                const mg3  = (r1, c1, r2e, c2)          => ws3['!merges'].push({ s: { r: r1, c: c1 }, e: { r: r2e, c: c2 } });
+                const hp3  = (r, h)                      => { ws3['!rows'][r] = { hpt: h }; };
+
+                sc3(r3, 0, `ESTOQUE MORTO / VENDA & ITENS SEM GIRO — UHE ESTRELA`, sTitle('701A75')); mg3(r3, 0, r3, 9); hp3(r3, 44); r3++;
+                sc3(r3, 0, `Gerado em ${today} às ${hora}  ·  Dados do RM TOTVS & Segregação de Almoxarifado`, sSub); mg3(r3, 0, r3, 9); hp3(r3, 22); r3++;
+                r3++;
+
+                // ── SEÇÃO 1: ITENS SEGREGADOS EM ESTOQUE MORTO / VENDA ──
+                sc3(r3, 0, `  1. ITENS SEGREGADOS EM ESTOQUE MORTO / VENDA (${deadStock.length} SKUs)`, sSecHdr('701A75')); mg3(r3, 0, r3, 9); hp3(r3, 26); r3++;
+                ['Nº', 'Material / Descrição', 'Código', 'Código RM', 'Un.', 'Quantidade', 'Preço Unit. RM (R$)', 'Valor Total (R$)', 'Data Entrada', 'Motivo / Observação'].forEach((h, c) => {
+                    sc3(r3, c, h, sTH('86198F'));
+                });
+                hp3(r3, 24); r3++;
+
+                const startDsRow = r3 + 1;
+                if (!deadStock.length) {
+                    sc3(r3, 0, 'Nenhum item segregado em Estoque Morto / Venda no momento.', sCell(false, 'center', '94A3B8'));
+                    mg3(r3, 0, r3, 9); hp3(r3, 22); r3++;
+                } else {
+                    deadStock.forEach((d, i) => {
+                        const ev = i % 2 === 1;
+                        const qty = parseInt(d.quantity, 10) || 0;
+                        const price = parseFloat(d.price) || 0;
+                        const total = qty * price;
+                        const dateStr = d.createdAt?.seconds ? new Date(d.createdAt.seconds * 1000).toLocaleDateString('pt-BR') : '—';
+                        const unit = d.productUnit || 'UN';
+
+                        scN3(r3, 0, i + 1, sCell(ev, 'center'));
+                        sc3(r3, 1, d.productName || '—', sCell(ev, 'left', '111827', true));
+                        sc3(r3, 2, d.productCode || '—', sCell(ev, 'center'));
+                        sc3(r3, 3, d.productCodeRM || d.codeRM || '—', sCell(ev, 'center'));
+                        sc3(r3, 4, unit, sCell(ev, 'center'));
+                        scN3(r3, 5, qty, sCell(ev, 'center', '701A75', true));
+                        
+                        // Preço unitário formatado
+                        ws3[XLS.utils.encode_cell({ r: r3, c: 6 })] = { v: price, t: 'n', z: '"R$" #,##0.00', s: sCell(ev, 'right') };
+                        
+                        // Valor total formula ou valor
+                        ws3[XLS.utils.encode_cell({ r: r3, c: 7 })] = { f: `F${r3 + 1}*G${r3 + 1}`, v: total, t: 'n', z: '"R$" #,##0.00', s: sCell(ev, 'right', '701A75', true) };
+                        
+                        sc3(r3, 8, dateStr, sCell(ev, 'center'));
+                        sc3(r3, 9, d.observation || '—', sCell(ev, 'left'));
+                        hp3(r3, 18); r3++;
+                    });
+
+                    // Linha Totalizador
+                    const endDsRow = r3;
+                    sc3(r3, 0, 'TOTAL ESTOQUE MORTO:', { font: { bold: true, sz: 10, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '701A75' } }, alignment: { horizontal: 'right', vertical: 'center' } });
+                    mg3(r3, 0, r3, 4);
+                    
+                    ws3[XLS.utils.encode_cell({ r: r3, c: 5 })] = { f: `SUM(F${startDsRow}:F${endDsRow})`, t: 'n', s: { font: { bold: true, sz: 11, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '701A75' } }, alignment: { horizontal: 'center', vertical: 'center' } } };
+                    
+                    sc3(r3, 6, '', { fill: { fgColor: { rgb: '701A75' } } });
+                    
+                    ws3[XLS.utils.encode_cell({ r: r3, c: 7 })] = { f: `SUM(H${startDsRow}:H${endDsRow})`, t: 'n', z: '"R$" #,##0.00', s: { font: { bold: true, sz: 11, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '701A75' } }, alignment: { horizontal: 'right', vertical: 'center' } } };
+                    
+                    sc3(r3, 8, '', { fill: { fgColor: { rgb: '701A75' } } });
+                    sc3(r3, 9, '', { fill: { fgColor: { rgb: '701A75' } } });
+                    hp3(r3, 22); r3++;
+                }
+                r3 += 2; // Espaço
+
+                // ── SEÇÃO 2: ITENS ATIVOS SEM GIRO (+30 DIAS SEM SAÍDAS) ──
+                sc3(r3, 0, `  2. ITENS ATIVOS DO ESTOQUE SEM MOVIMENTAÇÃO (+30 DIAS SEM SAÍDA) — ${dormantProducts.length} SKUs`, sSecHdr('7C2D12')); mg3(r3, 0, r3, 9); hp3(r3, 26); r3++;
+                ['Nº', 'Material / Descrição', 'Código', 'Código RM', 'Grupo', 'Un.', 'Saldo em Estoque', 'Última Saída', 'Dias Sem Giro', 'Status'].forEach((h, c) => {
+                    sc3(r3, c, h, sTH('C2410C'));
+                });
+                hp3(r3, 24); r3++;
+
+                if (!dormantProducts.length) {
+                    sc3(r3, 0, 'Todos os itens com saldo tiveram saídas recentes nos últimos 30 dias.', sCell(false, 'center', '15803D'));
+                    mg3(r3, 0, r3, 9); hp3(r3, 22); r3++;
+                } else {
+                    dormantProducts.forEach((p, i) => {
+                        const ev = i % 2 === 1;
+                        const qty = p.quantity || 0;
+                        const unit = p.unit || 'UN';
+                        const lastDateStr = p.lastExitTime > 0 ? new Date(p.lastExitTime).toLocaleDateString('pt-BR') : 'Nunca movimentado';
+                        const daysStr = p.daysWithoutExit !== null ? `${p.daysWithoutExit} dias` : 'Sem histórico';
+                        const status = p.daysWithoutExit === null ? '⚪ SEM HISTÓRICO' : p.daysWithoutExit >= 60 ? '🛑 PARADO (+60d)' : '🟠 SEM GIRO (+30d)';
+                        const statusColor = p.daysWithoutExit === null ? '64748B' : p.daysWithoutExit >= 60 ? 'B91C1C' : 'C2410C';
+
+                        scN3(r3, 0, i + 1, sCell(ev, 'center'));
+                        sc3(r3, 1, p.name || '—', sCell(ev, 'left', '111827', true));
+                        sc3(r3, 2, p.code || '—', sCell(ev, 'center'));
+                        sc3(r3, 3, p.codeRM || '—', sCell(ev, 'center'));
+                        sc3(r3, 4, p.group || '—', sCell(ev, 'center'));
+                        sc3(r3, 5, unit, sCell(ev, 'center'));
+                        scN3(r3, 6, qty, sCell(ev, 'center', '111827', true));
+                        sc3(r3, 7, lastDateStr, sCell(ev, 'center'));
+                        sc3(r3, 8, daysStr, sCell(ev, 'center', statusColor, true));
+                        sc3(r3, 9, status, sCell(ev, 'center', statusColor, true));
+                        hp3(r3, 18); r3++;
+                    });
+                }
+
+                sc3(r3, 0, `UHE Estrela  ·  Estoque Morto & Sem Giro  ·  ${today}`, sFooter);
+                mg3(r3, 0, r3, 9); hp3(r3, 18); r3++;
+
+                ws3['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r3 - 1, c: 9 } });
+                XLS.utils.book_append_sheet(wb, ws3, 'Estoque Morto & Sem Giro');
+
                 // ── DOWNLOAD ───────────────────────────────────────────────────
                 XLS.writeFile(wb, `kpis_estoque_${timestamp}.xlsx`);
-                showToast('✅ Relatório de KPIs exportado com sucesso!');
+                showToast('✅ Relatório de KPIs com Estoque Morto exportado com sucesso!');
 
             } catch (err) {
                 console.error('Erro ao gerar KPI Excel:', err);
