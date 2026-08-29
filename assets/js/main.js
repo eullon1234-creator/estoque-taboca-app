@@ -1,4 +1,4 @@
-// Importações do Firebase SDK
+﻿// Importações do Firebase SDK
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, onSnapshot, serverTimestamp, runTransaction, writeBatch, Timestamp, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -34,6 +34,10 @@
         let products = [];
         window.products = products;  // Expor globalmente para acesso via index.html
         let history = [];
+        let deadStock = [];
+        let deadStockCollectionRef;
+        let deadStockSales = [];
+        let deadStockSalesCollectionRef;
         let requisitions = [];
         let toolLoans = [];
         let toolLoanQueue = [];
@@ -204,13 +208,30 @@
             'pc': 'Peça', 'pç': 'Peça',
             'm': 'Metros', 'mt': 'Metros',
             'l': 'Litro', 'lt': 'Litro',
-            'kg': 'Quilo',
+            'kg': 'KG', 'kilo': 'KG', 'quilo': 'KG', 'kilos': 'KG', 'quilos': 'KG',
             'un': 'Unidade', 'und': 'Unidade',
             'cx': 'Caixa',
             'pct': 'Pacote',
             'rl': 'Rolo',
             'gl': 'Galão',
             'sc': 'Saco'
+        };
+
+                const sanitizeProductData = (p) => {
+            if (!p) return p;
+            if (p.unit) {
+                const u = String(p.unit).trim().toLowerCase();
+                if (u === 'quilo' || u === 'quilos' || u === 'kilo' || u === 'kilos' || u === 'kg') {
+                    p.unit = 'KG';
+                }
+            }
+            if (p.productUnit) {
+                const u = String(p.productUnit).trim().toLowerCase();
+                if (u === 'quilo' || u === 'quilos' || u === 'kilo' || u === 'kilos' || u === 'kg') {
+                    p.productUnit = 'KG';
+                }
+            }
+            return p;
         };
 
         const normalizeUnit = (rawUnit) => {
@@ -485,7 +506,8 @@
             'reports-view',
             'purchase-requests-view',
             'plaques-view',
-            'custom-plaques-view'
+            'custom-plaques-view',
+            'dead-stock-view'
         ]);
 
         const isReadOnlyRole = () => userRole === 'visitante' || userRole === 'visualizador';
@@ -560,7 +582,7 @@
                 readOnlyClickGuardWired = true;
                 document.addEventListener('click', (e) => {
                     if (!isReadOnlyRole() && hasPermission('update')) return;
-                    if (e.target.closest('.edit-btn, .delete-btn, .adjust-btn')) {
+                    if (e.target.closest('.edit-btn, .delete-btn, .adjust-btn, .transfer-ds-btn')) {
                         e.stopPropagation();
                         e.preventDefault();
                         showToast('🔒 Modo visitante: apenas consulta e relatórios.', true);
@@ -598,8 +620,10 @@
         };
 
         const openModal = (modalId) => {
-            document.getElementById(`${modalId}-backdrop`).classList.add('show');
-            document.getElementById(modalId).classList.add('show');
+            const backdrop = document.getElementById(`${modalId}-backdrop`);
+            const modal = document.getElementById(modalId);
+            if (backdrop) backdrop.classList.add('show');
+            if (modal) modal.classList.add('show');
             document.body.style.overflow = 'hidden';
         };
         const closeModal = (modalId) => {
@@ -619,6 +643,52 @@
             }
             document.body.style.overflow = '';
         };
+
+        // Controle da Gaveta / Drawer Retrátil de Abas
+        const openNavDrawer = () => {
+            const drawer = document.getElementById('nav-drawer');
+            const backdrop = document.getElementById('nav-drawer-backdrop');
+            if (drawer) drawer.classList.add('open');
+            if (backdrop) backdrop.classList.add('show');
+            document.body.style.overflow = 'hidden';
+        };
+
+        const closeNavDrawer = () => {
+            const drawer = document.getElementById('nav-drawer');
+            const backdrop = document.getElementById('nav-drawer-backdrop');
+            if (drawer) drawer.classList.remove('open');
+            if (backdrop) backdrop.classList.remove('show');
+            document.body.style.overflow = '';
+        };
+
+        window.openNavDrawer = openNavDrawer;
+        window.closeNavDrawer = closeNavDrawer;
+
+        document.getElementById('toggle-nav-drawer-btn')?.addEventListener('click', openNavDrawer);
+        document.getElementById('close-nav-drawer-btn')?.addEventListener('click', closeNavDrawer);
+        document.getElementById('nav-drawer-backdrop')?.addEventListener('click', closeNavDrawer);
+
+        // Expor no escopo global window para funcionar com onclick nos botões HTML
+        window.openModal = openModal;
+        window.closeModal = closeModal;
+
+        // Fechar modais ao clicar no backdrop (fundo escuro)
+        document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+            backdrop.addEventListener('click', () => {
+                const modalId = backdrop.id.replace('-backdrop', '');
+                closeModal(modalId);
+            });
+        });
+
+        // Fechar qualquer modal ativo ou gaveta de abas ao pressionar tecla ESC
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeNavDrawer();
+                document.querySelectorAll('.modal.show').forEach(m => {
+                    closeModal(m.id);
+                });
+            }
+        });
 
         const showConfirmationModal = (title, message, onConfirm) => {
             const content = `
@@ -781,6 +851,8 @@
             purchaseRequestsRef = collection(db, `${obraBase}/purchase_requests`);
             notesCollectionRef = collection(db, `${obraBase}/notes`);
             settingsDocRef = doc(db, `${obraBase}/app_settings/main`);
+            deadStockCollectionRef = collection(db, `${obraBase}/dead_stock`);
+            deadStockSalesCollectionRef = collection(db, `${obraBase}/dead_stock_sales`);
             usersCollectionRef = collection(db, `/artifacts/${appId}/public/data/users`);
 
             // ⭐ UHE Estrela collections (exclusivo para obra uhe_estrela)
@@ -931,8 +1003,18 @@
                 else updateAppSettingsUI({ appName: obraDefaultName, logoUrl: null });
             }, (error) => handleFirestoreError(error, 'configurações')));
 
+            coreUnsubscribers.push(onSnapshot(deadStockCollectionRef, (snapshot) => {
+                deadStock = snapshot.docs.map(doc => sanitizeProductData({ id: doc.id, ...doc.data() }));
+                if (currentViewId === 'dead-stock-view') renderDeadStock();
+            }, (error) => handleFirestoreError(error, 'estoque morto')));
+
+            coreUnsubscribers.push(onSnapshot(deadStockSalesCollectionRef, (snapshot) => {
+                deadStockSales = snapshot.docs.map(doc => sanitizeProductData({ id: doc.id, ...doc.data() }));
+                if (currentViewId === 'dead-stock-view') renderDeadStock();
+            }, (error) => handleFirestoreError(error, 'vendas estoque morto')));
+
             coreUnsubscribers.push(onSnapshot(productsCollectionRef, (snapshot) => {
-                products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                products = snapshot.docs.map(doc => sanitizeProductData({ id: doc.id, ...doc.data() }));
                 // Atualiza também a referência global para que outras views acessem os produtos
                 try { window.products = products; } catch (e) { /* ambiente restrito */ }
 
@@ -1021,7 +1103,7 @@
             if (estrelaUnsubscribers.length > 0) return;
 
             estrelaUnsubscribers.push(onSnapshot(estrelaProductsRef, (snapshot) => {
-                estrelaProducts = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                estrelaProducts = snapshot.docs.map(d => sanitizeProductData({ id: d.id, ...d.data() }));
                 if (isDataLoaded && currentViewId === 'estrela-view') renderEstrelaEstoque();
             }, (error) => handleFirestoreError(error, 'produtos Estrela')));
 
@@ -2190,7 +2272,7 @@
                        </div>`;
                 const readonlyRow = isReadOnlyRole();
                 const checkboxCell = readonlyRow ? '' : `<td class="p-3 sm:p-4 text-center"><input type="checkbox" class="product-checkbox h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600" data-id="${p.id}" ${isChecked ? 'checked' : ''}></td>`;
-                const editDeleteBtns = readonlyRow ? '' : `<button data-id="${p.id}" class="edit-btn text-slate-500 hover:text-blue-600 p-1.5 sm:p-2 rounded-full hover:bg-blue-100 transition" title="Editar"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button><button data-id="${p.id}" class="delete-btn text-slate-500 hover:text-red-600 p-1.5 sm:p-2 rounded-full hover:bg-red-100 transition" title="Excluir"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>`;
+                const editDeleteBtns = readonlyRow ? '' : `<button data-id="${p.id}" class="transfer-ds-btn text-slate-500 hover:text-orange-600 p-1.5 sm:p-2 rounded-full hover:bg-orange-100 transition" title="Transferir para Estoque Morto"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg></button><button data-id="${p.id}" class="edit-btn text-slate-500 hover:text-blue-600 p-1.5 sm:p-2 rounded-full hover:bg-blue-100 transition" title="Editar"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button><button data-id="${p.id}" class="delete-btn text-slate-500 hover:text-red-600 p-1.5 sm:p-2 rounded-full hover:bg-red-100 transition" title="Excluir"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>`;
 
                 const obsPills = (p.recentObservations || []).map(entry => {
                     const d = entry.date ? new Date(entry.date.seconds * 1000).toLocaleDateString('pt-BR') : '';
@@ -2218,7 +2300,7 @@
                         </div>
                     </td>
                     <td class="p-3 sm:p-4 align-top text-slate-600 text-sm hidden md:table-cell">${p.group || 'N/A'}</td>
-                    <td class="p-3 sm:p-4 align-top text-slate-600 text-sm hidden md:table-cell">${p.unit || 'N/A'}</td>
+                    <td class="p-3 sm:p-4 align-top text-slate-600 text-sm hidden md:table-cell">${((p.unit && p.unit.toLowerCase() === 'quilo') ? 'KG' : (p.unit || 'N/A'))}</td>
                     <td class="p-3 sm:p-4 align-top"><div class="flex flex-col sm:flex-row sm:items-center gap-1"><p class="text-base sm:text-lg font-bold text-slate-800">${p.quantity}</p>${isLowStock ? '<span class="px-1.5 py-0.5 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">Baixo</span>' : ''}</div></td>
                     <td class="p-3 sm:p-4 align-top text-slate-600 text-sm hidden sm:table-cell">${p.minQuantity}</td>
                     <td class="p-3 sm:p-4 align-top text-slate-600 text-sm hidden sm:table-cell">${p.location}</td>
@@ -3187,7 +3269,7 @@
             const p = products.find(prod => prod.id === currentProductId);
             if (!p) return;
 
-            const units = ["Unidade", "Peça", "Metros", "Litro", "Quilo", "Caixa", "Pacote", "Rolo", "Galão", "Saco"];
+            const units = ["Unidade", "Peça", "Metros", "Litro", "KG", "Caixa", "Pacote", "Rolo", "Galão", "Saco"];
             const unitOptions = units.map(unit => `<option value="${unit}" ${p.unit === unit ? 'selected' : ''}>${unit}</option>`).join('');
             
             const groups = ["Elétrico", "Hidráulico", "Consumível", "Ferramentas Manuais", "Material de Corte e Solda", "Escritório", "Segurança", "Outros"];
@@ -4538,6 +4620,7 @@
         };
 
         const switchView = (viewId) => {
+            closeNavDrawer();
             if (isReadOnlyRole() && !READONLY_ALLOWED_VIEWS.has(viewId)) {
                 showToast('🔒 Modo visitante: apenas consulta e relatórios.', true);
                 return;
@@ -5636,7 +5719,6 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                         productDataForHistory = productDoc.data();
                         const currentQuantity = productDataForHistory.quantity;
                         const newQuantity = currentQuantity + quantity;
-                        
                         const updateFields = { quantity: newQuantity };
                         if (unitValueVal) {
                             updateFields.unitValue = parseFloat(unitValueVal);
@@ -5678,7 +5760,11 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         });
 
         document.body.addEventListener('click', e => {
-            if (e.target.closest('.close-modal-btn')) closeModal('generic-modal');
+            const closeBtn = e.target.closest('.close-modal-btn, [data-close-modal]');
+            if (closeBtn) {
+                const targetModalId = closeBtn.dataset.closeModal || closeBtn.closest('.modal')?.id || 'generic-modal';
+                closeModal(targetModalId);
+            }
             if (e.target.id === 'go-to-add-product') switchView('add-product-view');
             if (e.target.id === 'upload-logo-btn') document.getElementById('logo-upload-input').click();
             if (e.target.id === 'remove-logo-btn') {
@@ -7465,7 +7551,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                                 <label class="block text-sm font-medium text-slate-700 mb-1">Unidade</label>
                                 <select id="ep-unit" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm">
                                     <option>Unidade</option><option>Peça</option><option>Metros</option>
-                                    <option>Litro</option><option>Quilo</option><option>Caixa</option>
+                                    <option>Litro</option><option>KG</option><option>Caixa</option>
                                     <option>Pacote</option><option>Rolo</option><option>Galão</option><option>Saco</option>
                                 </select>
                             </div>
@@ -7555,7 +7641,7 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
                         <div>
                             <label class="block text-sm font-medium text-slate-700 mb-1">Unidade</label>
                             <select id="epe-unit" class="w-full p-2.5 border border-slate-200 rounded-lg text-sm">
-                                ${['Unidade','Peça','Metros','Litro','Quilo','Caixa','Pacote','Rolo','Galão','Saco'].map(u => `<option ${u===p.unit?'selected':''}>${u}</option>`).join('')}
+                                ${['Unidade','Peça','Metros','Litro','KG','Caixa','Pacote','Rolo','Galão','Saco'].map(u => `<option ${u===p.unit?'selected':''}>${u}</option>`).join('')}
                             </select>
                         </div>
                     </div>
@@ -8719,4 +8805,1166 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
 
             submitBtn.disabled = false;
             submitBtn.textContent = id ? 'Salvar Alterações' : 'Adicionar Anotação';
+        });
+        // ======= LOGICA AVANÇADA DE ESTOQUE MORTO, VENDAS & ROMANEIO =======
+        
+        let deadStockSearchQuery = '';
+        let activeDeadStockSubtab = 'active'; // 'active' ou 'sold'
+
+        // Alternância de Sub-abas
+        const switchDeadStockSubtab = (tab) => {
+            activeDeadStockSubtab = tab;
+            const activeBtn = document.getElementById('dead-stock-tab-active-btn');
+            const soldBtn = document.getElementById('dead-stock-tab-sold-btn');
+            const activeView = document.getElementById('dead-stock-active-subview');
+            const soldView = document.getElementById('dead-stock-sold-subview');
+
+            if (tab === 'active') {
+                activeBtn?.classList.add('bg-indigo-600', 'text-white', 'shadow-xs');
+                activeBtn?.classList.remove('text-slate-600', 'hover:text-slate-900');
+                soldBtn?.classList.remove('bg-indigo-600', 'text-white', 'shadow-xs');
+                soldBtn?.classList.add('text-slate-600', 'hover:text-slate-900');
+
+                activeView?.classList.remove('hidden');
+                soldView?.classList.add('hidden');
+            } else {
+                soldBtn?.classList.add('bg-indigo-600', 'text-white', 'shadow-xs');
+                soldBtn?.classList.remove('text-slate-600', 'hover:text-slate-900');
+                activeBtn?.classList.remove('bg-indigo-600', 'text-white', 'shadow-xs');
+                activeBtn?.classList.add('text-slate-600', 'hover:text-slate-900');
+
+                soldView?.classList.remove('hidden');
+                activeView?.classList.add('hidden');
+            }
+            renderDeadStock();
+        };
+
+        document.getElementById('dead-stock-tab-active-btn')?.addEventListener('click', () => switchDeadStockSubtab('active'));
+        document.getElementById('dead-stock-tab-sold-btn')?.addEventListener('click', () => switchDeadStockSubtab('sold'));
+
+        const renderDeadStock = () => {
+            const listContainer = document.getElementById('dead-stock-list');
+            const salesListContainer = document.getElementById('dead-stock-sales-list');
+            const noMessage = document.getElementById('no-dead-stock-message');
+            const noSalesMessage = document.getElementById('no-dead-stock-sales-message');
+            const countIndicator = document.getElementById('dead-stock-count-indicator');
+            if (!listContainer || !noMessage) return;
+
+            // 1. Estatísticas Gerais e KPIs
+            const totalSKUs = deadStock.length;
+            const totalUnits = deadStock.reduce((acc, item) => acc + (parseInt(item.quantity, 10) || 0), 0);
+            const totalValue = deadStock.reduce((acc, item) => {
+                const p = parseFloat(item.price) || 0;
+                const q = parseInt(item.quantity, 10) || 0;
+                return acc + (p * q);
+            }, 0);
+
+            const totalSoldValue = deadStockSales.reduce((acc, sale) => {
+                const p = parseFloat(sale.price) || 0;
+                const q = parseInt(sale.quantity, 10) || 0;
+                return acc + (parseFloat(sale.total) || (p * q));
+            }, 0);
+
+            const totalSalesCount = deadStockSales.length;
+
+            const totalItemsEl = document.getElementById('dead-stock-total-items');
+            const totalUnitsEl = document.getElementById('dead-stock-total-units');
+            const totalValueEl = document.getElementById('dead-stock-total-value');
+            const totalSoldValueEl = document.getElementById('dead-stock-total-sold-value');
+            const totalSalesCountEl = document.getElementById('dead-stock-total-sales-count');
+            const activeBadgeEl = document.getElementById('ds-active-badge-count');
+            const soldBadgeEl = document.getElementById('ds-sold-badge-count');
+
+            if (totalItemsEl) totalItemsEl.textContent = totalSKUs;
+            if (totalUnitsEl) totalUnitsEl.textContent = `(${totalUnits} un.)`;
+            if (totalValueEl) totalValueEl.textContent = totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            if (totalSoldValueEl) totalSoldValueEl.textContent = totalSoldValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            if (totalSalesCountEl) totalSalesCountEl.textContent = `${totalSalesCount} baixa(s)`;
+            if (activeBadgeEl) activeBadgeEl.textContent = totalSKUs;
+            if (soldBadgeEl) soldBadgeEl.textContent = totalSalesCount;
+
+            // 2. Renderizar Sub-aba 1: Itens Disponíveis
+            listContainer.innerHTML = '';
+            const query = (deadStockSearchQuery || '').trim().toLowerCase();
+            let filtered = [...deadStock];
+            
+            if (query) {
+                filtered = filtered.filter(item => {
+                    const name = (item.productName || '').toLowerCase();
+                    const code = (item.productCode || '').toLowerCase();
+                    const codeRM = (item.productCodeRM || '').toLowerCase();
+                    const obs = (item.observation || '').toLowerCase();
+                    const unit = (item.productUnit || '').toLowerCase();
+                    return name.includes(query) || code.includes(query) || codeRM.includes(query) || obs.includes(query) || unit.includes(query);
+                });
+            }
+
+            if (countIndicator) {
+                countIndicator.textContent = query 
+                    ? `Exibindo ${filtered.length} de ${totalSKUs} itens disponíveis` 
+                    : `Total de ${totalSKUs} itens disponíveis`;
+            }
+
+            if (filtered.length === 0) {
+                noMessage.classList.remove('hidden');
+                if (query) {
+                    noMessage.innerHTML = `
+                        <div class="w-16 h-16 bg-slate-100 text-slate-400 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                            <span class="material-symbols-outlined text-3xl">search_off</span>
+                        </div>
+                        <p class="font-semibold text-slate-700">Nenhum item encontrado para "${escHtmlText(deadStockSearchQuery)}"</p>
+                        <p class="text-xs text-slate-400 mt-1">Verifique o termo digitado ou limpe a busca.</p>
+                    `;
+                } else {
+                    noMessage.innerHTML = `
+                        <div class="w-16 h-16 bg-slate-100 text-slate-400 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                            <span class="material-symbols-outlined text-3xl">inventory_2</span>
+                        </div>
+                        <p class="font-semibold text-slate-700">Nenhum item no Estoque Morto</p>
+                        <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">Para transferir produtos para cá, acesse a aba "Saldo do Estoque" e clique no botão de transferência laranja ao lado do item.</p>
+                    `;
+                }
+            } else {
+                noMessage.classList.add('hidden');
+                filtered.forEach(item => {
+                    const tr = document.createElement('tr');
+                    const price = parseFloat(item.price) || 0;
+                    const qty = parseInt(item.quantity, 10) || 0;
+                    const unit = item.productUnit || 'UN';
+                    const total = price * qty;
+
+                    const priceStr = price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                    const totalStr = total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                    const dateStr = item.createdAt?.seconds ? new Date(item.createdAt.seconds * 1000).toLocaleDateString('pt-BR') : 'Recente';
+
+                    tr.className = `hover:bg-slate-50/80 transition-colors duration-150`;
+                    tr.innerHTML = `
+                        <td class="p-3.5 sm:p-4 align-top">
+                            <div class="font-bold text-slate-800 text-sm leading-snug">${escHtmlText(item.productName)}</div>
+                            <div class="flex flex-wrap items-center gap-1.5 mt-1">
+                                ${item.productCodeRM ? `<span class="inline-flex items-center text-[10px] font-semibold bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100/60" title="Código no Sistema RM">RM: ${escHtmlText(item.productCodeRM)}</span>` : ''}
+                                ${item.productCode ? `<span class="inline-flex items-center text-[10px] font-medium bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded" title="Código SKU">SKU: ${escHtmlText(item.productCode)}</span>` : ''}
+                                <span class="inline-flex items-center text-[10px] text-slate-400">📅 ${dateStr}</span>
+                            </div>
+                        </td>
+                        <td class="p-3.5 sm:p-4 text-center align-top font-bold text-slate-800 text-base">
+                            <span class="inline-block px-2.5 py-1 bg-slate-100 text-slate-800 rounded-lg">${qty}</span>
+                        </td>
+                        <td class="p-3.5 sm:p-4 text-center align-top">
+                            <span class="inline-block px-2 py-0.5 bg-slate-100 text-slate-700 font-semibold text-xs rounded-md border border-slate-200/80 uppercase">${escHtmlText(unit)}</span>
+                        </td>
+                        <td class="p-3.5 sm:p-4 text-right align-top">
+                            <span class="text-xs text-slate-400 block font-medium">Preço RM</span>
+                            <span class="font-semibold text-slate-700 text-sm">${priceStr}</span>
+                        </td>
+                        <td class="p-3.5 sm:p-4 text-right align-top">
+                            <span class="text-xs text-slate-400 block font-medium">Total Geral</span>
+                            <span class="font-bold text-emerald-600 text-base">${totalStr}</span>
+                        </td>
+                        <td class="p-3.5 sm:p-4 align-top">
+                            <div class="inline-block bg-amber-50/80 border border-amber-200/70 text-amber-900 text-xs px-2.5 py-1 rounded-lg max-w-xs break-words" title="${escHtmlText(item.observation || 'Sem observação')}">
+                                ${escHtmlText(item.observation || 'Sem observação')}
+                            </div>
+                            ${item.createdBy ? `<p class="text-[10px] text-slate-400 mt-1">Por: ${escHtmlText(item.createdBy)}</p>` : ''}
+                        </td>
+                        <td class="p-3.5 sm:p-4 text-center align-top">
+                            <div class="flex items-center justify-center gap-1">
+                                <button data-id="${item.id}" class="sell-ds-btn p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition" title="Registrar Venda / Saída Concluída">
+                                    <span class="material-symbols-outlined text-lg">point_of_sale</span>
+                                </button>
+                                <button data-id="${item.id}" class="return-ds-btn p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 transition" title="Devolver ao Estoque Principal (Estorno)">
+                                    <span class="material-symbols-outlined text-lg">assignment_return</span>
+                                </button>
+                                <button data-id="${item.id}" class="delete-ds-btn p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 transition" title="Excluir Permanentemente">
+                                    <span class="material-symbols-outlined text-lg">delete</span>
+                                </button>
+                            </div>
+                        </td>
+                    `;
+                    listContainer.appendChild(tr);
+                });
+            }
+
+            // 3. Renderizar Sub-aba 2: Vendas e Saídas Concluídas
+            if (salesListContainer) {
+                salesListContainer.innerHTML = '';
+                if (deadStockSales.length === 0) {
+                    noSalesMessage?.classList.remove('hidden');
+                } else {
+                    noSalesMessage?.classList.add('hidden');
+                    const sortedSales = [...deadStockSales].sort((a, b) => (b.soldAt?.seconds || 0) - (a.soldAt?.seconds || 0));
+                    
+                    sortedSales.forEach(sale => {
+                        const tr = document.createElement('tr');
+                        const price = parseFloat(sale.price) || 0;
+                        const qty = parseInt(sale.quantity, 10) || 0;
+                        const unit = sale.productUnit || 'UN';
+                        const total = parseFloat(sale.total) || (price * qty);
+
+                        const priceStr = price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                        const totalStr = total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                        const dateStr = sale.soldAt?.seconds ? new Date(sale.soldAt.seconds * 1000).toLocaleString('pt-BR') : 'Recente';
+
+                        tr.className = `hover:bg-slate-50/80 transition-colors duration-150`;
+                        tr.innerHTML = `
+                            <td class="p-3.5 sm:p-4 align-top">
+                                <div class="font-bold text-slate-800 text-sm leading-snug">${escHtmlText(sale.productName)}</div>
+                                <div class="flex flex-wrap items-center gap-1.5 mt-1">
+                                    ${sale.productCodeRM ? `<span class="inline-flex items-center text-[10px] font-semibold bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100/60">RM: ${escHtmlText(sale.productCodeRM)}</span>` : ''}
+                                    ${sale.productCode ? `<span class="inline-flex items-center text-[10px] font-medium bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">SKU: ${escHtmlText(sale.productCode)}</span>` : ''}
+                                </div>
+                            </td>
+                            <td class="p-3.5 sm:p-4 text-center align-top font-bold text-slate-800 text-base">
+                                <span class="inline-block px-2.5 py-1 bg-emerald-50 text-emerald-800 rounded-lg font-bold">${qty}</span>
+                            </td>
+                            <td class="p-3.5 sm:p-4 text-center align-top">
+                                <span class="inline-block px-2 py-0.5 bg-slate-100 text-slate-700 font-semibold text-xs rounded-md border border-slate-200/80 uppercase">${escHtmlText(unit)}</span>
+                            </td>
+                            <td class="p-3.5 sm:p-4 text-right align-top">
+                                <span class="font-semibold text-slate-700 text-sm">${priceStr}</span>
+                            </td>
+                            <td class="p-3.5 sm:p-4 text-right align-top">
+                                <span class="font-bold text-emerald-600 text-base">${totalStr}</span>
+                            </td>
+                            <td class="p-3.5 sm:p-4 align-top">
+                                <div class="font-semibold text-slate-800 text-xs">${escHtmlText(sale.destination || 'Não informado')}</div>
+                                ${sale.observation ? `<p class="text-[11px] text-slate-500 mt-0.5">${escHtmlText(sale.observation)}</p>` : ''}
+                            </td>
+                            <td class="p-3.5 sm:p-4 align-top text-xs text-slate-600">
+                                <span class="px-2 py-0.5 bg-slate-100 rounded text-slate-700 font-mono font-medium">${escHtmlText(sale.nfNumber || 'Sem NF / Recibo')}</span>
+                            </td>
+                            <td class="p-3.5 sm:p-4 text-center align-top text-xs text-slate-500">
+                                <div>📅 ${dateStr}</div>
+                                <div class="text-[10px] text-slate-400 mt-0.5">Por: ${escHtmlText(sale.soldBy || 'Sistema')}</div>
+                            </td>
+                        `;
+                        salesListContainer.appendChild(tr);
+                    });
+                }
+            }
+        };
+
+        // Busca em tempo real na tabela de estoque morto
+        document.getElementById('dead-stock-search-input')?.addEventListener('input', (e) => {
+            deadStockSearchQuery = e.target.value;
+            renderDeadStock();
+        });
+
+        // 1. MODAL DE TRANSFERÊNCIA (DO ESTOQUE PRINCIPAL PARA MORTO)
+        const openTransferDeadStockModal = (productId) => {
+            const product = products.find(p => p.id === productId);
+            if (!product) return;
+
+            const unit = product.unit || 'UN';
+            document.getElementById('transfer-ds-product-id').value = product.id;
+            document.getElementById('transfer-ds-product-name').value = `${product.name} (${unit})`;
+            const qtdInput = document.getElementById('transfer-ds-quantity');
+            qtdInput.value = '';
+            qtdInput.max = product.quantity;
+            document.getElementById('transfer-ds-max-qtd').textContent = `Saldo Disponível em Estoque: ${product.quantity} ${unit}`;
+            
+            document.getElementById('transfer-ds-price').value = product.unitValue !== undefined && product.unitValue !== null ? product.unitValue : '';
+            document.getElementById('transfer-ds-observation').value = '';
+
+            openModal('transfer-dead-stock-modal');
+        };
+
+        document.getElementById('transfer-dead-stock-form')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<div class="spinner-small"></div>';
+
+            try {
+                const productId = document.getElementById('transfer-ds-product-id').value;
+                const quantity = parseInt(document.getElementById('transfer-ds-quantity').value, 10);
+                const price = parseFloat(document.getElementById('transfer-ds-price').value) || 0;
+                const observation = document.getElementById('transfer-ds-observation').value;
+
+                const productRef = doc(productsCollectionRef, productId);
+                const dsRef = doc(deadStockCollectionRef); 
+                
+                await runTransaction(db, async (transaction) => {
+                    const productDoc = await transaction.get(productRef);
+                    if (!productDoc.exists()) throw new Error("Produto não encontrado no estoque principal.");
+                    const product = productDoc.data();
+                    
+                    if (product.quantity < quantity) {
+                        throw new Error(`Quantidade solicitada indisponível. Saldo atual: ${product.quantity} ${product.unit || 'UN'}`);
+                    }
+                    
+                    transaction.update(productRef, {
+                        quantity: product.quantity - quantity,
+                        lastUpdated: serverTimestamp()
+                    });
+                    
+                    transaction.set(dsRef, {
+                        originalProductId: productId,
+                        productName: product.name,
+                        productCode: product.code || '',
+                        productCodeRM: product.codeRM || '',
+                        productUnit: product.unit || 'UN',
+                        quantity: quantity,
+                        price: price,
+                        observation: observation,
+                        createdAt: serverTimestamp(),
+                        createdBy: currentUser?.displayName || currentUser?.email || 'Desconhecido'
+                    });
+                    
+                    const historyRef = doc(historyCollectionRef);
+                    transaction.set(historyRef, {
+                        productId: productId,
+                        productName: product.name,
+                        type: 'Transferência',
+                        quantity: -quantity,
+                        observation: `Transferido para Estoque Morto / Venda: ${observation} (${quantity} ${product.unit || 'UN'})`,
+                        user: currentUser?.displayName || currentUser?.email || 'Desconhecido',
+                        date: serverTimestamp()
+                    });
+                });
+
+                showToast("Item transferido para Estoque Morto com sucesso!");
+                closeModal('transfer-dead-stock-modal');
+                switchView('dead-stock-view');
+            } catch (error) {
+                console.error("Erro ao transferir:", error);
+                showToast(error.message || "Erro ao transferir para estoque morto.", true);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Confirmar Transferência';
+            }
+        });
+
+        // 2. MODAL DE ESTORNO / DEVOLUÇÃO AO ESTOQUE PRINCIPAL
+        const openReturnDeadStockModal = (itemId) => {
+            const item = deadStock.find(d => d.id === itemId);
+            if (!item) return;
+
+            const unit = item.productUnit || 'UN';
+            document.getElementById('return-ds-item-id').value = item.id;
+            document.getElementById('return-ds-original-product-id').value = item.originalProductId || '';
+            document.getElementById('return-ds-product-name').value = `${item.productName || 'Produto'} (${unit})`;
+            const qtdInput = document.getElementById('return-ds-quantity');
+            qtdInput.value = item.quantity || 1;
+            qtdInput.max = item.quantity || 1;
+            document.getElementById('return-ds-max-qtd').textContent = `Saldo Segregado: ${item.quantity} ${unit}`;
+            document.getElementById('return-ds-reason').value = '';
+
+            openModal('return-dead-stock-modal');
+        };
+
+        document.getElementById('return-dead-stock-form')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<div class="spinner-small"></div>';
+
+            try {
+                const itemId = document.getElementById('return-ds-item-id').value;
+                const originalProductId = document.getElementById('return-ds-original-product-id').value;
+                const returnQty = parseInt(document.getElementById('return-ds-quantity').value, 10);
+                const reason = document.getElementById('return-ds-reason').value;
+
+                const dsRef = doc(deadStockCollectionRef, itemId);
+
+                await runTransaction(db, async (transaction) => {
+                    const dsDoc = await transaction.get(dsRef);
+                    if (!dsDoc.exists()) throw new Error("Item não encontrado no estoque morto.");
+                    const dsData = dsDoc.data();
+
+                    if (dsData.quantity < returnQty) {
+                        throw new Error(`Quantidade solicitada para devolução maior que o disponível (${dsData.quantity}).`);
+                    }
+
+                    // Se temos o ID original do produto no estoque principal
+                    let targetProductRef = null;
+                    if (originalProductId) {
+                        targetProductRef = doc(productsCollectionRef, originalProductId);
+                        const prodDoc = await transaction.get(targetProductRef);
+                        if (prodDoc.exists()) {
+                            transaction.update(targetProductRef, {
+                                quantity: (prodDoc.data().quantity || 0) + returnQty,
+                                lastUpdated: serverTimestamp()
+                            });
+                        }
+                    }
+
+                    // Se devolveu tudo, exclui do estoque morto; senão, abate a quantidade
+                    if (dsData.quantity === returnQty) {
+                        transaction.delete(dsRef);
+                    } else {
+                        transaction.update(dsRef, {
+                            quantity: dsData.quantity - returnQty
+                        });
+                    }
+
+                    // Registro no histórico de auditoria
+                    const historyRef = doc(historyCollectionRef);
+                    transaction.set(historyRef, {
+                        productId: originalProductId || itemId,
+                        productName: dsData.productName,
+                        type: 'Estorno Estoque Morto',
+                        quantity: returnQty,
+                        observation: `Devolvido ao Estoque Principal: ${reason} (${returnQty} ${dsData.productUnit || 'UN'})`,
+                        user: currentUser?.displayName || currentUser?.email || 'Desconhecido',
+                        date: serverTimestamp()
+                    });
+                });
+
+                showToast("Item devolvido ao Estoque Principal com sucesso!");
+                closeModal('return-dead-stock-modal');
+            } catch (error) {
+                console.error("Erro ao estornar item:", error);
+                showToast(error.message || "Erro ao devolver item para o estoque principal.", true);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Confirmar Devolução';
+            }
+        });
+
+        // 3. MODAL DE REGISTRO DE VENDA / SAÍDA CONCLUÍDA
+        const openSellDeadStockModal = (itemId) => {
+            const item = deadStock.find(d => d.id === itemId);
+            if (!item) return;
+
+            const unit = item.productUnit || 'UN';
+            document.getElementById('sell-ds-item-id').value = item.id;
+            document.getElementById('sell-ds-product-name').value = `${item.productName || 'Produto'} (${unit})`;
+            const qtdInput = document.getElementById('sell-ds-quantity');
+            qtdInput.value = item.quantity || 1;
+            qtdInput.max = item.quantity || 1;
+            document.getElementById('sell-ds-max-qtd').textContent = `Saldo Disponível: ${item.quantity} ${unit}`;
+            document.getElementById('sell-ds-price').value = item.price || '';
+            document.getElementById('sell-ds-destination').value = item.observation || '';
+            document.getElementById('sell-ds-nf').value = '';
+            document.getElementById('sell-ds-obs').value = '';
+
+            openModal('sell-dead-stock-modal');
+        };
+
+        document.getElementById('sell-dead-stock-form')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<div class="spinner-small"></div>';
+
+            try {
+                const itemId = document.getElementById('sell-ds-item-id').value;
+                const sellQty = parseInt(document.getElementById('sell-ds-quantity').value, 10);
+                const finalPrice = parseFloat(document.getElementById('sell-ds-price').value) || 0;
+                const destination = document.getElementById('sell-ds-destination').value;
+                const nfNumber = document.getElementById('sell-ds-nf').value;
+                const obs = document.getElementById('sell-ds-obs').value;
+
+                const dsRef = doc(deadStockCollectionRef, itemId);
+                const saleRef = doc(deadStockSalesCollectionRef);
+
+                await runTransaction(db, async (transaction) => {
+                    const dsDoc = await transaction.get(dsRef);
+                    if (!dsDoc.exists()) throw new Error("Item não encontrado no estoque morto.");
+                    const dsData = dsDoc.data();
+
+                    if (dsData.quantity < sellQty) {
+                        throw new Error(`Quantidade informada maior que a disponível (${dsData.quantity}).`);
+                    }
+
+                    // Se vendeu toda a quantidade, exclui do estoque morto; senão, abate
+                    if (dsData.quantity === sellQty) {
+                        transaction.delete(dsRef);
+                    } else {
+                        transaction.update(dsRef, {
+                            quantity: dsData.quantity - sellQty
+                        });
+                    }
+
+                    // Registra na coleção de vendas/baixas concluídas
+                    transaction.set(saleRef, {
+                        deadStockId: itemId,
+                        originalProductId: dsData.originalProductId || '',
+                        productName: dsData.productName,
+                        productCode: dsData.productCode || '',
+                        productCodeRM: dsData.productCodeRM || '',
+                        productUnit: dsData.productUnit || 'UN',
+                        quantity: sellQty,
+                        price: finalPrice,
+                        total: sellQty * finalPrice,
+                        destination: destination,
+                        nfNumber: nfNumber,
+                        observation: obs,
+                        soldAt: serverTimestamp(),
+                        soldBy: currentUser?.displayName || currentUser?.email || 'Desconhecido'
+                    });
+
+                    // Registra no histórico geral de auditoria
+                    const historyRef = doc(historyCollectionRef);
+                    transaction.set(historyRef, {
+                        productId: dsData.originalProductId || itemId,
+                        productName: dsData.productName,
+                        type: 'Saída/Venda Estoque Morto',
+                        quantity: -sellQty,
+                        observation: `Venda/Transferência concluída para: ${destination} (${sellQty} ${dsData.productUnit || 'UN'}) - ${nfNumber ? 'NF/Recibo: ' + nfNumber : 'Sem NF'}`,
+                        user: currentUser?.displayName || currentUser?.email || 'Desconhecido',
+                        date: serverTimestamp()
+                    });
+                });
+
+                showToast("Venda / Saída registrada com sucesso!");
+                closeModal('sell-dead-stock-modal');
+                switchDeadStockSubtab('sold');
+            } catch (error) {
+                console.error("Erro ao registrar venda:", error);
+                showToast(error.message || "Erro ao registrar venda.", true);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Confirmar Saída / Venda';
+            }
+        });
+
+        // 4. EMISSÃO DE ROMANEIO / GUIA DE TRANSFERÊNCIA EM PDF (COM LOGO GEL, SELEÇÃO DE ITENS E UNIDADE)
+        const updateManifestTotals = () => {
+            const listEl = document.getElementById('manifest-ds-items-selection-list');
+            if (!listEl) return;
+
+            const rows = listEl.querySelectorAll('.manifest-item-row');
+            let selectedCount = 0;
+            let totalQty = 0;
+            let totalVal = 0;
+
+            rows.forEach(row => {
+                const checkbox = row.querySelector('.manifest-item-checkbox');
+                const qtyInput = row.querySelector('.manifest-item-qty');
+                const price = parseFloat(row.dataset.price) || 0;
+
+                if (checkbox && checkbox.checked) {
+                    selectedCount++;
+                    const qty = parseInt(qtyInput?.value, 10) || 0;
+                    totalQty += qty;
+                    totalVal += (qty * price);
+                }
+            });
+
+            const countEl = document.getElementById('manifest-ds-selected-count');
+            const summaryEl = document.getElementById('manifest-ds-totals-summary');
+            if (countEl) countEl.textContent = selectedCount;
+            if (summaryEl) {
+                summaryEl.textContent = `Total: ${selectedCount} itens | ${totalQty} un. | ${totalVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`;
+            }
+        };
+
+        const openManifestDeadStockModal = () => {
+            if (deadStock.length === 0) {
+                showToast("Não há itens segregados no Estoque Morto para emitir romaneio.", true);
+                return;
+            }
+
+            const obraNames = { uhe_estrela: 'UHE Estrela', pch_taboca: 'PCH Taboca' };
+            const obraNome = obraNames[currentObraId] || currentObraId || 'GEL Almoxarifado';
+            document.getElementById('manifest-ds-origin').value = obraNome;
+            document.getElementById('manifest-ds-destination').value = '';
+            document.getElementById('manifest-ds-driver').value = '';
+            document.getElementById('manifest-ds-plate').value = '';
+            document.getElementById('manifest-ds-notes').value = 'Materiais segregados no almoxarifado, inspecionados visualmente conforme laudo em nuvem.';
+
+            // Renderizar lista interativa de seleção de itens com unidade de medida
+            const listEl = document.getElementById('manifest-ds-items-selection-list');
+            if (listEl) {
+                listEl.innerHTML = '';
+                deadStock.forEach(item => {
+                    const price = parseFloat(item.price) || 0;
+                    const maxQty = parseInt(item.quantity, 10) || 1;
+                    const unit = item.productUnit || 'UN';
+
+                    const rowDiv = document.createElement('div');
+                    rowDiv.className = 'manifest-item-row p-2.5 flex items-center justify-between gap-3 hover:bg-white transition text-xs';
+                    rowDiv.dataset.id = item.id;
+                    rowDiv.dataset.price = price;
+
+                    rowDiv.innerHTML = `
+                        <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                            <input type="checkbox" class="manifest-item-checkbox h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0" checked data-id="${item.id}">
+                            <div class="min-w-0 flex-1">
+                                <p class="font-bold text-slate-800 truncate">${escHtmlText(item.productName)}</p>
+                                <div class="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                                    ${item.productCodeRM ? `<span class="bg-blue-50 text-blue-700 px-1.5 py-0.2 rounded font-semibold">RM: ${escHtmlText(item.productCodeRM)}</span>` : ''}
+                                    ${item.productCode ? `<span>SKU: ${escHtmlText(item.productCode)}</span>` : ''}
+                                    <span class="bg-slate-200 text-slate-700 font-bold px-1.5 py-0.2 rounded">${escHtmlText(unit)}</span>
+                                    <span>Saldo Disp: <strong class="text-slate-700">${maxQty} ${escHtmlText(unit)}</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <div class="text-right">
+                                <span class="text-[10px] text-slate-400 block">Preço Unt.</span>
+                                <span class="font-semibold text-slate-700">${price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                            </div>
+                            <div class="w-24">
+                                <span class="text-[10px] text-slate-400 block text-center">Qtd. (${escHtmlText(unit)})</span>
+                                <input type="number" class="manifest-item-qty w-full p-1 border border-slate-200 rounded-lg text-center font-bold text-slate-800 text-xs focus:ring-1 focus:ring-indigo-500" value="${maxQty}" min="1" max="${maxQty}">
+                            </div>
+                        </div>
+                    `;
+
+                    const cb = rowDiv.querySelector('.manifest-item-checkbox');
+                    const qi = rowDiv.querySelector('.manifest-item-qty');
+                    cb?.addEventListener('change', updateManifestTotals);
+                    qi?.addEventListener('input', updateManifestTotals);
+
+                    listEl.appendChild(rowDiv);
+                });
+
+                updateManifestTotals();
+            }
+
+            openModal('manifest-dead-stock-modal');
+        };
+
+        document.getElementById('open-dead-stock-manifest-btn')?.addEventListener('click', openManifestDeadStockModal);
+
+        document.getElementById('manifest-select-all-btn')?.addEventListener('click', () => {
+            document.querySelectorAll('#manifest-ds-items-selection-list .manifest-item-checkbox').forEach(cb => cb.checked = true);
+            updateManifestTotals();
+        });
+
+        document.getElementById('manifest-deselect-all-btn')?.addEventListener('click', () => {
+            document.querySelectorAll('#manifest-ds-items-selection-list .manifest-item-checkbox').forEach(cb => cb.checked = false);
+            updateManifestTotals();
+        });
+
+        document.getElementById('manifest-dead-stock-form')?.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            // Filtrar apenas os itens selecionados
+            const listEl = document.getElementById('manifest-ds-items-selection-list');
+            const selectedItems = [];
+
+            if (listEl) {
+                const rows = listEl.querySelectorAll('.manifest-item-row');
+                rows.forEach(row => {
+                    const cb = row.querySelector('.manifest-item-checkbox');
+                    const qi = row.querySelector('.manifest-item-qty');
+                    if (cb && cb.checked) {
+                        const id = row.dataset.id;
+                        const itemData = deadStock.find(d => d.id === id);
+                        if (itemData) {
+                            const sendQty = parseInt(qi?.value, 10) || 1;
+                            selectedItems.push({
+                                ...itemData,
+                                sendQty: sendQty
+                            });
+                        }
+                    }
+                });
+            }
+
+            if (selectedItems.length === 0) {
+                showToast("Por favor, selecione ao menos 1 item para gerar o romaneio.", true);
+                return;
+            }
+
+            const destination = document.getElementById('manifest-ds-destination').value;
+            const driver = document.getElementById('manifest-ds-driver').value || 'Não informado';
+            const plate = document.getElementById('manifest-ds-plate').value || 'Não informada';
+            const notes = document.getElementById('manifest-ds-notes').value || '';
+            const obraNames = { uhe_estrela: 'UHE Estrela', pch_taboca: 'PCH Taboca' };
+            const obraNome = obraNames[currentObraId] || currentObraId || 'GEL - Goetze Lobato Engenharia';
+            const emissaoData = new Date().toLocaleString('pt-BR');
+            const numRomaneio = `ROM-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}${String(new Date().getDate()).padStart(2,'0')}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+            let totalQty = 0;
+            let totalVal = 0;
+
+            const tableRowsHtml = selectedItems.map((item, idx) => {
+                const qty = item.sendQty || parseInt(item.quantity, 10) || 0;
+                const unit = item.productUnit || 'UN';
+                const price = parseFloat(item.price) || 0;
+                const total = qty * price;
+                totalQty += qty;
+                totalVal += total;
+
+                return `
+                    <tr style="border-bottom:1px solid #e2e8f0; font-size:10px; ${idx % 2 === 1 ? 'background:#f8fafc;' : ''}">
+                        <td style="padding:6px 6px; text-align:center; color:#64748b;">${idx + 1}</td>
+                        <td style="padding:6px 6px; font-weight:bold; font-family:monospace; color:#1e40af;">${escHtmlText(item.productCodeRM || '-')}</td>
+                        <td style="padding:6px 6px; font-family:monospace; color:#475569;">${escHtmlText(item.productCode || '-')}</td>
+                        <td style="padding:6px 6px; font-weight:600; color:#0f172a;">${escHtmlText(item.productName)}</td>
+                        <td style="padding:6px 6px; text-align:center; font-weight:bold; color:#0f172a; font-size:11px;">${qty}</td>
+                        <td style="padding:6px 6px; text-align:center; font-weight:bold; color:#475569;">${escHtmlText(unit)}</td>
+                        <td style="padding:6px 6px; text-align:right; color:#334155;">${price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                        <td style="padding:6px 6px; text-align:right; font-weight:bold; color:#047857;">${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                        <td style="padding:6px 6px; color:#64748b; font-size:9px;">${escHtmlText(item.observation || '-')}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            const logoUrl = window.location.origin + '/assets/img/logo-gel.png';
+
+            const manifestHtml = `
+                <div id="manifest-print-container" style="font-family:Arial, Helvetica, sans-serif; color:#0f172a; background:#fff; padding:25px 30px; max-width:850px; margin:0 auto; line-height:1.35;">
+                    <!-- Cabeçalho Oficial GEL -->
+                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2.5px solid #0f172a; padding-bottom:12px; margin-bottom:12px;">
+                        <div style="display:flex; align-items:center; gap:14px;">
+                            <img src="${logoUrl}" alt="GEL Logo" style="height:42px; object-fit:contain;" onerror="this.style.display='none';">
+                            <div>
+                                <h1 style="font-size:15px; font-weight:bold; color:#0f172a; margin:0; text-transform:uppercase; letter-spacing:0.5px;">GEL — GOETZE LOBATO ENGENHARIA S.A.</h1>
+                                <p style="font-size:11px; color:#475569; margin:2px 0 0 0; font-weight:500;">Sistema Integrado de Almoxarifado e Gestão de Materiais</p>
+                            </div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:13px; font-weight:bold; color:#1e40af; background:#eff6ff; border:1px solid #93c5fd; padding:4px 10px; border-radius:6px; font-family:monospace;">${numRomaneio}</div>
+                            <p style="font-size:10px; color:#64748b; margin:3px 0 0 0;">Emissão: ${emissaoData}</p>
+                        </div>
+                    </div>
+
+                    <!-- Título do Documento -->
+                    <div style="text-align:center; margin-bottom:14px;">
+                        <div style="font-size:13px; font-weight:bold; color:#0f172a; text-transform:uppercase; background:#f1f5f9; padding:7px 12px; border-radius:6px; border:1px solid #cbd5e1; letter-spacing:0.5px;">
+                            Guia de Transferência e Romaneio de Carga — Estoque Segregado / Venda
+                        </div>
+                    </div>
+
+                    <!-- Informações da Carga e Transporte -->
+                    <table style="width:100%; border-collapse:collapse; margin-bottom:12px; font-size:11px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px;">
+                        <tr>
+                            <td style="padding:7px 12px; width:50%; border-bottom:1px solid #e2e8f0;">
+                                <span style="color:#64748b; font-size:10px; display:block; text-transform:uppercase; font-weight:bold;">Obra / Local de Origem:</span>
+                                <span style="font-weight:bold; color:#0f172a; font-size:12px;">${escHtmlText(obraNome)}</span>
+                            </td>
+                            <td style="padding:7px 12px; width:50%; border-bottom:1px solid #e2e8f0; background:#f0fdf4;">
+                                <span style="color:#166534; font-size:10px; display:block; text-transform:uppercase; font-weight:bold;">Destino / Comprador:</span>
+                                <span style="font-weight:bold; color:#15803d; font-size:12px;">${escHtmlText(destination)}</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding:7px 12px; border-bottom:1px solid #e2e8f0;">
+                                <span style="color:#64748b; font-size:10px; display:block; text-transform:uppercase; font-weight:bold;">Motorista / Transportador:</span>
+                                <span style="font-weight:600; color:#1e293b;">${escHtmlText(driver)}</span>
+                            </td>
+                            <td style="padding:7px 12px; border-bottom:1px solid #e2e8f0;">
+                                <span style="color:#64748b; font-size:10px; display:block; text-transform:uppercase; font-weight:bold;">Veículo / Placa / RG:</span>
+                                <span style="font-weight:600; color:#1e293b;">${escHtmlText(plate)}</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding:7px 12px;" colspan="2">
+                                <span style="color:#64748b; font-size:10px; display:block; text-transform:uppercase; font-weight:bold;">Observações da Expedição:</span>
+                                <span style="color:#334155;">${escHtmlText(notes)}</span>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <!-- Aviso Oficial RM & Fotos Nuvem -->
+                    <div style="background:#eff6ff; border-left:3.5px solid #2563eb; padding:6px 12px; font-size:10px; color:#1e40af; margin-bottom:12px; border-radius:0 4px 4px 0;">
+                        <strong>ℹ️ Conformidade Contábil & Acervo Digital:</strong> Valores unitários referenciados na base oficial TOTVS RM. Todas as fotos em alta resolução e laudos de inspeção do estado físico dos itens estão arquivados na pasta em nuvem compartilhada.
+                    </div>
+
+                    <!-- Tabela de Materiais Selecionados -->
+                    <table style="width:100%; border-collapse:collapse; margin-bottom:14px; border:1px solid #cbd5e1;">
+                        <thead>
+                            <tr style="background:#0f172a; color:#fff; font-size:10px; text-transform:uppercase;">
+                                <th style="padding:7px 6px; text-align:center; width:25px;">#</th>
+                                <th style="padding:7px 6px; text-align:left; width:75px;">Cód. RM</th>
+                                <th style="padding:7px 6px; text-align:left; width:75px;">SKU</th>
+                                <th style="padding:7px 6px; text-align:left;">Descrição do Material</th>
+                                <th style="padding:7px 6px; text-align:center; width:45px;">Qtd.</th>
+                                <th style="padding:7px 6px; text-align:center; width:40px;">Un.</th>
+                                <th style="padding:7px 6px; text-align:right; width:85px;">Preço RM</th>
+                                <th style="padding:7px 6px; text-align:right; width:90px;">Valor Total</th>
+                                <th style="padding:7px 6px; text-align:left; width:100px;">Observação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRowsHtml}
+                        </tbody>
+                        <tfoot>
+                            <tr style="background:#f1f5f9; font-weight:bold; font-size:11px; border-top:2px solid #0f172a;">
+                                <td colspan="4" style="padding:8px 10px; text-align:right; color:#0f172a;">TOTAL GERAL DA CARGA:</td>
+                                <td style="padding:8px 6px; text-align:center; font-size:12px; color:#0f172a;">${totalQty}</td>
+                                <td></td>
+                                <td></td>
+                                <td style="padding:8px 6px; text-align:right; font-size:12px; color:#047857;">${totalVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+
+                    <!-- 3 Blocos Oficiais de Assinatura -->
+                    <div style="margin-top:35px; display:flex; justify-content:space-between; gap:16px; font-size:10px; text-align:center;">
+                        <div style="flex:1; border:1px solid #cbd5e1; border-radius:6px; padding:10px 8px; background:#fafafa;">
+                            <div style="height:35px; border-bottom:1px solid #475569; margin-bottom:6px;"></div>
+                            <p style="font-weight:bold; margin:0; color:#0f172a; text-transform:uppercase;">EXPEDIÇÃO / ALMOXARIFADO</p>
+                            <p style="margin:2px 0 0 0; color:#64748b; font-size:9px;">${escHtmlText(currentUser?.displayName || 'Almoxarife Responsável')}</p>
+                            <p style="margin:2px 0 0 0; color:#94a3b8; font-size:9px;">Data: ____/____/________</p>
+                        </div>
+                        <div style="flex:1; border:1px solid #cbd5e1; border-radius:6px; padding:10px 8px; background:#fafafa;">
+                            <div style="height:35px; border-bottom:1px solid #475569; margin-bottom:6px;"></div>
+                            <p style="font-weight:bold; margin:0; color:#0f172a; text-transform:uppercase;">TRANSPORTADOR / MOTORISTA</p>
+                            <p style="margin:2px 0 0 0; color:#64748b; font-size:9px;">${escHtmlText(driver)}</p>
+                            <p style="margin:2px 0 0 0; color:#94a3b8; font-size:9px;">RG / Placa: ${escHtmlText(plate)}</p>
+                        </div>
+                        <div style="flex:1; border:1px solid #cbd5e1; border-radius:6px; padding:10px 8px; background:#fafafa;">
+                            <div style="height:35px; border-bottom:1px solid #475569; margin-bottom:6px;"></div>
+                            <p style="font-weight:bold; margin:0; color:#0f172a; text-transform:uppercase;">RECEBEDOR (DESTINO)</p>
+                            <p style="margin:2px 0 0 0; color:#64748b; font-size:9px;">Nome Legível & Assinatura</p>
+                            <p style="margin:2px 0 0 0; color:#94a3b8; font-size:9px;">Data: ____/____/________</p>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:20px; text-align:center; font-size:8.5px; color:#94a3b8; border-top:1px dashed #cbd5e1; padding-top:6px;">
+                        Documento emitido eletronicamente pelo Sistema GEL Almoxarifado • Verificação e rastreabilidade interna.
+                    </div>
+                </div>
+            `;
+
+            closeModal('manifest-dead-stock-modal');
+
+            // Gerar PDF via html2pdf
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = manifestHtml;
+            document.body.appendChild(tempDiv);
+
+            if (typeof html2pdf !== 'undefined') {
+                const opt = {
+                    margin:       [6, 6, 6, 6],
+                    filename:     `${numRomaneio}_${(destination || 'Destino').replace(/[^a-z0-9]/gi, '_')}.pdf`,
+                    image:        { type: 'jpeg', quality: 0.98 },
+                    html2canvas:  { scale: 2, useCORS: true },
+                    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+
+                html2pdf().set(opt).from(tempDiv.firstElementChild).save().then(() => {
+                    tempDiv.remove();
+                    showToast("Romaneio oficial em PDF gerado com sucesso!");
+                }).catch(err => {
+                    console.error("Erro no PDF:", err);
+                    tempDiv.remove();
+                    showToast("Erro ao gerar PDF. Abrindo janela de impressão...", true);
+                    window.print();
+                });
+            } else {
+                tempDiv.remove();
+                window.print();
+            }
+        });
+
+        // 5. EXPORTAÇÃO EXECUTIVA DA PLANILHA EXCEL (.XLSX) COM 2 ABAS, UNIDADE DE MEDIDA E FÓRMULAS
+        document.getElementById('export-dead-stock-btn')?.addEventListener('click', () => {
+            const XLS = typeof XLSX !== 'undefined' ? XLSX : null;
+            if (!XLS) {
+                showToast("Biblioteca de planilhas não carregou. Recarregue a página.", true);
+                return;
+            }
+
+            if (deadStock.length === 0 && deadStockSales.length === 0) {
+                showToast("Não há itens no Estoque Morto para exportar.", true);
+                return;
+            }
+
+            try {
+                const obraNames = { uhe_estrela: 'UHE Estrela', pch_taboca: 'PCH Taboca' };
+                const obraNome = obraNames[currentObraId] || currentObraId || 'GEL - Goetze Lobato Engenharia';
+                const dataHoraFormatada = new Date().toLocaleString('pt-BR');
+                const usuarioExport = currentUser?.displayName || currentUser?.email || 'Sistema';
+
+                const bdr = (color = 'CBD5E1') => ({
+                    top:    { style: 'thin', color: { rgb: color } },
+                    bottom: { style: 'thin', color: { rgb: color } },
+                    left:   { style: 'thin', color: { rgb: color } },
+                    right:  { style: 'thin', color: { rgb: color } }
+                });
+
+                const sTitle = {
+                    font:      { bold: true, sz: 13, color: { rgb: 'FFFFFF' } },
+                    fill:      { fgColor: { rgb: '0F172A' } },
+                    alignment: { horizontal: 'center', vertical: 'center' },
+                    border:    { bottom: { style: 'medium', color: { rgb: '059669' } } }
+                };
+
+                const sSub = {
+                    font:      { italic: true, sz: 9, color: { rgb: '94A3B8' } },
+                    fill:      { fgColor: { rgb: '1E293B' } },
+                    alignment: { horizontal: 'center', vertical: 'center' }
+                };
+
+                const sRMBanner = {
+                    font:      { bold: true, sz: 9, color: { rgb: '1E40AF' } },
+                    fill:      { fgColor: { rgb: 'DBEAFE' } },
+                    alignment: { horizontal: 'center', vertical: 'center' },
+                    border:    { top: { style: 'thin', color: { rgb: '93C5FD' } }, bottom: { style: 'thin', color: { rgb: '93C5FD' } } }
+                };
+
+                const sHeader = {
+                    font:      { bold: true, sz: 10, color: { rgb: 'FFFFFF' } },
+                    fill:      { fgColor: { rgb: '1E3A8A' } },
+                    alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+                    border:    bdr('1E3A8A')
+                };
+
+                const sCell = (even, align = 'left', fgColor = '1E293B', bold = false) => ({
+                    font:      { bold, sz: 10, color: { rgb: fgColor } },
+                    fill:      { fgColor: { rgb: even ? 'F8FAFC' : 'FFFFFF' } },
+                    alignment: { horizontal: align, vertical: 'center' },
+                    border:    bdr('E2E8F0')
+                });
+
+                const sTotalHdr = {
+                    font:      { bold: true, sz: 11, color: { rgb: '0F172A' } },
+                    fill:      { fgColor: { rgb: 'E2E8F0' } },
+                    alignment: { horizontal: 'right', vertical: 'center' },
+                    border:    { top: { style: 'medium', color: { rgb: '059669' } }, bottom: { style: 'medium', color: { rgb: '059669' } } }
+                };
+
+                const sTotalVal = (align = 'center') => ({
+                    font:      { bold: true, sz: 11, color: { rgb: '0F172A' } },
+                    fill:      { fgColor: { rgb: 'E2E8F0' } },
+                    alignment: { horizontal: align, vertical: 'center' },
+                    border:    { top: { style: 'medium', color: { rgb: '059669' } }, bottom: { style: 'medium', color: { rgb: '059669' } } }
+                });
+
+                const sTotalValEmerald = {
+                    font:      { bold: true, sz: 11, color: { rgb: '047857' } },
+                    fill:      { fgColor: { rgb: 'D1FAE5' } },
+                    alignment: { horizontal: 'right', vertical: 'center' },
+                    border:    { top: { style: 'medium', color: { rgb: '059669' } }, bottom: { style: 'medium', color: { rgb: '059669' } } }
+                };
+
+                const wb = XLS.utils.book_new();
+
+                // ── ABA 1: ITENS DISPONÍVEIS (11 COLUNAS A..K) ──
+                const ws1 = XLS.utils.aoa_to_sheet([]);
+                ws1['!cols'] = [
+                    { wch: 6 },  // A: #
+                    { wch: 15 }, // B: CÓDIGO RM
+                    { wch: 15 }, // C: CÓDIGO SKU
+                    { wch: 40 }, // D: DESCRIÇÃO DO PRODUTO
+                    { wch: 10 }, // E: UNIDADE (UN, PÇ, KG)
+                    { wch: 10 }, // F: QTD.
+                    { wch: 20 }, // G: PREÇO UNIT. RM
+                    { wch: 20 }, // H: VALOR TOTAL
+                    { wch: 32 }, // I: OBSERVAÇÃO / DESTINO
+                    { wch: 16 }, // J: DATA TRANSFERÊNCIA
+                    { wch: 22 }  // K: RESPONSÁVEL
+                ];
+                ws1['!merges'] = [];
+                ws1['!rows'] = [];
+
+                let r1 = 0;
+                const sc1 = (r, c, v, style, t = 's', z = undefined) => { 
+                    const cell = { v, t, s: style };
+                    if (z) cell.z = z;
+                    ws1[XLS.utils.encode_cell({ r, c })] = cell; 
+                };
+                const scF1 = (r, c, f, style, z = '"R$" #,##0.00') => { 
+                    ws1[XLS.utils.encode_cell({ r, c })] = { f, t: 'n', s: style, z }; 
+                };
+                const merge1 = (r_s, c_s, r_e, c_e) => ws1['!merges'].push({ s: { r: r_s, c: c_s }, e: { r: r_e, c: c_e } });
+
+                // Topo Aba 1
+                for (let c = 0; c < 11; c++) sc1(r1, c, '', sTitle);
+                sc1(r1, 0, 'RELATÓRIO DE ESTOQUE MORTO — ITENS DISPONÍVEIS PARA VENDA / TRANSFERÊNCIA', sTitle);
+                merge1(r1, 0, r1, 10);
+                ws1['!rows'][r1] = { hpt: 32 }; r1++;
+
+                for (let c = 0; c < 11; c++) sc1(r1, c, '', sSub);
+                sc1(r1, 0, `Obra: ${obraNome}  |  Emitido em: ${dataHoraFormatada}  |  Responsável: ${usuarioExport}  |  Itens Disponíveis: ${deadStock.length}`, sSub);
+                merge1(r1, 0, r1, 10);
+                ws1['!rows'][r1] = { hpt: 20 }; r1++;
+
+                for (let c = 0; c < 11; c++) sc1(r1, c, '', sRMBanner);
+                sc1(r1, 0, '⚠️ AVISO: Valores unitários extraídos do Sistema RM (TOTVS). Registro fotográfico arquivado na nuvem.', sRMBanner);
+                merge1(r1, 0, r1, 10);
+                ws1['!rows'][r1] = { hpt: 22 }; r1++;
+
+                for (let c = 0; c < 11; c++) sc1(r1, c, '', { fill: { fgColor: { rgb: 'FFFFFF' } } });
+                ws1['!rows'][r1] = { hpt: 8 }; r1++;
+
+                const headers1 = ['#', 'CÓDIGO RM', 'CÓDIGO SKU', 'DESCRIÇÃO DO PRODUTO', 'UNIDADE', 'QTD.', 'PREÇO UNIT. RM (R$)', 'VALOR TOTAL (R$)', 'OBSERVAÇÃO / DESTINO', 'DATA TRANSFERÊNCIA', 'RESPONSÁVEL'];
+                headers1.forEach((h, c) => sc1(r1, c, h, sHeader));
+                ws1['!rows'][r1] = { hpt: 24 }; r1++;
+
+                const startRow1 = r1 + 1;
+                deadStock.forEach((item, index) => {
+                    const rowIdx = r1;
+                    const rowExcel = rowIdx + 1;
+                    const even = index % 2 === 1;
+                    const qty = parseInt(item.quantity, 10) || 0;
+                    const unit = item.productUnit || 'UN';
+                    const price = parseFloat(item.price) || 0;
+                    const dateStr = item.createdAt?.seconds ? new Date(item.createdAt.seconds * 1000).toLocaleDateString('pt-BR') : '';
+
+                    sc1(rowIdx, 0, index + 1, sCell(even, 'center'), 'n');
+                    sc1(rowIdx, 1, item.productCodeRM || '-', sCell(even, 'center'));
+                    sc1(rowIdx, 2, item.productCode || '-', sCell(even, 'center'));
+                    sc1(rowIdx, 3, item.productName || 'Não especificado', sCell(even, 'left', '0F172A', true));
+                    sc1(rowIdx, 4, unit, sCell(even, 'center', '0F172A', true));
+                    sc1(rowIdx, 5, qty, sCell(even, 'center', '0F172A', true), 'n', '#,##0');
+                    sc1(rowIdx, 6, price, sCell(even, 'right'), 'n', '"R$" #,##0.00');
+                    // 🚀 FÓRMULA REAL: Multiplica Quantidade (Col F) pelo Preço Unitário (Col G)
+                    scF1(rowIdx, 7, `F${rowExcel}*G${rowExcel}`, sCell(even, 'right', '047857', true), '"R$" #,##0.00');
+                    sc1(rowIdx, 8, item.observation || '', sCell(even, 'left'));
+                    sc1(rowIdx, 9, dateStr, sCell(even, 'center'));
+                    sc1(rowIdx, 10, item.createdBy || '', sCell(even, 'left'));
+
+                    ws1['!rows'][rowIdx] = { hpt: 22 };
+                    r1++;
+                });
+
+                const endRow1 = r1;
+                if (deadStock.length > 0) {
+                    for (let c = 0; c < 11; c++) sc1(r1, c, '', sTotalHdr);
+                    sc1(r1, 0, 'TOTAL GERAL CONSOLIDADO', sTotalHdr);
+                    merge1(r1, 0, r1, 4);
+                    scF1(r1, 5, `SUM(F${startRow1}:F${endRow1})`, sTotalVal('center'), '#,##0');
+                    sc1(r1, 6, '-', sTotalVal('center'));
+                    scF1(r1, 7, `SUM(H${startRow1}:H${endRow1})`, sTotalValEmerald, '"R$" #,##0.00');
+                    ws1['!rows'][r1] = { hpt: 26 }; r1++;
+                }
+
+                ws1['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r1, c: 10 } });
+                XLS.utils.book_append_sheet(wb, ws1, "Itens Disponíveis");
+
+                // ── ABA 2: VENDAS E SAÍDAS CONCLUÍDAS (11 COLUNAS A..K) ──
+                if (deadStockSales.length > 0) {
+                    const ws2 = XLS.utils.aoa_to_sheet([]);
+                    ws2['!cols'] = [
+                        { wch: 6 },  // A: #
+                        { wch: 15 }, // B: CÓDIGO RM
+                        { wch: 15 }, // C: CÓDIGO SKU
+                        { wch: 40 }, // D: DESCRIÇÃO DO PRODUTO
+                        { wch: 10 }, // E: UNIDADE
+                        { wch: 10 }, // F: QTD.
+                        { wch: 20 }, // G: VALOR NEGOCIADO
+                        { wch: 20 }, // H: TOTAL REALIZADO
+                        { wch: 30 }, // I: DESTINO / COMPRADOR
+                        { wch: 18 }, // J: Nº NF / RECIBO
+                        { wch: 22 }  // K: DATA & RESPONSÁVEL
+                    ];
+                    ws2['!merges'] = [];
+                    ws2['!rows'] = [];
+
+                    let r2 = 0;
+                    const sc2 = (r, c, v, style, t = 's', z = undefined) => { 
+                        const cell = { v, t, s: style };
+                        if (z) cell.z = z;
+                        ws2[XLS.utils.encode_cell({ r, c })] = cell; 
+                    };
+                    const scF2 = (r, c, f, style, z = '"R$" #,##0.00') => { 
+                        ws2[XLS.utils.encode_cell({ r, c })] = { f, t: 'n', s: style, z }; 
+                    };
+                    const merge2 = (r_s, c_s, r_e, c_e) => ws2['!merges'].push({ s: { r: r_s, c: c_s }, e: { r: r_e, c: c_e } });
+
+                    for (let c = 0; c < 11; c++) sc2(r2, c, '', sTitle);
+                    sc2(r2, 0, 'HISTÓRICO DE VENDAS & TRANSFERÊNCIAS CONCLUÍDAS', sTitle);
+                    merge2(r2, 0, r2, 10);
+                    ws2['!rows'][r2] = { hpt: 32 }; r2++;
+
+                    for (let c = 0; c < 11; c++) sc2(r2, c, '', sSub);
+                    sc2(r2, 0, `Obra: ${obraNome}  |  Total de Baixas Concluídas: ${deadStockSales.length}`, sSub);
+                    merge2(r2, 0, r2, 10);
+                    ws2['!rows'][r2] = { hpt: 20 }; r2++;
+
+                    const headers2 = ['#', 'CÓDIGO RM', 'CÓDIGO SKU', 'DESCRIÇÃO DO PRODUTO', 'UNIDADE', 'QTD.', 'VALOR NEGOCIADO (R$)', 'TOTAL REALIZADO (R$)', 'DESTINO / COMPRADOR', 'Nº NF / RECIBO', 'DATA & RESPONSÁVEL'];
+                    headers2.forEach((h, c) => sc2(r2, c, h, sHeader));
+                    ws2['!rows'][r2] = { hpt: 24 }; r2++;
+
+                    const startRow2 = r2 + 1;
+                    deadStockSales.forEach((sale, index) => {
+                        const rowIdx = r2;
+                        const rowExcel = rowIdx + 1;
+                        const even = index % 2 === 1;
+                        const qty = parseInt(sale.quantity, 10) || 0;
+                        const unit = sale.productUnit || 'UN';
+                        const price = parseFloat(sale.price) || 0;
+                        const dateStr = sale.soldAt?.seconds ? new Date(sale.soldAt.seconds * 1000).toLocaleDateString('pt-BR') : '';
+
+                        sc2(rowIdx, 0, index + 1, sCell(even, 'center'), 'n');
+                        sc2(rowIdx, 1, sale.productCodeRM || '-', sCell(even, 'center'));
+                        sc2(rowIdx, 2, sale.productCode || '-', sCell(even, 'center'));
+                        sc2(rowIdx, 3, sale.productName || 'Não especificado', sCell(even, 'left', '0F172A', true));
+                        sc2(rowIdx, 4, unit, sCell(even, 'center', '0F172A', true));
+                        sc2(rowIdx, 5, qty, sCell(even, 'center', '0F172A', true), 'n', '#,##0');
+                        sc2(rowIdx, 6, price, sCell(even, 'right'), 'n', '"R$" #,##0.00');
+                        scF2(rowIdx, 7, `F${rowExcel}*G${rowExcel}`, sCell(even, 'right', '047857', true), '"R$" #,##0.00');
+                        sc2(rowIdx, 8, sale.destination || '', sCell(even, 'left'));
+                        sc2(rowIdx, 9, sale.nfNumber || '-', sCell(even, 'center'));
+                        sc2(rowIdx, 10, `${dateStr} (${sale.soldBy || ''})`, sCell(even, 'left'));
+
+                        ws2['!rows'][rowIdx] = { hpt: 22 };
+                        r2++;
+                    });
+
+                    const endRow2 = r2;
+                    for (let c = 0; c < 11; c++) sc2(r2, c, '', sTotalHdr);
+                    sc2(r2, 0, 'TOTAL ARRECADADO / BAIXAS', sTotalHdr);
+                    merge2(r2, 0, r2, 4);
+                    scF2(r2, 5, `SUM(F${startRow2}:F${endRow2})`, sTotalVal('center'), '#,##0');
+                    sc2(r2, 6, '-', sTotalVal('center'));
+                    scF2(r2, 7, `SUM(H${startRow2}:H${endRow2})`, sTotalValEmerald, '"R$" #,##0.00');
+                    ws2['!rows'][r2] = { hpt: 26 }; r2++;
+
+                    ws2['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r2, c: 10 } });
+                    XLS.utils.book_append_sheet(wb, ws2, "Vendas Concluídas");
+                }
+
+                const filename = `Relatorio_Estoque_Morto_${(obraNome || 'Taboca').replace(/[^a-z0-9]/gi, '_')}_RM_${new Date().toISOString().split('T')[0]}.xlsx`;
+                XLS.writeFile(wb, filename);
+
+                showToast("Planilha executiva exportada com sucesso!");
+            } catch (error) {
+                console.error("Erro ao gerar planilha XLSX:", error);
+                showToast("Falha ao exportar planilha. Verifique o console ou tente novamente.", true);
+            }
+        });
+
+        // 6. DELEGAÇÃO DE EVENTOS DE CLIQUE NA TABELA
+        document.addEventListener('click', async (e) => {
+            // Ação 1: Transferir do estoque normal para o estoque morto
+            const transferBtn = e.target.closest('.transfer-ds-btn');
+            if (transferBtn) {
+                const productId = transferBtn.dataset.id;
+                openTransferDeadStockModal(productId);
+                return;
+            }
+            
+            // Ação 2: Devolver do estoque morto para o estoque principal (Estorno)
+            const returnBtn = e.target.closest('.return-ds-btn');
+            if (returnBtn) {
+                if (!hasPermission('update')) {
+                    showToast("Você não tem permissão para estornar itens.", true);
+                    return;
+                }
+                const itemId = returnBtn.dataset.id;
+                openReturnDeadStockModal(itemId);
+                return;
+            }
+
+            // Ação 3: Registrar Venda / Baixa Efetivada
+            const sellBtn = e.target.closest('.sell-ds-btn');
+            if (sellBtn) {
+                if (!hasPermission('update')) {
+                    showToast("Você não tem permissão para registrar vendas.", true);
+                    return;
+                }
+                const itemId = sellBtn.dataset.id;
+                openSellDeadStockModal(itemId);
+                return;
+            }
+
+            // Ação 4: Excluir item do Estoque Morto
+            const deleteDsBtn = e.target.closest('.delete-ds-btn');
+            if (deleteDsBtn) {
+                if (!hasPermission('delete')) {
+                    showToast("Você não tem permissão para excluir itens.", true);
+                    return;
+                }
+                const id = deleteDsBtn.dataset.id;
+                if (confirm("Tem certeza que deseja excluir permanentemente este item do Estoque Morto? (A quantidade NÃO voltará automaticamente para o estoque principal. Caso queira devolver o saldo, use o botão azul de devolução).")) {
+                    try {
+                        await deleteDoc(doc(deadStockCollectionRef, id));
+                        showToast("Item removido do Estoque Morto.");
+                    } catch (error) {
+                        console.error("Erro ao excluir:", error);
+                        showToast("Erro ao excluir item.", true);
+                    }
+                }
+            }
         });

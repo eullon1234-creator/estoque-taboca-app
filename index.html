@@ -98,19 +98,26 @@
         </div>
     </div>
 
-    <div id="app-container" class="container mx-auto p-3 md:p-6 max-w-7xl hidden">
+    <div id="app-container" class="w-full max-w-[1600px] mx-auto p-3 md:p-6 hidden">
 
         <!-- Header -->
-        <header class="mb-5 flex items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-3.5 rounded-2xl sticky top-3 z-30" style="background:rgba(255,255,255,0.72);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(0,0,0,0.06);box-shadow:0 4px 16px rgba(0,0,0,0.06);">
+        <header class="mb-5 flex items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-3.5 rounded-2xl sticky top-3 z-30" style="background:rgba(255,255,255,0.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(226,232,240,0.8);box-shadow:0 4px 16px rgba(0,0,0,0.06);">
             <div class="flex items-center gap-3">
-                <div id="app-logo" class="p-2.5 rounded-xl flex items-center justify-center h-11 w-11" style="background:linear-gradient(135deg, #0066FF, #4F46E5);box-shadow:0 4px 12px rgba(0,102,255,0.3);">
-                    <span class="material-symbols-outlined text-white" style="font-size:22px;">inventory_2</span>
+                <!-- Botão para Abrir Menu de Abas Retrátil -->
+                <button id="toggle-nav-drawer-btn" type="button" onclick="openNavDrawer()" class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs sm:text-sm transition-all shadow-md shadow-indigo-600/25 cursor-pointer">
+                    <span class="material-symbols-outlined text-[20px]">menu</span>
+                    <span>Menu de Abas</span>
+                </button>
+
+                <div id="app-logo" class="p-2 rounded-xl flex items-center justify-center h-10 w-10 bg-gradient-to-br from-indigo-600 to-blue-600 text-white shadow-xs">
+                    <span class="material-symbols-outlined text-[20px]">inventory_2</span>
                 </div>
                 <div>
-                    <h1 id="app-title" class="text-lg md:text-xl font-extrabold" style="color:#111827;">UHE Estrela</h1>
-                    <p class="text-xs hidden md:block" style="color:#6b7280;">Gestão de almoxarifado</p>
+                    <h1 id="app-title" class="text-base sm:text-lg font-extrabold text-slate-800 leading-tight">UHE Estrela</h1>
+                    <p class="text-[11px] text-slate-400 font-medium hidden sm:block">Gestão de Almoxarifado</p>
                 </div>
             </div>
+
             <div class="flex items-center gap-2">
                 <button id="pwa-install-btn" class="pwa-install-btn hidden items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition" title="Instalar app no dispositivo">
                     <span class="material-symbols-outlined" style="font-size:18px;">download_for_offline</span>
@@ -134,126 +141,332 @@
                 </div>
             </div>
         </header>
-        
-        <div class="flex flex-col lg:flex-row gap-5">
-            <!-- Sidebar: só aparece em desktop (lg+) -->
-            <aside class="w-full lg:w-60 flex-shrink-0 lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto hidden lg:block">
-                <nav id="main-nav" class="flex flex-col rounded-2xl p-2 pb-3" style="background:rgba(255,255,255,0.72);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(0,0,0,0.06);box-shadow:0 4px 16px rgba(0,0,0,0.06);" aria-label="Tabs">
 
-                    <!-- Logo topo da sidebar -->
-                    <div class="flex items-center gap-3 px-3 py-4 mb-1" style="border-bottom: 1px solid #e5e7eb;">
-                        <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg, #0066FF, #4F46E5);box-shadow:0 4px 12px rgba(0,102,255,0.25);">
-                            <span class="material-symbols-outlined text-white" style="font-size:20px;">inventory_2</span>
-                        </div>
-                        <span id="sidebar-app-title" class="text-sm font-extrabold truncate" style="color:#111827;">UHE Estrela</span>
+        <!-- Backdrop escuro do Menu Retrátil -->
+        <div id="nav-drawer-backdrop" onclick="closeNavDrawer()"></div>
+
+        <!-- Gaveta / Drawer Retrátil de Abas (Off-Canvas Menu) -->
+        <aside id="nav-drawer">
+            <!-- Topo do Drawer com Botão Fechar -->
+            <div class="flex items-center justify-between p-3.5 border-b border-slate-100 bg-slate-50/95 sticky top-0 z-10 backdrop-blur-md">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+                        <span class="material-symbols-outlined text-[18px]">menu_open</span>
                     </div>
-
-                    <!-- SEÇÃO: GERAL -->
-                    <p class="nav-section-label">Geral</p>
-                    <button data-view="dashboard-view" type="button" class="tab-btn active">
-                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">dashboard</span></span>
-                        <span>Painel</span>
-                    </button>
-
-                    <!-- SEÇÃO: ESTOQUE -->
-                    <p class="nav-section-label">Estoque</p>
-                    <button data-view="inventory-view" type="button" class="tab-btn">
-                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">shelves</span></span>
-                        <span>Estoque</span>
-                    </button>
-                    <button data-view="add-product-view" type="button" class="tab-btn">
-                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">add_circle</span></span>
-                        <span>Cadastrar</span>
-                    </button>
-                    <button data-view="entry-view" type="button" class="tab-btn">
-                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">input</span></span>
-                        <span>Registrar Entrada</span>
-                    </button>
-                    <button data-view="plaques-view" type="button" class="tab-btn">
-                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">label</span></span>
-                        <span>Gerar Plaquinhas</span>
-                    </button>
-                    <button data-view="custom-plaques-view" type="button" class="tab-btn">
-                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">edit_label</span></span>
-                        <span>Plaquinhas Customizadas</span>
-                    </button>
-                    <!-- SEÇÃO: OPERAÇÕES -->
-                    <p class="nav-section-label">Operações</p>
-                    <button data-view="requisitions-view" type="button" class="tab-btn">
-                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">assignment</span></span>
-                        <span>Requisições</span>
-                        <span id="nav-req-badge" class="ml-auto text-xs font-bold px-1.5 py-0.5 rounded-full hidden" style="background:#fbbc05; color:#261a00;">0</span>
-                    </button>
-                    <button data-view="exit-log-view" type="button" class="tab-btn">
-                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">history</span></span>
-                        <span>Log de Saídas</span>
-                    </button>
-                    <button data-view="activity-log-view" type="button" class="tab-btn">
-                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">view_timeline</span></span>
-                        <span>Log de Atividades</span>
-                    </button>
-                    <button data-view="rm-view" type="button" class="tab-btn">
-                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">task_alt</span></span>
-                        <span>Baixa RM</span>
-                    </button>
-                    <button data-view="tool-loans-view" type="button" class="tab-btn">
-                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">construction</span></span>
-                        <span>Cautela</span>
-                        <span id="nav-tool-loans-badge" class="ml-auto text-xs font-bold px-1.5 py-0.5 rounded-full hidden" style="background:#dc2626; color:#fff;">0</span>
-                    </button>
-                    <button data-view="notes-view" type="button" class="tab-btn">
-                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">sticky_note</span></span>
-                        <span>Bloco de Notas</span>
-                    </button>
-
-                    <!-- SEÇÃO: UHE ESTRELA -->
-                    <p id="nav-section-estrela" class="nav-section-label">UHE Estrela</p>
-                    <button id="nav-btn-estrela" data-view="estrela-view" type="button" class="tab-btn">
-                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">star</span></span>
-                        <span>Estoque Estrela</span>
-                    </button>
-
-                    <!-- SEÇÃO: ANÁLISE -->
-                    <p class="nav-section-label">Análise</p>
-                    <button data-view="compras-view" type="button" class="tab-btn">
-                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">shopping_cart</span></span>
-                        <span>Sugestão de Compras</span>
-                    </button>
-
-                    <!-- SEÇÃO: SISTEMA -->
-                    <p class="nav-section-label">Sistema</p>
-                    <button data-view="reports-view" type="button" class="tab-btn">
-                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">bar_chart</span></span>
-                        <span>Relatórios</span>
-                    </button>
-
-                    <!-- SEÇÃO: COMPRAS -->
-                    <p class="nav-section-label">Compras</p>
-                    <button data-view="purchase-requests-view" type="button" class="tab-btn">
-                        <span class="nav-icon"><span class="material-symbols-outlined" style="font-size:20px;">receipt_long</span></span>
-                        <span>Solicitação de Compra</span>
-                    </button>
-
-                    <!-- Rodapé da sidebar -->
-                    <div class="mt-3 pt-3" style="border-top: 1px solid #e5e7eb;">
-                        <div id="sidebar-user-info" class="flex items-center gap-2.5 px-3 py-2 rounded-xl">
-                            <div id="sidebar-avatar" class="w-9 h-9 rounded-full flex-shrink-0 overflow-hidden flex items-center justify-center" style="background:linear-gradient(135deg, rgba(0,102,255,0.15), rgba(79,70,229,0.12));">
-                                <span class="material-symbols-outlined" style="font-size:20px; color:#0066FF;">person</span>
-                            </div>
-                            <div class="min-w-0">
-                                <p id="sidebar-user-name" class="text-xs font-bold truncate" style="color:#111827;">Carregando...</p>
-                                <p id="sidebar-user-role" class="text-xs truncate" style="color:#6b7280;">—</p>
-                            </div>
-                        </div>
-                         <p id="version-footer" class="text-center mt-2 mb-1" style="font-size:0.6rem; font-weight:600; color:#9ca3af; letter-spacing:0.08em;"></p>
+                    <div>
+                        <h2 id="sidebar-app-title" class="text-xs font-bold text-slate-800 uppercase tracking-tight">Navegação de Abas</h2>
+                        <p class="text-[10px] text-slate-400 font-medium">Selecione a aba desejada</p>
                     </div>
-                </nav>
-            </aside>
+                </div>
+                <button id="close-nav-drawer-btn" type="button" onclick="closeNavDrawer()" class="w-8 h-8 rounded-xl bg-slate-200/80 hover:bg-slate-300 active:scale-95 text-slate-700 flex items-center justify-center transition cursor-pointer" title="Fechar Menu">
+                    <span class="material-symbols-outlined text-lg">close</span>
+                </button>
+            </div>
 
-            <main class="flex-1 p-4 md:p-6 rounded-2xl" style="background:rgba(255,255,255,0.72);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(0,0,0,0.06);box-shadow:0 4px 16px rgba(0,0,0,0.06);">
+            <!-- Lista de Abas em 3 Categorias -->
+            <nav id="main-nav" class="flex-1 p-3 space-y-1" aria-label="Tabs">
+                <!-- SEÇÃO 1: VISÃO GERAL & RELATÓRIOS -->
+                <div class="pt-1 pb-1">
+                    <div class="px-2.5 py-1 flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                        <span>Visão Geral</span>
+                        <span class="material-symbols-outlined text-[14px]">analytics</span>
+                    </div>
+                    <div class="mt-1 space-y-1">
+                        <button data-view="dashboard-view" type="button" class="tab-btn active">
+                            <span class="nav-icon"><span class="material-symbols-outlined text-[18px]">dashboard</span></span>
+                            <span class="truncate">Painel de Controle</span>
+                        </button>
+                        <button data-view="reports-view" type="button" class="tab-btn">
+                            <span class="nav-icon"><span class="material-symbols-outlined text-[18px]">query_stats</span></span>
+                            <span class="truncate">Relatórios & KPIs</span>
+                        </button>
+                        <button data-view="compras-view" type="button" class="tab-btn">
+                            <span class="nav-icon"><span class="material-symbols-outlined text-[18px]">trending_up</span></span>
+                            <span class="truncate">Sugestão de Compras</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- SEÇÃO 2: GESTÃO DE ESTOQUE -->
+                <div class="pt-2 pb-1 border-t border-slate-100">
+                    <div class="px-2.5 py-1 flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                        <span>Gestão de Estoque</span>
+                        <span class="material-symbols-outlined text-[14px]">inventory_2</span>
+                    </div>
+                    <div class="mt-1 space-y-1">
+                        <button data-view="inventory-view" type="button" class="tab-btn">
+                            <span class="nav-icon"><span class="material-symbols-outlined text-[18px]">shelves</span></span>
+                            <span class="truncate">Saldo do Estoque</span>
+                        </button>
+                        <button data-view="add-product-view" type="button" class="tab-btn">
+                            <span class="nav-icon"><span class="material-symbols-outlined text-[18px]">add_circle</span></span>
+                            <span class="truncate">Cadastrar Produto</span>
+                        </button>
+                        <button data-view="entry-view" type="button" class="tab-btn">
+                            <span class="nav-icon"><span class="material-symbols-outlined text-[18px]">input</span></span>
+                            <span class="truncate">Registrar Entrada</span>
+                        </button>
+                        <button data-view="dead-stock-view" type="button" class="tab-btn dead-stock-tab-btn">
+                            <span class="nav-icon text-amber-600 bg-amber-50/90 border border-amber-200/60"><span class="material-symbols-outlined text-[18px]">local_offer</span></span>
+                            <span class="truncate flex-1 text-left font-semibold">Estoque Morto / Venda</span>
+                            <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 shrink-0">NOVO</span>
+                        </button>
+                        <button data-view="plaques-view" type="button" class="tab-btn">
+                            <span class="nav-icon"><span class="material-symbols-outlined text-[18px]">label</span></span>
+                            <span class="truncate">Gerar Plaquinhas</span>
+                        </button>
+                        <button data-view="custom-plaques-view" type="button" class="tab-btn">
+                            <span class="nav-icon"><span class="material-symbols-outlined text-[18px]">sell</span></span>
+                            <span class="truncate">Plaquinhas Custom</span>
+                        </button>
+                        <p id="nav-section-estrela" class="hidden"></p>
+                        <button id="nav-btn-estrela" data-view="estrela-view" type="button" class="tab-btn">
+                            <span class="nav-icon text-amber-500 bg-amber-50 border border-amber-100"><span class="material-symbols-outlined text-[18px]">star</span></span>
+                            <span class="truncate">Estoque UHE Estrela</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- SEÇÃO 3: OPERAÇÕES & MOVIMENTAÇÕES -->
+                <div class="pt-2 pb-1 border-t border-slate-100">
+                    <div class="px-2.5 py-1 flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                        <span>Operações & Movimento</span>
+                        <span class="material-symbols-outlined text-[14px]">sync_alt</span>
+                    </div>
+                    <div class="mt-1 space-y-1">
+                        <button data-view="requisitions-view" type="button" class="tab-btn">
+                            <span class="nav-icon"><span class="material-symbols-outlined text-[18px]">assignment</span></span>
+                            <span class="truncate">Requisições</span>
+                            <span id="nav-req-badge" class="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200 hidden">0</span>
+                        </button>
+                        <button data-view="tool-loans-view" type="button" class="tab-btn">
+                            <span class="nav-icon"><span class="material-symbols-outlined text-[18px]">construction</span></span>
+                            <span class="truncate">Cautela Ferramentas</span>
+                            <span id="nav-tool-loans-badge" class="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-600 text-white shadow-xs hidden">0</span>
+                        </button>
+                        <button data-view="purchase-requests-view" type="button" class="tab-btn">
+                            <span class="nav-icon"><span class="material-symbols-outlined text-[18px]">receipt_long</span></span>
+                            <span class="truncate">Solicitação Compra</span>
+                        </button>
+                        <button data-view="rm-view" type="button" class="tab-btn">
+                            <span class="nav-icon"><span class="material-symbols-outlined text-[18px]">task_alt</span></span>
+                            <span class="truncate">Baixa RM (TOTVS)</span>
+                        </button>
+                        <button data-view="exit-log-view" type="button" class="tab-btn">
+                            <span class="nav-icon"><span class="material-symbols-outlined text-[18px]">history</span></span>
+                            <span class="truncate">Log de Saídas</span>
+                        </button>
+                        <button data-view="activity-log-view" type="button" class="tab-btn">
+                            <span class="nav-icon"><span class="material-symbols-outlined text-[18px]">view_timeline</span></span>
+                            <span class="truncate">Log de Atividades</span>
+                        </button>
+                        <button data-view="notes-view" type="button" class="tab-btn">
+                            <span class="nav-icon"><span class="material-symbols-outlined text-[18px]">sticky_note</span></span>
+                            <span class="truncate">Bloco de Notas</span>
+                        </button>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Rodapé da sidebar -->
+            <div class="p-3 border-t border-slate-100 bg-slate-50/90 sticky bottom-0">
+                <div id="sidebar-user-info" class="flex items-center gap-2.5 p-2 rounded-xl bg-white border border-slate-100 shadow-xs">
+                    <div id="sidebar-avatar" class="w-8 h-8 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center bg-indigo-100 text-indigo-700">
+                        <span class="material-symbols-outlined text-[18px]">person</span>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <p id="sidebar-user-name" class="text-xs font-bold truncate text-slate-800">Carregando...</p>
+                        <p id="sidebar-user-role" class="text-[10px] truncate text-slate-500 font-medium">—</p>
+                    </div>
+                </div>
+                <p id="version-footer" class="text-center mt-2 text-[9px] font-bold text-slate-400 tracking-wider"></p>
+            </div>
+        </aside>
+
+        <!-- Conteúdo Principal - 100% de Largura Total -->
+        <main class="w-full p-4 md:p-6 rounded-2xl" style="background:rgba(255,255,255,0.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(226,232,240,0.8);box-shadow:0 4px 16px rgba(0,0,0,0.04);">
                 <div id="dashboard-view" class="view-content">
                     <div id="dashboard-stats" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
                     <div id="dashboard-activity" class="mt-8"></div>
+                </div>
+
+                <div id="dead-stock-view" class="view-content hidden">
+                    <!-- Cabeçalho e Ações -->
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                        <div>
+                            <div class="flex items-center gap-2.5">
+                                <h2 class="text-2xl font-bold text-slate-800 tracking-tight">Estoque Morto / Venda</h2>
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">Segregação</span>
+                            </div>
+                            <p class="text-xs sm:text-sm text-slate-500 mt-1">Itens segregados no almoxarifado destinados para envio a outra obra, desmobilização ou venda.</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                            <button id="open-dead-stock-manifest-btn" class="flex-1 md:flex-none bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2.5 rounded-xl transition duration-150 flex items-center justify-center gap-2 shadow-sm hover:shadow active:scale-[0.98]">
+                                <span class="material-symbols-outlined text-xl">description</span>
+                                <span>Gerar Romaneio (PDF)</span>
+                            </button>
+                            <button id="export-dead-stock-btn" class="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2.5 rounded-xl transition duration-150 flex items-center justify-center gap-2 shadow-sm hover:shadow active:scale-[0.98]">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                <span>Exportar Excel (.xlsx)</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Banner Informativo Integrado: Preços RM + Fotos na Nuvem -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3.5 mb-6">
+                        <div class="p-4 rounded-2xl border border-blue-200/80 bg-gradient-to-r from-blue-50/90 via-indigo-50/70 to-slate-50 shadow-sm flex items-start gap-3.5">
+                            <div class="p-2.5 bg-blue-600 text-white rounded-xl shrink-0 shadow-sm flex items-center justify-center">
+                                <span class="material-symbols-outlined text-2xl">verified</span>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <h4 class="text-sm font-bold text-blue-950">Preços Oficiais do Sistema RM</h4>
+                                    <span class="text-[10px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded-md uppercase tracking-wider">TOTVS RM</span>
+                                </div>
+                                <p class="text-xs text-blue-800/90 mt-0.5 leading-relaxed">
+                                    Todos os custos e valores unitários dos itens foram extraídos diretamente do cadastro oficial do <strong>Sistema RM</strong>.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="p-4 rounded-2xl border border-teal-200/80 bg-gradient-to-r from-teal-50/90 via-emerald-50/70 to-slate-50 shadow-sm flex items-start gap-3.5">
+                            <div class="p-2.5 bg-teal-600 text-white rounded-xl shrink-0 shadow-sm flex items-center justify-center">
+                                <span class="material-symbols-outlined text-2xl">cloud_done</span>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <h4 class="text-sm font-bold text-teal-950">Acervo Fotográfico na Nuvem</h4>
+                                    <span class="text-[10px] font-bold bg-teal-600 text-white px-2 py-0.5 rounded-md uppercase tracking-wider">OneDrive / Drive</span>
+                                </div>
+                                <p class="text-xs text-teal-800/90 mt-0.5 leading-relaxed">
+                                    Todas as fotos em alta resolução do estado físico dos itens e laudos visuais estão arquivadas na nuvem junto com a planilha dos itens.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cards de Métricas e KPIs -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                        <div class="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow transition-shadow flex items-center gap-3.5">
+                            <div class="p-3 bg-rose-50 text-rose-600 rounded-xl border border-rose-100">
+                                <span class="material-symbols-outlined text-2xl">production_quantity_limits</span>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Disponíveis</p>
+                                <div class="flex items-baseline gap-1.5 mt-0.5">
+                                    <p id="dead-stock-total-items" class="text-xl font-bold text-slate-800">0</p>
+                                    <span id="dead-stock-total-units" class="text-[11px] font-medium text-slate-500">(0 un.)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow transition-shadow flex items-center gap-3.5">
+                            <div class="p-3 bg-amber-50 text-amber-600 rounded-xl border border-amber-100">
+                                <span class="material-symbols-outlined text-2xl">payments</span>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Valor em Estoque</p>
+                                <p id="dead-stock-total-value" class="text-xl font-bold text-amber-600 tracking-tight mt-0.5">R$ 0,00</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow transition-shadow flex items-center gap-3.5">
+                            <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100">
+                                <span class="material-symbols-outlined text-2xl">point_of_sale</span>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Total Já Realizado</p>
+                                <p id="dead-stock-total-sold-value" class="text-xl font-bold text-emerald-600 tracking-tight mt-0.5">R$ 0,00</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow transition-shadow flex items-center gap-3.5">
+                            <div class="p-3 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100">
+                                <span class="material-symbols-outlined text-2xl">inventory</span>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Saídas Efetivadas</p>
+                                <p id="dead-stock-total-sales-count" class="text-xl font-bold text-indigo-900 mt-0.5">0 baixas</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-abas de Navegação Interna -->
+                    <div class="flex gap-2 mb-4 bg-slate-100 p-1 rounded-xl max-w-md">
+                        <button id="dead-stock-tab-active-btn" class="ds-subtab-btn active flex-1 py-2 px-3 rounded-lg text-xs sm:text-sm font-bold transition-all bg-indigo-600 text-white shadow-xs">
+                            <span class="material-symbols-outlined align-middle mr-1" style="font-size:16px;">inventory_2</span>Disponíveis (<span id="ds-active-badge-count">0</span>)
+                        </button>
+                        <button id="dead-stock-tab-sold-btn" class="ds-subtab-btn flex-1 py-2 px-3 rounded-lg text-xs sm:text-sm font-bold transition-all text-slate-600 hover:text-slate-900">
+                            <span class="material-symbols-outlined align-middle mr-1" style="font-size:16px;">task_alt</span>Vendas Concluídas (<span id="ds-sold-badge-count">0</span>)
+                        </button>
+                    </div>
+
+                    <!-- CONTEÚDO SUB-ABA 1: ITENS DISPONÍVEIS -->
+                    <div id="dead-stock-active-subview">
+                        <!-- Barra de Busca / Filtro em Tempo Real -->
+                        <div class="mb-4 flex flex-col sm:flex-row gap-3 items-center justify-between">
+                            <div class="relative w-full sm:max-w-md">
+                                <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xl pointer-events-none">search</span>
+                                <input type="text" id="dead-stock-search-input" placeholder="Buscar por produto, código RM ou observação..." class="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition shadow-xs">
+                            </div>
+                            <div class="text-xs text-slate-500 font-medium self-end sm:self-center" id="dead-stock-count-indicator">
+                                Exibindo itens disponíveis
+                            </div>
+                        </div>
+
+                        <!-- Tabela de Itens Disponíveis -->
+                        <div class="overflow-x-auto bg-white rounded-2xl border border-slate-200/80 shadow-sm">
+                            <table class="w-full text-left min-w-[820px]">
+                                <thead class="bg-slate-50/90 text-xs text-slate-600 uppercase tracking-wider font-semibold border-b border-slate-200">
+                                    <tr>
+                                        <th class="p-3.5 sm:p-4">Produto</th>
+                                        <th class="p-3.5 sm:p-4 text-center">Qtd.</th>
+                                        <th class="p-3.5 sm:p-4 text-center">Un.</th>
+                                        <th class="p-3.5 sm:p-4 text-right">Preço RM (R$)</th>
+                                        <th class="p-3.5 sm:p-4 text-right">Valor Total (R$)</th>
+                                        <th class="p-3.5 sm:p-4">Observação / Destino</th>
+                                        <th class="p-3.5 sm:p-4 text-center">Ações Rápidas</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dead-stock-list" class="divide-y divide-slate-100 text-sm"></tbody>
+                            </table>
+                            <div id="no-dead-stock-message" class="text-center text-slate-500 py-16 hidden">
+                                <div class="w-16 h-16 bg-slate-100 text-slate-400 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                                    <span class="material-symbols-outlined text-3xl">inventory_2</span>
+                                </div>
+                                <p class="font-semibold text-slate-700">Nenhum item no Estoque Morto</p>
+                                <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">Para transferir produtos para cá, acesse a aba "Saldo do Estoque" e clique no botão de transferência laranja ao lado do item.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CONTEÚDO SUB-ABA 2: VENDAS / SAÍDAS CONCLUÍDAS -->
+                    <div id="dead-stock-sold-subview" class="hidden">
+                        <div class="overflow-x-auto bg-white rounded-2xl border border-slate-200/80 shadow-sm">
+                            <table class="w-full text-left min-w-[860px]">
+                                <thead class="bg-slate-50/90 text-xs text-slate-600 uppercase tracking-wider font-semibold border-b border-slate-200">
+                                    <tr>
+                                        <th class="p-3.5 sm:p-4">Produto Vendido / Transferido</th>
+                                        <th class="p-3.5 sm:p-4 text-center">Qtd.</th>
+                                        <th class="p-3.5 sm:p-4 text-center">Un.</th>
+                                        <th class="p-3.5 sm:p-4 text-right">Valor Negociado (R$)</th>
+                                        <th class="p-3.5 sm:p-4 text-right">Total Realizado (R$)</th>
+                                        <th class="p-3.5 sm:p-4">Destino / Comprador</th>
+                                        <th class="p-3.5 sm:p-4">Nº NF / Recibo</th>
+                                        <th class="p-3.5 sm:p-4 text-center">Data & Responsável</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dead-stock-sales-list" class="divide-y divide-slate-100 text-sm"></tbody>
+                            </table>
+                            <div id="no-dead-stock-sales-message" class="text-center text-slate-500 py-16 hidden">
+                                <div class="w-16 h-16 bg-slate-100 text-slate-400 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                                    <span class="material-symbols-outlined text-3xl">receipt_long</span>
+                                </div>
+                                <p class="font-semibold text-slate-700">Nenhuma venda ou saída concluída registrada</p>
+                                <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">Quando um item segregado for vendido ou enviado a outra obra, clique no botão verde de venda para registrar a baixa oficial.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
         
                 <div id="inventory-view" class="view-content hidden">
@@ -415,7 +628,7 @@
                             <div>
                                 <label class="block text-sm font-medium text-slate-700">Unidade</label>
                                 <select id="product-unit" class="mt-1 w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500" required>
-                                    <option value="Unidade">Unidade</option> <option value="Peça">Peça</option> <option value="Metros">Metros</option> <option value="Litro">Litro</option> <option value="Quilo">Quilo</option> <option value="Caixa">Caixa</option> <option value="Pacote">Pacote</option> <option value="Rolo">Rolo</option> <option value="Galão">Galão</option> <option value="Saco">Saco</option>
+                                    <option value="Unidade">Unidade</option> <option value="Peça">Peça</option> <option value="Metros">Metros</option> <option value="Litro">Litro</option> <option value="KG">KG</option> <option value="Caixa">Caixa</option> <option value="Pacote">Pacote</option> <option value="Rolo">Rolo</option> <option value="Galão">Galão</option> <option value="Saco">Saco</option>
                                 </select>
                             </div>
                             <div>
@@ -1508,6 +1721,229 @@
         </div>
     </div>
 
+    <!-- Modal de Transferência para Estoque Morto -->
+    <div id="transfer-dead-stock-modal-backdrop" class="modal-backdrop"></div>
+    <div id="transfer-dead-stock-modal" class="modal bg-white p-6 md:p-8 rounded-2xl shadow-2xl w-11/12 max-w-md border border-slate-100">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-2xl">production_quantity_limits</span>
+            </div>
+            <div>
+                <h2 class="text-xl font-bold text-slate-800 leading-tight">Transferir para Estoque Morto</h2>
+                <p class="text-xs text-slate-500">Mover saldo para venda ou outra obra</p>
+            </div>
+        </div>
+
+        <div class="mb-4 p-3 rounded-xl bg-blue-50 border border-blue-200/80 flex items-start gap-2.5 text-xs text-blue-900">
+            <span class="material-symbols-outlined text-blue-600 text-lg shrink-0">info</span>
+            <span>Os preços sugeridos são extraídos automaticamente do <strong>Sistema RM</strong>. Você pode confirmar ou ajustar o valor conforme necessário.</span>
+        </div>
+
+        <form id="transfer-dead-stock-form" class="space-y-4">
+            <input type="hidden" id="transfer-ds-product-id">
+            
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">Produto Selecionado</label>
+                <input type="text" id="transfer-ds-product-name" class="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-700 font-semibold text-sm" readonly>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">Qtd. a Transferir</label>
+                    <input type="number" id="transfer-ds-quantity" class="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm font-bold" required min="1">
+                    <p id="transfer-ds-max-qtd" class="text-[11px] text-slate-500 mt-1 font-medium"></p>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">Preço RM / Venda (R$)</label>
+                    <input type="number" step="0.01" id="transfer-ds-price" class="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-emerald-700" required min="0">
+                </div>
+            </div>
+            
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">Observação / Destino</label>
+                <textarea id="transfer-ds-observation" rows="2" class="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Ex: Separado para venda, destino Obra X..." required></textarea>
+            </div>
+
+            <div class="flex justify-end gap-2.5 pt-2">
+                <button type="button" onclick="closeModal('transfer-dead-stock-modal')" data-close-modal="transfer-dead-stock-modal" class="close-modal-btn px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition cursor-pointer">Cancelar</button>
+                <button type="submit" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition shadow-sm hover:shadow">Confirmar Transferência</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Modal 1: Devolver ao Estoque Principal (Estorno Ágil) -->
+    <div id="return-dead-stock-modal-backdrop" class="modal-backdrop"></div>
+    <div id="return-dead-stock-modal" class="modal bg-white p-6 md:p-8 rounded-2xl shadow-2xl w-11/12 max-w-md border border-slate-100">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-2xl">assignment_return</span>
+            </div>
+            <div>
+                <h2 class="text-xl font-bold text-slate-800 leading-tight">Devolver ao Estoque Principal</h2>
+                <p class="text-xs text-slate-500">Estornar saldo de volta para o almoxarifado</p>
+            </div>
+        </div>
+
+        <form id="return-dead-stock-form" class="space-y-4">
+            <input type="hidden" id="return-ds-item-id">
+            <input type="hidden" id="return-ds-original-product-id">
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">Produto</label>
+                <input type="text" id="return-ds-product-name" class="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-700 font-semibold text-sm" readonly>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">Qtd. a Devolver</label>
+                <input type="number" id="return-ds-quantity" class="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm font-bold" required min="1">
+                <p id="return-ds-max-qtd" class="text-[11px] text-slate-500 mt-1 font-medium"></p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">Motivo do Estorno / Retorno</label>
+                <textarea id="return-ds-reason" rows="2" class="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Ex: Cancelamento de envio, necessidade do material na obra..." required></textarea>
+            </div>
+
+            <div class="flex justify-end gap-2.5 pt-2">
+                <button type="button" onclick="closeModal('return-dead-stock-modal')" data-close-modal="return-dead-stock-modal" class="close-modal-btn px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition cursor-pointer">Cancelar</button>
+                <button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition shadow-sm hover:shadow">Confirmar Devolução</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Modal 2: Registrar Venda / Saída Concluída -->
+    <div id="sell-dead-stock-modal-backdrop" class="modal-backdrop"></div>
+    <div id="sell-dead-stock-modal" class="modal bg-white p-6 md:p-8 rounded-2xl shadow-2xl w-11/12 max-w-md border border-slate-100">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-2xl">point_of_sale</span>
+            </div>
+            <div>
+                <h2 class="text-xl font-bold text-slate-800 leading-tight">Registrar Venda / Saída Concluída</h2>
+                <p class="text-xs text-slate-500">Baixa definitiva com valor final realizado</p>
+            </div>
+        </div>
+
+        <form id="sell-dead-stock-form" class="space-y-4">
+            <input type="hidden" id="sell-ds-item-id">
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">Produto</label>
+                <input type="text" id="sell-ds-product-name" class="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-700 font-semibold text-sm" readonly>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">Qtd. Vendida</label>
+                    <input type="number" id="sell-ds-quantity" class="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 text-sm font-bold" required min="1">
+                    <p id="sell-ds-max-qtd" class="text-[11px] text-slate-500 mt-1 font-medium"></p>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">Valor Final (R$ / un.)</label>
+                    <input type="number" step="0.01" id="sell-ds-price" class="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-emerald-700" required min="0">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">Comprador / Obra de Destino</label>
+                <input type="text" id="sell-ds-destination" class="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 text-sm" placeholder="Ex: Obra UHE Estrela, Empresa X, Comprador Y..." required>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">Nº NF ou Recibo</label>
+                    <input type="text" id="sell-ds-nf" class="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 text-sm" placeholder="Ex: NF 12345 / Recibo">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">Observações</label>
+                    <input type="text" id="sell-ds-obs" class="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 text-sm" placeholder="Opcional">
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2.5 pt-2">
+                <button type="button" onclick="closeModal('sell-dead-stock-modal')" data-close-modal="sell-dead-stock-modal" class="close-modal-btn px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition cursor-pointer">Cancelar</button>
+                <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold transition shadow-sm hover:shadow">Confirmar Saída / Venda</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Modal 3: Gerador de Romaneio de Transferência / Saída PDF -->
+    <div id="manifest-dead-stock-modal-backdrop" class="modal-backdrop"></div>
+    <div id="manifest-dead-stock-modal" class="modal bg-white p-6 md:p-8 rounded-2xl shadow-2xl w-11/12 max-w-2xl max-h-[90vh] overflow-y-auto border border-slate-100">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-2xl">local_shipping</span>
+            </div>
+            <div>
+                <h2 class="text-xl font-bold text-slate-800 leading-tight">Emitir Romaneio / Guia de Envio</h2>
+                <p class="text-xs text-slate-500">Documento oficial com logotipo GEL e 3 vias de assinatura</p>
+            </div>
+        </div>
+
+        <form id="manifest-dead-stock-form" class="space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">Obra Origem</label>
+                    <input type="text" id="manifest-ds-origin" class="w-full p-2.5 border border-slate-200 rounded-xl bg-slate-50 text-slate-700 font-semibold text-sm" readonly>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">Destino / Comprador</label>
+                    <input type="text" id="manifest-ds-destination" class="w-full p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm font-semibold" placeholder="Ex: Obra UHE Estrela / Comprador" required>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">Motorista / Transportador</label>
+                    <input type="text" id="manifest-ds-driver" class="w-full p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Nome do motorista">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">Placa / Veículo / RG</label>
+                    <input type="text" id="manifest-ds-plate" class="w-full p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Ex: ABC-1234 / RG">
+                </div>
+            </div>
+
+            <!-- Seleção Interativa dos Itens do Romaneio -->
+            <div>
+                <div class="flex items-center justify-between mb-2">
+                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                        Selecionar Itens da Carga (<span id="manifest-ds-selected-count" class="text-indigo-600 font-bold">0</span> selecionados)
+                    </label>
+                    <div class="flex items-center gap-2">
+                        <button type="button" id="manifest-select-all-btn" class="text-xs text-indigo-600 hover:text-indigo-800 font-semibold">Marcar Todos</button>
+                        <span class="text-slate-300">|</span>
+                        <button type="button" id="manifest-deselect-all-btn" class="text-xs text-slate-500 hover:text-slate-700 font-semibold">Desmarcar Todos</button>
+                    </div>
+                </div>
+                <div class="max-h-56 overflow-y-auto border border-slate-200 rounded-xl bg-slate-50/50 divide-y divide-slate-200 p-1" id="manifest-ds-items-selection-list">
+                    <!-- Inserido dinamicamente via JS -->
+                </div>
+                <div class="mt-2 flex items-center justify-between text-xs text-slate-600 bg-indigo-50/70 p-2.5 rounded-xl border border-indigo-100">
+                    <span>💡 Marque os itens e ajuste a quantidade a ser transportada.</span>
+                    <span id="manifest-ds-totals-summary" class="font-bold text-indigo-950">Total: 0 un. | R$ 0,00</span>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1 uppercase tracking-wider">Observações do Envio</label>
+                <textarea id="manifest-ds-notes" rows="2" class="w-full p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Ex: Material inspecionado e segregado no almoxarifado..."></textarea>
+            </div>
+
+            <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center gap-2">
+                <span class="material-symbols-outlined text-indigo-600 text-base">print</span>
+                <span>O documento A4 conterá o <strong>logotipo oficial da GEL</strong> e 3 vias de assinatura (Expedidor, Motorista e Recebedor).</span>
+            </div>
+
+            <div class="flex justify-end gap-2.5 pt-2">
+                <button type="button" onclick="closeModal('manifest-dead-stock-modal')" data-close-modal="manifest-dead-stock-modal" class="close-modal-btn px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition cursor-pointer">Cancelar</button>
+                <button type="submit" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition shadow-sm hover:shadow flex items-center gap-2">
+                    <span class="material-symbols-outlined text-lg">download</span>
+                    <span>Baixar Romaneio (PDF)</span>
+                </button>
+            </div>
+        </form>
+    </div>
+
     <div id="generic-modal-backdrop" class="modal-backdrop"></div>
     <div id="generic-modal" class="modal bg-white p-6 md:p-8 rounded-xl shadow-xl w-11/12 max-w-md"></div>
     
@@ -1690,11 +2126,15 @@
                 <span class="text-xs font-semibold" style="color:#414754;">Plaquinhas</span>
             </button>
             <button data-view="custom-plaques-view" class="drawer-btn flex flex-col items-center justify-center gap-1.5 p-4 rounded-2xl" style="background:#fff;">
-                <span class="material-symbols-outlined" style="font-size:26px; color:#0066FF;">edit_label</span>
+                <span class="material-symbols-outlined" style="font-size:26px; color:#4f46e5;">sell</span>
                 <span class="text-xs font-semibold" style="color:#414754;">Customizado</span>
             </button>
+            <button data-view="dead-stock-view" class="drawer-btn flex flex-col items-center justify-center gap-1.5 p-4 rounded-2xl" style="background:#fff;">
+                <span class="material-symbols-outlined" style="font-size:26px; color:#d97706;">local_offer</span>
+                <span class="text-xs font-semibold" style="color:#414754;">Estoque Morto</span>
+            </button>
             <button data-view="reports-view" class="drawer-btn flex flex-col items-center justify-center gap-1.5 p-4 rounded-2xl" style="background:#fff;">
-                <span class="material-symbols-outlined" style="font-size:26px; color:#414754;">bar_chart</span>
+                <span class="material-symbols-outlined" style="font-size:26px; color:#414754;">query_stats</span>
                 <span class="text-xs font-semibold" style="color:#414754;">Relatórios</span>
             </button>
             <button data-view="compras-view" class="drawer-btn flex flex-col items-center justify-center gap-1.5 p-4 rounded-2xl" style="background:#fff;">
