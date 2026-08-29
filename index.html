@@ -520,6 +520,10 @@
                                <svg class="w-5 h-5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                <span class="hidden sm:inline">Excluir</span>
                             </button>
+                            <button id="whatsapp-share-btn" class="bg-emerald-600 text-white font-semibold px-3 py-3 rounded-lg hover:bg-emerald-700 transition items-center gap-1.5 hidden shadow-sm shrink-0 text-sm" title="Compartilhar itens selecionados no WhatsApp ou gerar PDF">
+                               <span class="material-symbols-outlined text-[18px]">chat</span>
+                               <span class="hidden sm:inline">Enviar Zap / PDF</span>
+                            </button>
                             <button id="export-btn" class="bg-slate-700 text-white font-semibold px-3 py-3 rounded-lg hover:bg-slate-800 transition flex items-center gap-2 shadow-sm shrink-0">
                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                             </button>
@@ -2064,6 +2068,119 @@
                 Salvar Anotação
             </button>
         </form>
+    </div>
+    
+    <!-- BARRA FLUTUANTE DE AÇÃO RÁPIDA: COMPARTILHAR WHATSAPP / PDF -->
+    <div id="quick-share-floating-bar" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 backdrop-blur-md text-white px-3 sm:px-5 py-3 rounded-2xl shadow-2xl border border-slate-700/80 flex items-center gap-2 sm:gap-3 max-w-[96vw] transition-all duration-300 transform translate-y-32 opacity-0 pointer-events-none">
+        <div class="flex items-center gap-2 pr-2 border-r border-slate-700 shrink-0">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span class="text-xs sm:text-sm font-bold text-slate-200"><span id="float-selected-count">0</span> item(ns)</span>
+        </div>
+        <div class="flex items-center gap-1.5 sm:gap-2">
+            <button id="float-copy-whatsapp-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold px-2.5 sm:px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-md active:scale-95" title="Copiar texto formatado para o WhatsApp">
+                <span class="material-symbols-outlined text-[16px] sm:text-[18px]">content_copy</span>
+                <span class="hidden md:inline">Copiar</span> Zap
+            </button>
+            <button id="float-open-whatsapp-btn" class="bg-emerald-500 hover:bg-emerald-400 text-white text-xs sm:text-sm font-bold px-2.5 sm:px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-md active:scale-95" title="Abrir direto no WhatsApp">
+                <span class="material-symbols-outlined text-[16px] sm:text-[18px]">send</span>
+                <span class="hidden md:inline">Abrir</span> Zap
+            </button>
+            <button id="float-download-pdf-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-bold px-2.5 sm:px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-md active:scale-95" title="Baixar relatório em PDF">
+                <span class="material-symbols-outlined text-[16px] sm:text-[18px]">picture_as_pdf</span>
+                PDF
+            </button>
+            <button id="float-view-modal-btn" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-semibold px-2 sm:px-3 py-2 rounded-xl transition flex items-center gap-1" title="Ver detalhes e editar lista">
+                <span class="material-symbols-outlined text-[16px] sm:text-[18px]">visibility</span>
+                <span class="hidden sm:inline">Detalhes</span>
+            </button>
+        </div>
+        <button id="float-clear-selection-btn" class="ml-1 text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition" title="Limpar seleção">
+            <span class="material-symbols-outlined text-[18px]">close</span>
+        </button>
+    </div>
+
+    <!-- MODAL DE CONSULTA & COMPARTILHAMENTO WHATSAPP / PDF -->
+    <div id="whatsapp-share-modal" class="modal bg-white p-5 sm:p-7 rounded-2xl shadow-2xl w-11/12 max-w-2xl max-h-[92vh] overflow-y-auto border border-slate-100">
+        <!-- Cabeçalho do Modal -->
+        <div class="flex items-start justify-between gap-3 mb-5 pb-4 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 shadow-xs">
+                    <span class="material-symbols-outlined text-2xl">chat</span>
+                </div>
+                <div>
+                    <h3 class="text-lg sm:text-xl font-bold text-slate-800">Consulta de Saldo para WhatsApp / PDF</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">Envie a lista de itens com saldo e unidade de medida pelo WhatsApp ou gere PDF oficial.</p>
+                </div>
+            </div>
+            <button type="button" id="close-whatsapp-share-modal-btn" class="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition">
+                <span class="material-symbols-outlined text-2xl">close</span>
+            </button>
+        </div>
+
+        <!-- Busca rápida para adicionar mais produtos -->
+        <div class="mb-4">
+            <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Adicionar mais itens à consulta:</label>
+            <div class="relative">
+                <input type="text" id="share-modal-search-input" placeholder="Digite o nome ou código RM para buscar e adicionar..." class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition">
+                <span class="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-lg">search</span>
+            </div>
+            <!-- Lista de sugestões de busca rápida -->
+            <div id="share-modal-search-results" class="hidden mt-1.5 max-h-44 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg divide-y divide-slate-100 z-20"></div>
+        </div>
+
+        <!-- Tabela de Itens Selecionados -->
+        <div class="mb-5">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold uppercase tracking-wider text-slate-600">Itens Marcados (<span id="share-modal-item-count">0</span>)</span>
+                <button type="button" id="share-modal-clear-all-btn" class="text-xs text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1 hover:underline">
+                    <span class="material-symbols-outlined text-[14px]">delete</span> Limpar lista
+                </button>
+            </div>
+            <div class="border border-slate-200 rounded-xl overflow-hidden bg-slate-50/50 max-h-56 overflow-y-auto">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-100/80 text-slate-600 font-bold sticky top-0">
+                        <tr>
+                            <th class="p-2.5">Material</th>
+                            <th class="p-2.5 text-center">Un.</th>
+                            <th class="p-2.5 text-center">Saldo</th>
+                            <th class="p-2.5 text-center">Cód. RM</th>
+                            <th class="p-2.5 text-center">Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody id="share-modal-items-tbody" class="divide-y divide-slate-200/80">
+                        <!-- Renderizado dinamicamente -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Prévia do Texto WhatsApp -->
+        <div class="mb-5">
+            <div class="flex items-center justify-between mb-1.5">
+                <label class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-[16px] text-emerald-600">forum</span>
+                    Prévia do Texto para o WhatsApp:
+                </label>
+                <span class="text-[10px] text-slate-400">Você pode editar antes de copiar</span>
+            </div>
+            <textarea id="share-modal-whatsapp-text" rows="5" class="w-full p-3 font-mono text-xs text-slate-800 bg-emerald-50/30 border border-emerald-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition leading-relaxed resize-y"></textarea>
+        </div>
+
+        <!-- Botões de Ação Principais -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-2 border-t border-slate-100">
+            <button type="button" id="share-modal-copy-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow-sm hover:shadow active:scale-98">
+                <span class="material-symbols-outlined text-lg">content_copy</span>
+                <span>Copiar para Zap</span>
+            </button>
+            <button type="button" id="share-modal-send-btn" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow-sm hover:shadow active:scale-98">
+                <span class="material-symbols-outlined text-lg">send</span>
+                <span>Abrir WhatsApp</span>
+            </button>
+            <button type="button" id="share-modal-pdf-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow-sm hover:shadow active:scale-98 sm:col-span-2 lg:col-span-1">
+                <span class="material-symbols-outlined text-lg">picture_as_pdf</span>
+                <span>Baixar PDF Oficial</span>
+            </button>
+        </div>
     </div>
     
     <div id="toast"></div>

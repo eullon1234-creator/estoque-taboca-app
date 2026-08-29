@@ -1,4 +1,4 @@
-﻿// Importações do Firebase SDK
+// Importações do Firebase SDK
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, onSnapshot, serverTimestamp, runTransaction, writeBatch, Timestamp, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -4636,7 +4636,7 @@
             // Sync bottom-nav active state
             document.querySelectorAll('.bottom-nav-btn').forEach(btn => {
                 const isActive = btn.dataset.view === viewId;
-btn.style.color = isActive ? '#0066FF' : '#6b7280';
+                btn.style.color = isActive ? '#0066FF' : '#6b7280';
                 btn.style.background = isActive ? 'rgba(0,102,255,0.08)' : 'transparent';
             });
 
@@ -4676,9 +4676,15 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
         };
 
         const updateSelectionActionButtonsState = () => {
+            const whatsappBtn = document.getElementById('whatsapp-share-btn');
+            const floatingBar = document.getElementById('quick-share-floating-bar');
+            const floatCountEl = document.getElementById('float-selected-count');
+
             if (activeInventoryTab === 'observations') {
                 deleteSelectedBtn.classList.add('hidden');
                 document.getElementById('initiate-requisition-btn')?.classList.add('hidden');
+                whatsappBtn?.classList.add('hidden');
+                floatingBar?.classList.remove('show');
                 aiDescribeBtn.classList.add('hidden');
                 return;
             }
@@ -4686,24 +4692,37 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             const initiateRequisitionBtn = document.getElementById('initiate-requisition-btn');
             
             const deleteBtnSpan = deleteSelectedBtn.querySelector('span');
-            const reqBtnSpan = initiateRequisitionBtn.querySelector('span');
+            const reqBtnSpan = initiateRequisitionBtn?.querySelector('span');
+            const zapBtnSpan = whatsappBtn?.querySelector('span');
 
             if (count > 0) {
                 deleteSelectedBtn.classList.remove('hidden');
                 if(deleteBtnSpan) deleteBtnSpan.textContent = `Excluir (${count})`;
-                initiateRequisitionBtn.classList.remove('hidden');
-                if(reqBtnSpan) reqBtnSpan.textContent = `Iniciar Req. (${count})`;
+                if (initiateRequisitionBtn) {
+                    initiateRequisitionBtn.classList.remove('hidden');
+                    if(reqBtnSpan) reqBtnSpan.textContent = `Iniciar Req. (${count})`;
+                }
+                if (whatsappBtn) {
+                    whatsappBtn.classList.remove('hidden');
+                    whatsappBtn.classList.add('flex');
+                    if(zapBtnSpan) zapBtnSpan.textContent = `Enviar Zap / PDF (${count})`;
+                }
+                if (floatingBar) {
+                    floatingBar.classList.add('show');
+                    if (floatCountEl) floatCountEl.textContent = count;
+                }
             } else {
                 deleteSelectedBtn.classList.add('hidden');
-                initiateRequisitionBtn.classList.add('hidden');
+                initiateRequisitionBtn?.classList.add('hidden');
+                if (whatsappBtn) {
+                    whatsappBtn.classList.add('hidden');
+                    whatsappBtn.classList.remove('flex');
+                }
+                floatingBar?.classList.remove('show');
             }
 
             // Botão de IA desativado (sem API Key configurada)
             aiDescribeBtn.classList.add('hidden');
-
-            const allCheckboxes = document.querySelectorAll('.product-checkbox');
-            const selectAllCheckbox = document.getElementById('select-all-products');
-            if (!selectAllCheckbox) return;
 
             const displayedCheckedCount = document.querySelectorAll('.product-checkbox:checked').length;
 
@@ -5267,6 +5286,387 @@ btn.style.color = isActive ? '#0066FF' : '#6b7280';
             switchView('requisitions-view');
             showRequisitionModal(idsToRequisition);
         });
+
+        // =====================================================================
+        // ======= COMPARTILHAMENTO DE ITENS NO WHATSAPP & GERADOR DE PDF =======
+        // =====================================================================
+        const whatsappShareBtn = document.getElementById('whatsapp-share-btn');
+        const quickShareFloatingBar = document.getElementById('quick-share-floating-bar');
+        const floatSelectedCount = document.getElementById('float-selected-count');
+        const floatCopyWhatsappBtn = document.getElementById('float-copy-whatsapp-btn');
+        const floatOpenWhatsappBtn = document.getElementById('float-open-whatsapp-btn');
+        const floatDownloadPdfBtn = document.getElementById('float-download-pdf-btn');
+        const floatViewModalBtn = document.getElementById('float-view-modal-btn');
+        const floatClearSelectionBtn = document.getElementById('float-clear-selection-btn');
+
+        const whatsappShareModal = document.getElementById('whatsapp-share-modal');
+        const closeWhatsappShareModalBtn = document.getElementById('close-whatsapp-share-modal-btn');
+        const shareModalSearchInput = document.getElementById('share-modal-search-input');
+        const shareModalSearchResults = document.getElementById('share-modal-search-results');
+        const shareModalItemCount = document.getElementById('share-modal-item-count');
+        const shareModalClearAllBtn = document.getElementById('share-modal-clear-all-btn');
+        const shareModalItemsTbody = document.getElementById('share-modal-items-tbody');
+        const shareModalWhatsappText = document.getElementById('share-modal-whatsapp-text');
+        const shareModalCopyBtn = document.getElementById('share-modal-copy-btn');
+        const shareModalSendBtn = document.getElementById('share-modal-send-btn');
+        const shareModalPdfBtn = document.getElementById('share-modal-pdf-btn');
+
+        // Helper para obter os objetos completos dos produtos selecionados
+        const getSelectedProductsList = () => {
+            const list = [];
+            selectedProductIds.forEach(id => {
+                const prod = products.find(p => p.id === id);
+                if (prod) list.push(prod);
+            });
+            return list;
+        };
+
+        // Formatação profissional para mensagem de WhatsApp (foco em Material, Quantidade e Unidade)
+        const generateWhatsappText = (selectedItems) => {
+            if (!selectedItems || selectedItems.length === 0) {
+                return 'Nenhum item selecionado para consulta.';
+            }
+
+            const obraNames = { uhe_estrela: 'UHE Estrela', pch_taboca: 'PCH Taboca' };
+            const obraNome = obraNames[currentObraId] || currentObraId || 'Almoxarifado';
+            const now = new Date();
+            const dataStr = now.toLocaleDateString('pt-BR');
+            const horaStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+            let msg = `*GOETZE LOBATO ENGENHARIA*\n`;
+            msg += `📋 *CONSULTA DE SALDO DE ESTOQUE*\n`;
+            msg += `📍 *Obra:* ${obraNome}\n`;
+            msg += `📅 *Data:* ${dataStr} às ${horaStr}\n`;
+            msg += `───────────────────────────\n\n`;
+
+            selectedItems.forEach((item, index) => {
+                const rawUnit = (item.unit || 'UN').toString().trim();
+                const unit = rawUnit.toLowerCase() === 'quilo' ? 'KG' : rawUnit.toUpperCase();
+                const qty = item.quantity !== undefined ? item.quantity : 0;
+                const rmStr = (item.codeRM && item.codeRM !== 'N/A' && item.codeRM !== '—' && item.codeRM.trim() !== '') ? ` _(RM: ${item.codeRM.trim()})_` : '';
+                const loc = item.location ? `\n   📍 *Loc:* ${item.location}` : '';
+
+                msg += `📦 *${index + 1}. ${item.name || 'Material'}*${rmStr}\n`;
+                msg += `   • *Saldo:* *${qty} ${unit}*${loc}\n\n`;
+            });
+
+            msg += `───────────────────────────\n`;
+            msg += `📊 *Total:* ${selectedItems.length} item(ns) consultado(s)\n`;
+            msg += `✅ _Informação atualizada pelo Almoxarifado GEL._`;
+
+            return msg;
+        };
+
+        // Gerador de PDF oficial com html2pdf
+        const generateShareReportPDF = (selectedItems) => {
+            if (!selectedItems || selectedItems.length === 0) {
+                showToast('Selecione pelo menos um item para gerar o PDF.', true);
+                return;
+            }
+
+            const obraNames = { uhe_estrela: 'UHE Estrela', pch_taboca: 'PCH Taboca' };
+            const obraNome = obraNames[currentObraId] || currentObraId || 'UHE Estrela';
+            const now = new Date();
+            const dataStr = now.toLocaleDateString('pt-BR');
+            const horaStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            const emitidoPor = currentUser?.displayName || currentUser?.email || 'Almoxarifado';
+
+            let tableRowsHtml = '';
+            selectedItems.forEach((item, index) => {
+                const rawUnit = (item.unit || 'UN').toString().trim();
+                const unit = rawUnit.toLowerCase() === 'quilo' ? 'KG' : rawUnit.toUpperCase();
+                const qty = item.quantity !== undefined ? item.quantity : 0;
+                const rm = (item.codeRM && item.codeRM !== 'N/A') ? item.codeRM : '—';
+                const loc = item.location || '—';
+                const isEven = index % 2 === 1;
+
+                tableRowsHtml += `
+                    <tr style="background-color: ${isEven ? '#f8fafc' : '#ffffff'}; border-bottom: 1px solid #e2e8f0;">
+                        <td style="padding: 10px 8px; text-align: center; font-weight: bold; color: #475569; font-size: 11px;">${index + 1}</td>
+                        <td style="padding: 10px 12px; font-weight: bold; color: #0f172a; font-size: 12px;">${item.name || '—'}</td>
+                        <td style="padding: 10px 8px; text-align: center; font-weight: bold; color: #1e293b; font-size: 11px;">${unit}</td>
+                        <td style="padding: 10px 12px; text-align: center; font-weight: 800; color: #0066FF; font-size: 13px;">${qty}</td>
+                        <td style="padding: 10px 8px; text-align: center; color: #475569; font-size: 11px;">${loc}</td>
+                        <td style="padding: 10px 8px; text-align: center; color: #64748b; font-size: 10px; font-family: monospace;">${rm}</td>
+                    </tr>
+                `;
+            });
+
+            const htmlContent = `
+                <div id="share-pdf-container" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 24px 28px; background: #ffffff; color: #0f172a; max-width: 800px; margin: 0 auto;">
+                    <!-- Cabeçalho Corporativo Goetze Lobato Engenharia -->
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #0066FF; padding-bottom: 14px; margin-bottom: 16px;">
+                        <div>
+                            <h1 style="font-size: 19px; font-weight: 800; color: #0f172a; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">GOETZE LOBATO ENGENHARIA</h1>
+                            <p style="font-size: 13px; font-weight: 700; color: #0066FF; margin: 3px 0 0 0;">CONSULTA DE SALDO DE ESTOQUE</p>
+                            <p style="font-size: 10px; color: #64748b; margin: 2px 0 0 0;">Controle Operacional de Almoxarifado e Materiais</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="display: inline-block; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 6px 12px;">
+                                <p style="font-size: 11px; font-weight: bold; color: #1e40af; margin: 0;">OBRA: ${obraNome}</p>
+                                <p style="font-size: 10px; color: #3b82f6; margin: 2px 0 0 0;">${dataStr} às ${horaStr}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dados da Emissão -->
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; display: flex; justify-content: space-between; font-size: 11px;">
+                        <div><strong>Emitido por:</strong> ${emitidoPor}</div>
+                        <div><strong>Total de Itens:</strong> ${selectedItems.length} material(is)</div>
+                        <div><strong>Status:</strong> Saldo em Tempo Real</div>
+                    </div>
+
+                    <!-- Tabela de Produtos -->
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden;">
+                        <thead>
+                            <tr style="background: #0f172a; color: #ffffff;">
+                                <th style="padding: 10px 8px; text-align: center; font-size: 11px; font-weight: bold; width: 35px;">Nº</th>
+                                <th style="padding: 10px 12px; text-align: left; font-size: 11px; font-weight: bold;">Descrição do Material</th>
+                                <th style="padding: 10px 8px; text-align: center; font-size: 11px; font-weight: bold; width: 55px;">Unidade</th>
+                                <th style="padding: 10px 12px; text-align: center; font-size: 11px; font-weight: bold; width: 90px; background: #0052cc;">Quantidade</th>
+                                <th style="padding: 10px 8px; text-align: center; font-size: 11px; font-weight: bold; width: 85px;">Localização</th>
+                                <th style="padding: 10px 8px; text-align: center; font-size: 11px; font-weight: bold; width: 85px;">Cód. RM</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRowsHtml}
+                        </tbody>
+                    </table>
+
+                    <!-- Rodapé do Documento -->
+                    <div style="border-top: 1px dashed #cbd5e1; padding-top: 12px; display: flex; justify-content: space-between; font-size: 9px; color: #94a3b8;">
+                        <span>Goetze Lobato Engenharia · Sistema Integrado de Almoxarifado</span>
+                        <span>Documento gerado eletronicamente em ${dataStr} às ${horaStr}</span>
+                    </div>
+                </div>
+            `;
+
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlContent;
+            document.body.appendChild(tempDiv);
+
+            if (typeof html2pdf !== 'undefined') {
+                const opt = {
+                    margin:       [6, 6, 6, 6],
+                    filename:     `Consulta_Estoque_GEL_${new Date().toISOString().slice(0, 10)}.pdf`,
+                    image:        { type: 'jpeg', quality: 0.98 },
+                    html2canvas:  { scale: 2, useCORS: true },
+                    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+
+                html2pdf().set(opt).from(tempDiv.firstElementChild).save().then(() => {
+                    tempDiv.remove();
+                    showToast('✅ PDF oficial de consulta gerado com sucesso!');
+                }).catch(err => {
+                    console.error('Erro ao gerar PDF:', err);
+                    tempDiv.remove();
+                    showToast('Erro ao gerar PDF. Abrindo janela de impressão...', true);
+                    window.print();
+                });
+            } else {
+                tempDiv.remove();
+                window.print();
+            }
+        };
+
+        // Renderiza e atualiza o conteúdo do modal de compartilhamento
+        const renderWhatsappShareModal = () => {
+            const selectedItems = getSelectedProductsList();
+            if (shareModalItemCount) shareModalItemCount.textContent = selectedItems.length;
+
+            if (shareModalItemsTbody) {
+                shareModalItemsTbody.innerHTML = '';
+                if (selectedItems.length === 0) {
+                    shareModalItemsTbody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="p-4 text-center text-slate-400 text-xs">
+                                Nenhum item marcado. Utilize a busca acima para adicionar itens.
+                            </td>
+                        </tr>
+                    `;
+                } else {
+                    selectedItems.forEach((item) => {
+                        const rawUnit = (item.unit || 'UN').toString().trim();
+                        const unit = rawUnit.toLowerCase() === 'quilo' ? 'KG' : rawUnit.toUpperCase();
+                        const rm = (item.codeRM && item.codeRM !== 'N/A' && item.codeRM !== '—') ? item.codeRM : '—';
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-slate-100/70 transition';
+                        tr.innerHTML = `
+                            <td class="p-2.5 font-semibold text-slate-800">${item.name || '—'}</td>
+                            <td class="p-2.5 text-center font-bold text-slate-700">${unit}</td>
+                            <td class="p-2.5 text-center font-extrabold text-emerald-700 text-sm">${item.quantity !== undefined ? item.quantity : 0}</td>
+                            <td class="p-2.5 text-center text-slate-500 font-mono text-[11px]">${rm}</td>
+                            <td class="p-2.5 text-center">
+                                <button type="button" data-remove-id="${item.id}" class="text-rose-500 hover:text-rose-700 p-1 rounded-lg hover:bg-rose-50 transition" title="Remover item da lista">
+                                    <span class="material-symbols-outlined text-[16px]">close</span>
+                                </button>
+                            </td>
+                        `;
+                        shareModalItemsTbody.appendChild(tr);
+                    });
+                }
+            }
+
+            // Atualizar prévia do texto
+            if (shareModalWhatsappText) {
+                shareModalWhatsappText.value = generateWhatsappText(selectedItems);
+            }
+        };
+
+        const openWhatsappShareModal = () => {
+            renderWhatsappShareModal();
+            if (shareModalSearchInput) shareModalSearchInput.value = '';
+            if (shareModalSearchResults) {
+                shareModalSearchResults.innerHTML = '';
+                shareModalSearchResults.classList.add('hidden');
+            }
+            openModal('whatsapp-share-modal');
+        };
+
+        // Event Listeners do WhatsApp & PDF
+        whatsappShareBtn?.addEventListener('click', openWhatsappShareModal);
+
+        floatCopyWhatsappBtn?.addEventListener('click', () => {
+            const selectedItems = getSelectedProductsList();
+            if (selectedItems.length === 0) {
+                showToast("Nenhum item selecionado.", true);
+                return;
+            }
+            const text = generateWhatsappText(selectedItems);
+            copyToClipboard(text);
+            showToast("✅ Texto copiado! Cole direto no WhatsApp.");
+        });
+
+        floatOpenWhatsappBtn?.addEventListener('click', () => {
+            const selectedItems = getSelectedProductsList();
+            if (selectedItems.length === 0) {
+                showToast("Nenhum item selecionado.", true);
+                return;
+            }
+            const text = generateWhatsappText(selectedItems);
+            window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+        });
+
+        floatDownloadPdfBtn?.addEventListener('click', () => {
+            const selectedItems = getSelectedProductsList();
+            generateShareReportPDF(selectedItems);
+        });
+
+        floatViewModalBtn?.addEventListener('click', openWhatsappShareModal);
+
+        floatClearSelectionBtn?.addEventListener('click', () => {
+            selectedProductIds.clear();
+            renderProducts();
+            showToast("Seleção de itens limpa.");
+        });
+
+        closeWhatsappShareModalBtn?.addEventListener('click', () => {
+            closeModal('whatsapp-share-modal');
+        });
+
+        shareModalClearAllBtn?.addEventListener('click', () => {
+            selectedProductIds.clear();
+            renderProducts();
+            renderWhatsappShareModal();
+            showToast("Lista de itens limpa.");
+        });
+
+        shareModalItemsTbody?.addEventListener('click', (e) => {
+            const removeBtn = e.target.closest('[data-remove-id]');
+            if (removeBtn) {
+                const id = removeBtn.dataset.removeId;
+                selectedProductIds.delete(id);
+                renderProducts();
+                renderWhatsappShareModal();
+            }
+        });
+
+        shareModalCopyBtn?.addEventListener('click', () => {
+            const text = shareModalWhatsappText?.value || '';
+            if (!text.trim()) {
+                showToast("Nada para copiar.", true);
+                return;
+            }
+            copyToClipboard(text);
+            showToast("✅ Texto copiado com sucesso! Agora é só colar no WhatsApp.");
+        });
+
+        shareModalSendBtn?.addEventListener('click', () => {
+            const text = shareModalWhatsappText?.value || '';
+            if (!text.trim()) {
+                showToast("Nenhum texto para enviar.", true);
+                return;
+            }
+            window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+        });
+
+        shareModalPdfBtn?.addEventListener('click', () => {
+            const selectedItems = getSelectedProductsList();
+            generateShareReportPDF(selectedItems);
+        });
+
+        // Busca rápida para adicionar produtos dentro do modal
+        shareModalSearchInput?.addEventListener('input', (e) => {
+            const query = (e.target.value || '').trim().toLowerCase();
+            if (!query || query.length < 2) {
+                shareModalSearchResults.innerHTML = '';
+                shareModalSearchResults.classList.add('hidden');
+                return;
+            }
+
+            const matches = products.filter(p => {
+                const name = (p.name || '').toLowerCase();
+                const codeRM = (p.codeRM || '').toLowerCase();
+                const code = (p.code || '').toLowerCase();
+                return name.includes(query) || codeRM.includes(query) || code.includes(query);
+            }).slice(0, 8);
+
+            if (matches.length === 0) {
+                shareModalSearchResults.innerHTML = `<div class="p-3 text-xs text-slate-400 text-center">Nenhum produto encontrado.</div>`;
+                shareModalSearchResults.classList.remove('hidden');
+                return;
+            }
+
+            shareModalSearchResults.innerHTML = matches.map(p => {
+                const isAlreadySelected = selectedProductIds.has(p.id);
+                const rawUnit = (p.unit || 'UN').toString().trim();
+                const unit = rawUnit.toLowerCase() === 'quilo' ? 'KG' : rawUnit.toUpperCase();
+                return `
+                    <div class="p-2.5 flex items-center justify-between hover:bg-emerald-50/60 cursor-pointer transition" data-add-id="${p.id}">
+                        <div class="min-w-0 flex-1">
+                            <p class="font-bold text-xs text-slate-800 truncate">${p.name || '—'}</p>
+                            <p class="text-[10px] text-slate-500">RM: <span class="font-mono">${p.codeRM || '—'}</span> · Saldo: <strong class="text-emerald-700">${p.quantity || 0} ${unit}</strong></p>
+                        </div>
+                        <button type="button" class="px-2.5 py-1 rounded-lg text-xs font-bold ${isAlreadySelected ? 'bg-emerald-100 text-emerald-800' : 'bg-emerald-600 text-white hover:bg-emerald-700'} transition shrink-0 ml-2">
+                            ${isAlreadySelected ? '✓ Adicionado' : '+ Adicionar'}
+                        </button>
+                    </div>
+                `;
+            }).join('');
+            shareModalSearchResults.classList.remove('hidden');
+        });
+
+        shareModalSearchResults?.addEventListener('click', (e) => {
+            const row = e.target.closest('[data-add-id]');
+            if (row) {
+                const id = row.dataset.addId;
+                if (!selectedProductIds.has(id)) {
+                    selectedProductIds.add(id);
+                    renderProducts();
+                    renderWhatsappShareModal();
+                    showToast("Item adicionado à consulta.");
+                } else {
+                    selectedProductIds.delete(id);
+                    renderProducts();
+                    renderWhatsappShareModal();
+                    showToast("Item removido da consulta.");
+                }
+                shareModalSearchInput.value = '';
+                shareModalSearchResults.innerHTML = '';
+                shareModalSearchResults.classList.add('hidden');
+            }
+        });
+
 
         addForm.addEventListener('submit', async (e) => {
             e.preventDefault();
