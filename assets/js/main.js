@@ -4705,7 +4705,7 @@
                 if (whatsappBtn) {
                     whatsappBtn.classList.remove('hidden');
                     whatsappBtn.classList.add('flex');
-                    if(zapBtnSpan) zapBtnSpan.textContent = `Enviar Zap / PDF (${count})`;
+                    if(zapBtnSpan) zapBtnSpan.textContent = `WhatsApp (${count})`;
                 }
                 if (floatingBar) {
                     floatingBar.classList.add('show');
