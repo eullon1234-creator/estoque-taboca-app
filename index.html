@@ -198,6 +198,10 @@
                             <span class="nav-icon"><span class="material-symbols-outlined text-[18px]">shelves</span></span>
                             <span class="truncate">Saldo do Estoque</span>
                         </button>
+                        <button data-view="audit-view" type="button" class="tab-btn">
+                            <span class="nav-icon text-indigo-600 bg-indigo-50 border border-indigo-100"><span class="material-symbols-outlined text-[18px]">fact_check</span></span>
+                            <span class="truncate font-semibold">Auditoria & Inventário</span>
+                        </button>
                         <button data-view="add-product-view" type="button" class="tab-btn">
                             <span class="nav-icon"><span class="material-symbols-outlined text-[18px]">add_circle</span></span>
                             <span class="truncate">Cadastrar Produto</span>
@@ -1721,6 +1725,199 @@
                     </div>
 
                 </div>
+
+                <!-- ═══════════════════════════════════════════════════════ -->
+                <!-- AUDITORIA DE PRATELEIRAS & INVENTÁRIO FÍSICO VIEW     -->
+                <!-- ═══════════════════════════════════════════════════════ -->
+                <div id="audit-view" class="view-content hidden">
+                    <!-- Cabeçalho da Auditoria -->
+                    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
+                        <div>
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-xs">
+                                    <span class="material-symbols-outlined text-[22px]">fact_check</span>
+                                </div>
+                                <div>
+                                    <h2 class="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">Auditoria de Prateleiras & Inventário</h2>
+                                    <p class="text-xs sm:text-sm text-slate-500 mt-0.5">Contagem física rotativa por corredor/prateleira e ajuste de divergências</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Botões de Ação Superior (Exportar / Relatório) -->
+                        <div class="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                            <button id="audit-export-excel-btn" type="button" class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm px-3.5 py-2.5 rounded-xl transition flex items-center justify-center gap-2 shadow-xs active:scale-95 cursor-pointer">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                <span>Exportar Excel</span>
+                            </button>
+                            <button id="audit-export-pdf-btn" type="button" class="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm px-3.5 py-2.5 rounded-xl transition flex items-center justify-center gap-2 shadow-xs active:scale-95 cursor-pointer">
+                                <span class="material-symbols-outlined text-[18px]">picture_as_pdf</span>
+                                <span>Laudo / Relatório PDF</span>
+                            </button>
+                            <button id="audit-reset-btn" type="button" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs sm:text-sm px-3 py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer" title="Reiniciar contagem da prateleira">
+                                <span class="material-symbols-outlined text-[18px]">restart_alt</span>
+                                <span class="hidden md:inline">Zerar Contagem</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Barra de Filtros e Seleção da Prateleira -->
+                    <div class="bg-slate-50/80 border border-slate-200/80 p-4 rounded-2xl mb-6 shadow-xs">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            <!-- Seletor de Prateleira / Localização -->
+                            <div class="lg:col-span-2">
+                                <label for="audit-shelf-select" class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                                    <span class="material-symbols-outlined text-[16px] text-indigo-600">shelves</span>
+                                    Selecione a Prateleira / Localização:
+                                </label>
+                                <select id="audit-shelf-select" class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition cursor-pointer">
+                                    <option value="__ALL__">Todas as Prateleiras / Localizações</option>
+                                    <option value="__NONE__">⚠️ Itens Sem Localização Definida</option>
+                                    <!-- Populado dinamicamente -->
+                                </select>
+                            </div>
+
+                            <!-- Filtro de Grupo / Categoria -->
+                            <div>
+                                <label for="audit-group-filter" class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                                    <span class="material-symbols-outlined text-[16px] text-slate-500">category</span>
+                                    Filtrar Grupo:
+                                </label>
+                                <select id="audit-group-filter" class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition cursor-pointer">
+                                    <option value="">Todos os Grupos</option>
+                                </select>
+                            </div>
+
+                            <!-- Busca Rápida de Produto -->
+                            <div>
+                                <label for="audit-search-input" class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                                    <span class="material-symbols-outlined text-[16px] text-slate-500">search</span>
+                                    Buscar Produto:
+                                </label>
+                                <div class="relative">
+                                    <input type="text" id="audit-search-input" placeholder="Nome, cód. RM..." class="w-full pl-8 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition">
+                                    <span class="material-symbols-outlined absolute left-2.5 top-2.5 text-slate-400 text-[18px]">search</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Filtros Rápidos de Status da Contagem -->
+                        <div class="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-200/60">
+                            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">Filtrar lista:</span>
+                            <button type="button" data-audit-filter="all" class="audit-filter-pill active px-3 py-1 rounded-lg text-xs font-bold transition bg-indigo-600 text-white cursor-pointer">
+                                Todos (<span id="audit-filter-all-count">0</span>)
+                            </button>
+                            <button type="button" data-audit-filter="pending" class="audit-filter-pill px-3 py-1 rounded-lg text-xs font-semibold transition bg-slate-200/80 hover:bg-slate-300 text-slate-700 cursor-pointer">
+                                Pendentes (<span id="audit-filter-pending-count">0</span>)
+                            </button>
+                            <button type="button" data-audit-filter="ok" class="audit-filter-pill px-3 py-1 rounded-lg text-xs font-semibold transition bg-slate-200/80 hover:bg-slate-300 text-slate-700 cursor-pointer">
+                                Conformes (<span id="audit-filter-ok-count">0</span>)
+                            </button>
+                            <button type="button" data-audit-filter="divergent" class="audit-filter-pill px-3 py-1 rounded-lg text-xs font-semibold transition bg-slate-200/80 hover:bg-slate-300 text-slate-700 cursor-pointer">
+                                Divergências (<span id="audit-filter-divergent-count">0</span>)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Cards de Resumo & Progresso da Auditoria -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                        <!-- Total de Itens -->
+                        <div class="p-3.5 sm:p-4 rounded-xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                                <span class="material-symbols-outlined text-[22px]">inventory_2</span>
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Itens no Local</p>
+                                <h3 id="audit-total-items-kpi" class="text-lg sm:text-xl font-extrabold text-slate-800">0</h3>
+                            </div>
+                        </div>
+
+                        <!-- Conferidos / Progresso -->
+                        <div class="p-3.5 sm:p-4 rounded-xl bg-white border border-slate-200/80 shadow-xs">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Progresso</p>
+                                <span id="audit-progress-pct" class="text-xs font-extrabold text-indigo-600">0%</span>
+                            </div>
+                            <h3 class="text-base sm:text-lg font-bold text-slate-800"><span id="audit-counted-kpi">0</span> <span class="text-xs text-slate-400 font-normal">conferido(s)</span></h3>
+                            <div class="w-full bg-slate-100 rounded-full h-2 mt-2 overflow-hidden">
+                                <div id="audit-progress-bar" class="bg-indigo-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Conformes -->
+                        <div class="p-3.5 sm:p-4 rounded-xl bg-emerald-50/60 border border-emerald-200/70 shadow-xs flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                                <span class="material-symbols-outlined text-[22px]">check_circle</span>
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">Conformes (Bateu)</p>
+                                <h3 id="audit-ok-kpi" class="text-lg sm:text-xl font-extrabold text-emerald-700">0</h3>
+                            </div>
+                        </div>
+
+                        <!-- Divergentes -->
+                        <div class="p-3.5 sm:p-4 rounded-xl bg-rose-50/60 border border-rose-200/70 shadow-xs flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                                <span class="material-symbols-outlined text-[22px]">warning</span>
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-bold text-rose-800 uppercase tracking-wider">Divergências</p>
+                                <h3 id="audit-divergent-kpi" class="text-lg sm:text-xl font-extrabold text-rose-700">0</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabela / Lista de Contagem de Materiais -->
+                    <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs mb-6">
+                        <!-- Título da Tabela com Barra de Ação em Lote -->
+                        <div class="p-4 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-50/50">
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-indigo-600 text-[18px]">checklist</span>
+                                    Lista de Itens para Conferência Física
+                                </h3>
+                                <p id="audit-current-shelf-label" class="text-xs text-slate-500 mt-0.5">Exibindo itens de: Todas as Prateleiras</p>
+                            </div>
+                            <div class="flex items-center gap-2 w-full sm:w-auto">
+                                <button id="audit-mark-all-ok-btn" type="button" class="flex-1 sm:flex-none px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer" title="Marcar todos os pendentes como iguais ao sistema">
+                                    <span class="material-symbols-outlined text-[16px] text-emerald-600">done_all</span>
+                                    <span>Marcar Pendentes como OK</span>
+                                </button>
+                                <button id="audit-apply-all-btn" type="button" class="flex-1 sm:flex-none px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-40 disabled:pointer-events-none cursor-pointer" disabled>
+                                    <span class="material-symbols-outlined text-[16px]">sync</span>
+                                    <span>Ajustar Divergências (<span id="audit-apply-count">0</span>)</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Container da Tabela com rolagem horizontal -->
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs sm:text-sm">
+                                <thead class="bg-slate-100/80 text-slate-600 font-bold border-b border-slate-200 uppercase text-[11px] tracking-wider">
+                                    <tr>
+                                        <th class="p-3 sm:p-3.5">Material & Detalhes</th>
+                                        <th class="p-3 sm:p-3.5">Local Atual</th>
+                                        <th class="p-3 sm:p-3.5 text-center">Saldo Sistema</th>
+                                        <th class="p-3 sm:p-3.5 text-center min-w-[190px]">Contagem Física</th>
+                                        <th class="p-3 sm:p-3.5 text-center">Diferença</th>
+                                        <th class="p-3 sm:p-3.5 text-center">Status</th>
+                                        <th class="p-3 sm:p-3.5 text-center">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="audit-items-tbody" class="divide-y divide-slate-100">
+                                    <!-- Renderizado dinamicamente via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Estado Vazio -->
+                        <div id="audit-empty-state" class="text-center py-16 text-slate-400 hidden">
+                            <span class="material-symbols-outlined text-[48px] text-slate-300">shelves</span>
+                            <p class="mt-2 text-sm font-bold text-slate-600">Nenhum material encontrado nesta localização</p>
+                            <p class="text-xs text-slate-400 mt-0.5">Tente selecionar outra prateleira ou limpar os filtros de busca.</p>
+                        </div>
+                    </div>
+                </div>
             </main>
         </div>
     </div>
@@ -1950,6 +2147,97 @@
 
     <div id="generic-modal-backdrop" class="modal-backdrop"></div>
     <div id="generic-modal" class="modal bg-white p-6 md:p-8 rounded-xl shadow-xl w-11/12 max-w-md"></div>
+
+    <!-- Modal de Confirmação de Ajuste de Auditoria -->
+    <div id="audit-adjust-modal-backdrop" class="modal-backdrop"></div>
+    <div id="audit-adjust-modal" class="modal bg-white p-5 sm:p-7 rounded-2xl shadow-2xl w-11/12 max-w-md border border-slate-100">
+        <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-xl">tune</span>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-slate-800">Confirmar Ajuste de Saldo</h3>
+                    <p class="text-xs text-slate-400">Auditoria Física de Estoque</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeModal('audit-adjust-modal')" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+                <span class="material-symbols-outlined text-xl">close</span>
+            </button>
+        </div>
+        <form id="audit-adjust-form" class="space-y-4">
+            <input type="hidden" id="audit-adjust-product-id">
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-xs space-y-1.5">
+                <p class="font-bold text-slate-800 text-sm" id="audit-adjust-product-name">—</p>
+                <div class="flex items-center justify-between text-slate-600">
+                    <span>Código RM: <strong id="audit-adjust-product-code">—</strong></span>
+                    <span>Local: <strong id="audit-adjust-product-loc">—</strong></span>
+                </div>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-center p-3 rounded-xl bg-indigo-50/50 border border-indigo-100">
+                <div>
+                    <span class="block text-[10px] font-bold text-slate-400 uppercase">Sistema</span>
+                    <span id="audit-adjust-system-qty" class="text-sm font-extrabold text-slate-700">0</span>
+                </div>
+                <div>
+                    <span class="block text-[10px] font-bold text-indigo-500 uppercase">Físico (Real)</span>
+                    <span id="audit-adjust-physical-qty" class="text-sm font-black text-indigo-600">0</span>
+                </div>
+                <div>
+                    <span class="block text-[10px] font-bold text-slate-400 uppercase">Ajuste</span>
+                    <span id="audit-adjust-diff-badge" class="text-sm font-extrabold text-rose-600">0</span>
+                </div>
+            </div>
+            <div>
+                <label for="audit-adjust-reason" class="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Justificativa do Ajuste:</label>
+                <input type="text" id="audit-adjust-reason" class="w-full p-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500" value="Inventário Físico / Auditoria de Prateleira" required>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button type="button" onclick="closeModal('audit-adjust-modal')" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition">Cancelar</button>
+                <button type="submit" id="audit-adjust-submit-btn" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95">
+                    <span class="material-symbols-outlined text-base">check</span>
+                    <span>Confirmar Ajuste</span>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Modal de Mudança de Localização (Mover para cá) -->
+    <div id="audit-location-modal-backdrop" class="modal-backdrop"></div>
+    <div id="audit-location-modal" class="modal bg-white p-5 sm:p-7 rounded-2xl shadow-2xl w-11/12 max-w-md border border-slate-100">
+        <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-xl">edit_location</span>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-slate-800">Alterar Localização Física</h3>
+                    <p class="text-xs text-slate-400">Auditoria de Prateleira</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeModal('audit-location-modal')" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+                <span class="material-symbols-outlined text-xl">close</span>
+            </button>
+        </div>
+        <form id="audit-location-form" class="space-y-4">
+            <input type="hidden" id="audit-location-product-id">
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-xs">
+                <p class="font-bold text-slate-800 text-sm" id="audit-location-product-name">—</p>
+                <p class="text-slate-500 mt-1">Local Atual: <strong id="audit-location-current-loc" class="text-slate-700">—</strong></p>
+            </div>
+            <div>
+                <label for="audit-location-new-input" class="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Nova Localização / Prateleira:</label>
+                <input type="text" id="audit-location-new-input" placeholder="Ex: PRATELEIRA A-02, CONTAINER 01..." class="w-full p-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold uppercase focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500" required>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button type="button" onclick="closeModal('audit-location-modal')" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition">Cancelar</button>
+                <button type="submit" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95">
+                    <span class="material-symbols-outlined text-base">save</span>
+                    <span>Salvar Local</span>
+                </button>
+            </div>
+        </form>
+    </div>
     
     <!-- Modal para adicionar pedido de compra (Root Stack) -->
     <div id="pr-modal-backdrop" class="hidden fixed inset-0" style="z-index:90;background:rgba(15,23,42,0.45);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);"></div>

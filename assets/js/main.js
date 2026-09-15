@@ -501,6 +501,7 @@
         const READONLY_ALLOWED_VIEWS = new Set([
             'dashboard-view',
             'inventory-view',
+            'audit-view',
             'exit-log-view',
             'activity-log-view',
             'reports-view',
@@ -4676,6 +4677,7 @@
             if (viewId === 'estrela-view') renderEstrelaView();
             if (viewId === 'purchase-requests-view') renderPurchaseRequests();
             if (viewId === 'notes-view') renderNotes();
+            if (viewId === 'audit-view') renderAuditView();
 
             syncRealtimeListeners();
         };
@@ -10514,3 +10516,849 @@
                 }
             }
         });
+
+        // =====================================================================
+        // ======= MÓDULO DE AUDITORIA DE PRATELEIRAS & INVENTÁRIO FÍSICO =======
+        // =====================================================================
+        let auditSelectedShelf = '__ALL__';
+        let auditSelectedGroup = '';
+        let auditSearchQuery = '';
+        let auditFilterStatus = 'all'; // 'all' | 'pending' | 'ok' | 'divergent'
+        const auditCounts = new Map(); // productId -> number
+        const auditTouched = new Set(); // Set<productId>
+
+        // Referências do DOM do Módulo de Auditoria
+        const auditShelfSelect = document.getElementById('audit-shelf-select');
+        const auditGroupFilter = document.getElementById('audit-group-filter');
+        const auditSearchInput = document.getElementById('audit-search-input');
+        const auditItemsTbody = document.getElementById('audit-items-tbody');
+        const auditEmptyState = document.getElementById('audit-empty-state');
+        const auditCurrentShelfLabel = document.getElementById('audit-current-shelf-label');
+
+        const auditTotalItemsKpi = document.getElementById('audit-total-items-kpi');
+        const auditCountedKpi = document.getElementById('audit-counted-kpi');
+        const auditProgressPct = document.getElementById('audit-progress-pct');
+        const auditProgressBar = document.getElementById('audit-progress-bar');
+        const auditOkKpi = document.getElementById('audit-ok-kpi');
+        const auditDivergentKpi = document.getElementById('audit-divergent-kpi');
+
+        const auditFilterAllCount = document.getElementById('audit-filter-all-count');
+        const auditFilterPendingCount = document.getElementById('audit-filter-pending-count');
+        const auditFilterOkCount = document.getElementById('audit-filter-ok-count');
+        const auditFilterDivergentCount = document.getElementById('audit-filter-divergent-count');
+        const auditApplyCount = document.getElementById('audit-apply-count');
+        const auditApplyAllBtn = document.getElementById('audit-apply-all-btn');
+        const auditMarkAllOkBtn = document.getElementById('audit-mark-all-ok-btn');
+        const auditResetBtn = document.getElementById('audit-reset-btn');
+        const auditExportExcelBtn = document.getElementById('audit-export-excel-btn');
+        const auditExportPdfBtn = document.getElementById('audit-export-pdf-btn');
+
+        // Modais de Auditoria
+        const auditAdjustModal = document.getElementById('audit-adjust-modal');
+        const auditAdjustForm = document.getElementById('audit-adjust-form');
+        const auditAdjustProductId = document.getElementById('audit-adjust-product-id');
+        const auditAdjustProductName = document.getElementById('audit-adjust-product-name');
+        const auditAdjustProductCode = document.getElementById('audit-adjust-product-code');
+        const auditAdjustProductLoc = document.getElementById('audit-adjust-product-loc');
+        const auditAdjustSystemQty = document.getElementById('audit-adjust-system-qty');
+        const auditAdjustPhysicalQty = document.getElementById('audit-adjust-physical-qty');
+        const auditAdjustDiffBadge = document.getElementById('audit-adjust-diff-badge');
+        const auditAdjustReason = document.getElementById('audit-adjust-reason');
+
+        const auditLocationModal = document.getElementById('audit-location-modal');
+        const auditLocationForm = document.getElementById('audit-location-form');
+        const auditLocationProductId = document.getElementById('audit-location-product-id');
+        const auditLocationProductName = document.getElementById('audit-location-product-name');
+        const auditLocationCurrentLoc = document.getElementById('audit-location-current-loc');
+        const auditLocationNewInput = document.getElementById('audit-location-new-input');
+
+        // Helper para normalizar localizações
+        const normalizeLoc = (loc) => (loc || '').trim().toUpperCase();
+
+        // 1. Preenchimento de Seletores (Prateleiras e Grupos)
+        const populateAuditSelectors = () => {
+            if (!auditShelfSelect) return;
+
+            const shelfSet = new Set();
+            if (Array.isArray(locations)) {
+                locations.forEach(l => {
+                    const name = normalizeLoc(l.name);
+                    if (name) shelfSet.add(name);
+                });
+            }
+            if (Array.isArray(products)) {
+                products.forEach(p => {
+                    const loc = normalizeLoc(p.location);
+                    if (loc && loc !== 'N/A' && loc !== 'SEM LOCAL') shelfSet.add(loc);
+                });
+            }
+
+            const sortedShelves = Array.from(shelfSet).sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
+
+            const currentVal = auditSelectedShelf;
+            auditShelfSelect.innerHTML = `
+                <option value="__ALL__">Todas as Prateleiras / Localizações</option>
+                <option value="__NONE__">⚠️ Itens Sem Localização Definida</option>
+                ${sortedShelves.map(s => `<option value="${s}">${s}</option>`).join('')}
+            `;
+            if (currentVal && (currentVal === '__ALL__' || currentVal === '__NONE__' || shelfSet.has(currentVal))) {
+                auditShelfSelect.value = currentVal;
+            } else {
+                auditShelfSelect.value = '__ALL__';
+                auditSelectedShelf = '__ALL__';
+            }
+
+            if (auditGroupFilter) {
+                const groupSet = new Set();
+                products.forEach(p => {
+                    const g = (p.group || '').trim();
+                    if (g) groupSet.add(g);
+                });
+                const sortedGroups = Array.from(groupSet).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+                const curGroup = auditSelectedGroup;
+                auditGroupFilter.innerHTML = `
+                    <option value="">Todos os Grupos</option>
+                    ${sortedGroups.map(g => `<option value="${g}">${g}</option>`).join('')}
+                `;
+                auditGroupFilter.value = curGroup || '';
+            }
+        };
+
+        // 2. Filtro de Produtos da Prateleira
+        const getAuditFilteredProducts = () => {
+            if (!Array.isArray(products)) return [];
+
+            return products.filter(p => {
+                const loc = normalizeLoc(p.location);
+                if (auditSelectedShelf === '__NONE__') {
+                    if (loc && loc !== 'N/A' && loc !== 'SEM LOCAL') return false;
+                } else if (auditSelectedShelf !== '__ALL__') {
+                    if (loc !== auditSelectedShelf) return false;
+                }
+
+                if (auditSelectedGroup && (p.group || '').trim() !== auditSelectedGroup) {
+                    return false;
+                }
+
+                if (auditSearchQuery) {
+                    const q = normalizeSearchText(auditSearchQuery);
+                    const name = normalizeSearchText(p.name);
+                    const rm = normalizeSearchText(p.codeRM);
+                    const code = normalizeSearchText(p.code);
+                    const pLoc = normalizeSearchText(p.location);
+                    if (!name.includes(q) && !rm.includes(q) && !code.includes(q) && !pLoc.includes(q)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            });
+        };
+
+        // 3. Renderização da Tabela e Atualização de KPIs
+        const renderAuditTableAndKPIs = () => {
+            if (!auditItemsTbody) return;
+
+            const list = getAuditFilteredProducts();
+
+            if (auditCurrentShelfLabel) {
+                const label = auditSelectedShelf === '__ALL__' 
+                    ? 'Todas as Prateleiras' 
+                    : (auditSelectedShelf === '__NONE__' ? 'Itens Sem Localização Definida' : `Prateleira: ${auditSelectedShelf}`);
+                auditCurrentShelfLabel.textContent = `Exibindo itens de: ${label} (${list.length} produtos)`;
+            }
+
+            let totalCount = list.length;
+            let countedCount = 0;
+            let okCount = 0;
+            let divergentCount = 0;
+
+            const itemsWithAuditData = list.map(p => {
+                const systemQty = Number(p.quantity) || 0;
+                const isTouched = auditTouched.has(p.id);
+                const physicalQty = isTouched ? (auditCounts.get(p.id) ?? systemQty) : null;
+                const diff = isTouched ? (physicalQty - systemQty) : 0;
+                
+                let status = 'pending';
+                if (isTouched) {
+                    status = diff === 0 ? 'ok' : 'divergent';
+                    countedCount++;
+                    if (status === 'ok') okCount++;
+                    else divergentCount++;
+                }
+
+                return { product: p, systemQty, physicalQty, diff, status, isTouched };
+            });
+
+            const pendingCount = totalCount - countedCount;
+            const pct = totalCount > 0 ? Math.round((countedCount / totalCount) * 100) : 0;
+
+            if (auditTotalItemsKpi) auditTotalItemsKpi.textContent = totalCount;
+            if (auditCountedKpi) auditCountedKpi.textContent = countedCount;
+            if (auditProgressPct) auditProgressPct.textContent = `${pct}%`;
+            if (auditProgressBar) auditProgressBar.style.width = `${pct}%`;
+            if (auditOkKpi) auditOkKpi.textContent = okCount;
+            if (auditDivergentKpi) auditDivergentKpi.textContent = divergentCount;
+
+            if (auditFilterAllCount) auditFilterAllCount.textContent = totalCount;
+            if (auditFilterPendingCount) auditFilterPendingCount.textContent = pendingCount;
+            if (auditFilterOkCount) auditFilterOkCount.textContent = okCount;
+            if (auditFilterDivergentCount) auditFilterDivergentCount.textContent = divergentCount;
+
+            if (auditApplyCount) auditApplyCount.textContent = divergentCount;
+            if (auditApplyAllBtn) {
+                auditApplyAllBtn.disabled = divergentCount === 0 || isReadOnlyRole();
+            }
+
+            const displayedItems = itemsWithAuditData.filter(item => {
+                if (auditFilterStatus === 'pending') return item.status === 'pending';
+                if (auditFilterStatus === 'ok') return item.status === 'ok';
+                if (auditFilterStatus === 'divergent') return item.status === 'divergent';
+                return true;
+            });
+
+            if (displayedItems.length === 0) {
+                auditItemsTbody.innerHTML = '';
+                auditEmptyState?.classList.remove('hidden');
+                return;
+            }
+
+            auditEmptyState?.classList.add('hidden');
+
+            auditItemsTbody.innerHTML = displayedItems.map(item => {
+                const { product: p, systemQty, physicalQty, diff, status, isTouched } = item;
+                const unit = p.unit || 'UN';
+
+                let statusBadgeHTML = '';
+                let diffHTML = '<span class="text-slate-400 font-medium text-xs">—</span>';
+                let rowBgClass = '';
+
+                if (status === 'pending') {
+                    statusBadgeHTML = '<span class="audit-badge audit-badge-pending"><span class="material-symbols-outlined text-[14px]">hourglass_empty</span> Pendente</span>';
+                } else if (status === 'ok') {
+                    statusBadgeHTML = '<span class="audit-badge audit-badge-ok"><span class="material-symbols-outlined text-[14px]">check</span> Conforme</span>';
+                    diffHTML = '<span class="text-emerald-700 font-bold text-xs flex items-center justify-center gap-1"><span class="material-symbols-outlined text-[14px]">done</span> 0</span>';
+                    rowBgClass = 'audit-row-ok';
+                } else if (diff < 0) {
+                    statusBadgeHTML = '<span class="audit-badge audit-badge-missing"><span class="material-symbols-outlined text-[14px]">arrow_downward</span> Falta</span>';
+                    diffHTML = `<span class="text-rose-600 font-extrabold text-xs px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 inline-block">-${Math.abs(diff)} ${unit}</span>`;
+                    rowBgClass = 'audit-row-divergent';
+                } else {
+                    statusBadgeHTML = '<span class="audit-badge audit-badge-excess"><span class="material-symbols-outlined text-[14px]">arrow_upward</span> Sobra</span>';
+                    diffHTML = `<span class="text-blue-600 font-extrabold text-xs px-2 py-0.5 rounded-md bg-blue-50 border border-blue-200 inline-block">+${diff} ${unit}</span>`;
+                    rowBgClass = 'audit-row-divergent';
+                }
+
+                const displayCountVal = isTouched ? physicalQty : '';
+
+                return `
+                    <tr class="hover:bg-slate-50/80 transition-colors ${rowBgClass}" data-product-id="${p.id}">
+                        <!-- Material -->
+                        <td class="p-3 sm:p-3.5 align-middle">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                                    <span class="material-symbols-outlined text-[18px]">inventory_2</span>
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="font-bold text-slate-800 text-xs sm:text-sm truncate max-w-[260px] sm:max-w-xs" title="${p.name || ''}">${p.name || 'Sem nome'}</p>
+                                    <div class="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+                                        <span class="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-semibold">RM: ${p.codeRM || 'N/A'}</span>
+                                        ${p.code ? `<span class="font-mono text-slate-400">#${p.code}</span>` : ''}
+                                        <span class="text-slate-400">(${unit})</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+
+                        <!-- Local Atual -->
+                        <td class="p-3 sm:p-3.5 align-middle">
+                            <div class="flex items-center gap-1 text-xs">
+                                <span class="material-symbols-outlined text-slate-400 text-[16px]">location_on</span>
+                                <span class="font-semibold text-slate-700 truncate max-w-[140px]">${p.location || '<span class="text-amber-600 italic">Sem Local</span>'}</span>
+                            </div>
+                        </td>
+
+                        <!-- Saldo Sistema -->
+                        <td class="p-3 sm:p-3.5 align-middle text-center">
+                            <span class="text-sm sm:text-base font-extrabold text-slate-800">${systemQty}</span>
+                            <span class="text-[10px] text-slate-400 block">${unit}</span>
+                        </td>
+
+                        <!-- Contagem Física Interativa -->
+                        <td class="p-3 sm:p-3.5 align-middle text-center">
+                            <div class="inline-flex items-center gap-1.5">
+                                <button type="button" class="audit-step-btn audit-step-down" data-id="${p.id}" title="Diminuir 1">−</button>
+                                <input type="number" min="0" step="1" 
+                                    class="audit-qty-input" 
+                                    data-id="${p.id}" 
+                                    placeholder="${systemQty}" 
+                                    value="${displayCountVal}">
+                                <button type="button" class="audit-step-btn audit-step-up" data-id="${p.id}" title="Aumentar 1">+</button>
+                                
+                                <button type="button" 
+                                    class="ml-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 active:scale-95 text-emerald-700 font-bold text-xs border border-emerald-200 transition flex items-center gap-1 cursor-pointer audit-match-btn" 
+                                    data-id="${p.id}" 
+                                    title="Marcar contagem física exatamente igual ao sistema">
+                                    <span class="material-symbols-outlined text-[15px]">check</span>
+                                    <span class="hidden sm:inline">Bateu</span>
+                                </button>
+                            </div>
+                        </td>
+
+                        <!-- Diferença -->
+                        <td class="p-3 sm:p-3.5 align-middle text-center">
+                            ${diffHTML}
+                        </td>
+
+                        <!-- Status -->
+                        <td class="p-3 sm:p-3.5 align-middle text-center">
+                            ${statusBadgeHTML}
+                        </td>
+
+                        <!-- Ações Rápidas -->
+                        <td class="p-3 sm:p-3.5 align-middle text-center whitespace-nowrap">
+                            <div class="inline-flex items-center gap-1">
+                                ${status === 'divergent' && !isReadOnlyRole() ? `
+                                    <button type="button" class="audit-open-adjust-btn px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-semibold text-xs shadow-xs transition flex items-center gap-1 cursor-pointer" data-id="${p.id}" title="Ajustar saldo imediatamente">
+                                        <span class="material-symbols-outlined text-[14px]">tune</span>
+                                        <span>Ajustar</span>
+                                    </button>
+                                ` : ''}
+                                <button type="button" class="audit-open-relocate-btn p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition cursor-pointer" data-id="${p.id}" title="Alterar ou mover localização">
+                                    <span class="material-symbols-outlined text-[18px]">edit_location</span>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        };
+
+        // 4. Funções de Manipulação da Contagem
+        const handleAuditStep = (productId, delta) => {
+            const p = products.find(prod => prod.id === productId);
+            if (!p) return;
+            const current = auditTouched.has(productId) 
+                ? (auditCounts.get(productId) ?? p.quantity) 
+                : (p.quantity || 0);
+            const newVal = Math.max(0, current + delta);
+            auditTouched.add(productId);
+            auditCounts.set(productId, newVal);
+            renderAuditTableAndKPIs();
+        };
+
+        const handleAuditInput = (productId, rawVal) => {
+            const p = products.find(prod => prod.id === productId);
+            if (!p) return;
+            if (rawVal === '' || isNaN(rawVal)) {
+                auditTouched.delete(productId);
+                auditCounts.delete(productId);
+            } else {
+                auditTouched.add(productId);
+                auditCounts.set(productId, Math.max(0, parseInt(rawVal) || 0));
+            }
+            renderAuditTableAndKPIs();
+        };
+
+        const handleAuditMatch = (productId) => {
+            const p = products.find(prod => prod.id === productId);
+            if (!p) return;
+            auditTouched.add(productId);
+            auditCounts.set(productId, Number(p.quantity) || 0);
+            renderAuditTableAndKPIs();
+        };
+
+        const markAllPendingMatches = () => {
+            const list = getAuditFilteredProducts();
+            let count = 0;
+            list.forEach(p => {
+                if (!auditTouched.has(p.id)) {
+                    auditTouched.add(p.id);
+                    auditCounts.set(p.id, Number(p.quantity) || 0);
+                    count++;
+                }
+            });
+            renderAuditTableAndKPIs();
+            showToast(`✅ ${count} item(ns) pendente(s) marcados como conformes.`);
+        };
+
+        const resetAuditShelfCount = () => {
+            if (confirm("Deseja realmente zerar a contagem e reiniciar a auditoria para esta prateleira?")) {
+                const list = getAuditFilteredProducts();
+                list.forEach(p => {
+                    auditTouched.delete(p.id);
+                    auditCounts.delete(p.id);
+                });
+                renderAuditTableAndKPIs();
+                showToast("Contagem reiniciada.");
+            }
+        };
+
+        // 5. Ajuste Individual e em Lote
+        const openAuditAdjustModal = (productId) => {
+            if (isReadOnlyRole()) {
+                showToast("🔒 Apenas administradores e operadores podem ajustar o estoque.", true);
+                return;
+            }
+            const p = products.find(prod => prod.id === productId);
+            if (!p) return;
+
+            const systemQty = Number(p.quantity) || 0;
+            const physicalQty = auditCounts.get(productId) ?? systemQty;
+            const diff = physicalQty - systemQty;
+
+            auditAdjustProductId.value = p.id;
+            auditAdjustProductName.textContent = p.name;
+            auditAdjustProductCode.textContent = p.codeRM || p.code || 'N/A';
+            auditAdjustProductLoc.textContent = p.location || 'Sem Local';
+            auditAdjustSystemQty.textContent = `${systemQty} ${p.unit || 'UN'}`;
+            auditAdjustPhysicalQty.textContent = `${physicalQty} ${p.unit || 'UN'}`;
+            
+            if (diff < 0) {
+                auditAdjustDiffBadge.className = 'text-sm font-extrabold text-rose-600';
+                auditAdjustDiffBadge.textContent = `Falta: -${Math.abs(diff)} ${p.unit || 'UN'}`;
+            } else if (diff > 0) {
+                auditAdjustDiffBadge.className = 'text-sm font-extrabold text-blue-600';
+                auditAdjustDiffBadge.textContent = `Sobra: +${diff} ${p.unit || 'UN'}`;
+            } else {
+                auditAdjustDiffBadge.className = 'text-sm font-extrabold text-emerald-600';
+                auditAdjustDiffBadge.textContent = `0 (Conforme)`;
+            }
+
+            auditAdjustReason.value = `Inventário Físico / Auditoria de Prateleira (${p.location || 'Geral'})`;
+            openModal('audit-adjust-modal');
+        };
+
+        const applySingleAuditAdjustment = async (productId, reason) => {
+            const p = products.find(prod => prod.id === productId);
+            if (!p) return;
+
+            const oldQty = Number(p.quantity) || 0;
+            const newQty = auditCounts.get(productId) ?? oldQty;
+            const diff = newQty - oldQty;
+
+            if (diff === 0) {
+                showToast("Item já está com a quantidade correta.");
+                return;
+            }
+
+            try {
+                showLoader(true);
+                const pRef = doc(productsCollectionRef, productId);
+                await updateDoc(pRef, {
+                    quantity: newQty,
+                    updatedAt: serverTimestamp()
+                });
+
+                p.quantity = newQty;
+
+                const type = diff > 0 ? 'Ajuste Entrada' : 'Ajuste Saída';
+                await addHistoryEntry(productId, type, Math.abs(diff), newQty, {
+                    details: `${reason || 'Inventário Físico / Auditoria de Prateleira'} | Anterior: ${oldQty} -> Ajustado: ${newQty}`
+                }, p);
+
+                auditCounts.set(productId, newQty);
+
+                showToast(`✅ Saldo ajustado com sucesso para ${newQty} ${p.unit || 'UN'}!`);
+                closeModal('audit-adjust-modal');
+                renderAuditTableAndKPIs();
+            } catch (err) {
+                console.error("Erro ao aplicar ajuste de auditoria:", err);
+                showToast("Erro ao ajustar saldo no estoque.", true);
+            } finally {
+                showLoader(false);
+            }
+        };
+
+        const applyAllAuditAdjustments = async () => {
+            if (isReadOnlyRole()) {
+                showToast("🔒 Apenas administradores e operadores podem ajustar o estoque.", true);
+                return;
+            }
+            const list = getAuditFilteredProducts();
+            const divergentItems = [];
+
+            list.forEach(p => {
+                if (auditTouched.has(p.id)) {
+                    const physicalQty = auditCounts.get(p.id) ?? (p.quantity || 0);
+                    const systemQty = Number(p.quantity) || 0;
+                    if (physicalQty !== systemQty) {
+                        divergentItems.push({ product: p, oldQty: systemQty, newQty: physicalQty, diff: physicalQty - systemQty });
+                    }
+                }
+            });
+
+            if (divergentItems.length === 0) {
+                showToast("Nenhuma divergência pendente para ajustar.");
+                return;
+            }
+
+            const confirmMsg = `Confirma o ajuste automático de ${divergentItems.length} item(ns) divergente(s)?\n\nTodos os saldos físicos contados serão atualizados no sistema e registrados no histórico oficial de auditoria.`;
+            if (!confirm(confirmMsg)) return;
+
+            try {
+                showLoader(true);
+                const batch = writeBatch(db);
+
+                divergentItems.forEach(({ product: p, newQty }) => {
+                    const pRef = doc(productsCollectionRef, p.id);
+                    batch.update(pRef, {
+                        quantity: newQty,
+                        updatedAt: serverTimestamp()
+                    });
+                });
+
+                await batch.commit();
+
+                for (const item of divergentItems) {
+                    item.product.quantity = item.newQty;
+                    auditCounts.set(item.product.id, item.newQty);
+                    const type = item.diff > 0 ? 'Ajuste Entrada' : 'Ajuste Saída';
+                    await addHistoryEntry(item.product.id, type, Math.abs(item.diff), item.newQty, {
+                        details: `Inventário Físico em Lote - Prateleira ${item.product.location || 'Geral'} | Anterior: ${item.oldQty} -> Ajustado: ${item.newQty}`
+                    }, item.product);
+                }
+
+                showToast(`🎉 ${divergentItems.length} divergência(s) ajustada(s) com sucesso no estoque!`);
+                renderAuditTableAndKPIs();
+            } catch (err) {
+                console.error("Erro ao aplicar ajustes em lote:", err);
+                showToast("Erro ao processar ajustes em lote.", true);
+            } finally {
+                showLoader(false);
+            }
+        };
+
+        const openAuditLocationModal = (productId) => {
+            const p = products.find(prod => prod.id === productId);
+            if (!p) return;
+            auditLocationProductId.value = p.id;
+            auditLocationProductName.textContent = p.name;
+            auditLocationCurrentLoc.textContent = p.location || 'Sem Local Definido';
+            auditLocationNewInput.value = (auditSelectedShelf !== '__ALL__' && auditSelectedShelf !== '__NONE__') ? auditSelectedShelf : (p.location || '');
+            openModal('audit-location-modal');
+        };
+
+        const applyProductLocationChange = async (productId, newLocation) => {
+            const p = products.find(prod => prod.id === productId);
+            if (!p) return;
+            const locClean = toUpperText(newLocation.trim());
+            if (!locClean) {
+                showToast("Informe uma localização válida.", true);
+                return;
+            }
+
+            try {
+                showLoader(true);
+                const pRef = doc(productsCollectionRef, productId);
+                await updateDoc(pRef, {
+                    location: locClean,
+                    updatedAt: serverTimestamp()
+                });
+                p.location = locClean;
+                showToast(`📍 Localização de "${p.name}" alterada para "${locClean}".`);
+                closeModal('audit-location-modal');
+                populateAuditSelectors();
+                renderAuditTableAndKPIs();
+            } catch (err) {
+                console.error("Erro ao atualizar localização:", err);
+                showToast("Erro ao atualizar localização.", true);
+            } finally {
+                showLoader(false);
+            }
+        };
+
+        // 6. Relatórios Oficiais (Excel e PDF)
+        const exportAuditReportExcel = () => {
+            const list = getAuditFilteredProducts();
+            if (list.length === 0) {
+                showToast("Nenhum item para exportar.", true);
+                return;
+            }
+
+            const rows = list.map(p => {
+                const systemQty = Number(p.quantity) || 0;
+                const isTouched = auditTouched.has(p.id);
+                const physicalQty = isTouched ? (auditCounts.get(p.id) ?? systemQty) : 'Não contado';
+                const diff = isTouched ? (physicalQty - systemQty) : '—';
+                let statusLabel = 'Pendente';
+                if (isTouched) {
+                    statusLabel = diff === 0 ? 'Conforme' : (diff < 0 ? 'Divergente (Falta)' : 'Divergente (Sobra)');
+                }
+                return {
+                    'Código RM': p.codeRM || 'N/A',
+                    'Material / Descrição': p.name || '—',
+                    'Unidade': p.unit || 'UN',
+                    'Localização / Prateleira': p.location || 'Sem Local',
+                    'Grupo': p.group || '—',
+                    'Saldo no Sistema': systemQty,
+                    'Contagem Física': physicalQty,
+                    'Diferença': diff,
+                    'Status': statusLabel
+                };
+            });
+
+            try {
+                const ws = XLSX.utils.json_to_sheet(rows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Auditoria_Inventario");
+                const shelfName = (auditSelectedShelf || 'Geral').replace(/[^a-zA-Z0-9]/g, '_');
+                const filename = `Inventario_Fisico_${shelfName}_${new Date().toISOString().split('T')[0]}.xlsx`;
+                XLSX.writeFile(wb, filename);
+                showToast("📊 Relatório em Excel exportado com sucesso!");
+            } catch (e) {
+                console.error("Erro ao gerar Excel de auditoria:", e);
+                showToast("Erro ao gerar arquivo Excel.", true);
+            }
+        };
+
+        const exportAuditReportPDF = () => {
+            const list = getAuditFilteredProducts();
+            if (list.length === 0) {
+                showToast("Nenhum item para exportar.", true);
+                return;
+            }
+
+            const { jsPDF } = window.jspdf || {};
+            if (!jsPDF) {
+                showToast("Biblioteca de PDF indisponível.", true);
+                return;
+            }
+
+            try {
+                const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+                const pageWidth = doc.internal.pageSize.getWidth();
+                let y = 16;
+
+                doc.setFillColor(30, 41, 59);
+                doc.rect(14, y, pageWidth - 28, 22, 'F');
+                doc.setTextColor(255, 255, 255);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(13);
+                doc.text("RELATÓRIO DE AUDITORIA & INVENTÁRIO FÍSICO", 18, y + 9);
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'normal');
+                const shelfLabel = auditSelectedShelf === '__ALL__' ? 'Todas as Prateleiras' : (auditSelectedShelf === '__NONE__' ? 'Sem Localização' : auditSelectedShelf);
+                doc.text(`UHE ESTRELA — Localização: ${shelfLabel} | Data: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'})}`, 18, y + 16);
+                y += 28;
+
+                doc.setTextColor(51, 65, 85);
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'bold');
+                doc.text(`Auditor / Responsável: ${currentUser?.displayName || 'Almoxarifado'}`, 14, y);
+                y += 6;
+
+                let okCount = 0, divCount = 0, pendCount = 0;
+                list.forEach(p => {
+                    if (auditTouched.has(p.id)) {
+                        const count = auditCounts.get(p.id) ?? p.quantity;
+                        if (count === p.quantity) okCount++;
+                        else divCount++;
+                    } else pendCount++;
+                });
+
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Total de Itens: ${list.length} | Conformes: ${okCount} | Divergências: ${divCount} | Pendentes: ${pendCount}`, 14, y);
+                y += 8;
+
+                doc.setDrawColor(203, 213, 225);
+                doc.line(14, y, pageWidth - 14, y);
+                y += 6;
+
+                doc.setFillColor(241, 245, 249);
+                doc.rect(14, y, pageWidth - 28, 7, 'F');
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(8);
+                doc.setTextColor(71, 85, 105);
+                doc.text("CÓD. RM", 16, y + 5);
+                doc.text("MATERIAL", 42, y + 5);
+                doc.text("LOCAL", 115, y + 5);
+                doc.text("SISTEMA", 145, y + 5);
+                doc.text("FÍSICO", 165, y + 5);
+                doc.text("DIFERENÇA", 182, y + 5);
+                y += 8;
+
+                doc.setFont('helvetica', 'normal');
+                list.forEach((p, idx) => {
+                    if (y > 270) {
+                        doc.addPage();
+                        y = 16;
+                    }
+                    const systemQty = Number(p.quantity) || 0;
+                    const isTouched = auditTouched.has(p.id);
+                    const physicalQty = isTouched ? (auditCounts.get(p.id) ?? systemQty) : '—';
+                    const diff = isTouched ? (physicalQty - systemQty) : 0;
+                    const diffStr = !isTouched ? '—' : (diff === 0 ? 'OK' : (diff > 0 ? `+${diff}` : `${diff}`));
+
+                    if (idx % 2 === 0) {
+                        doc.setFillColor(248, 250, 252);
+                        doc.rect(14, y - 4, pageWidth - 28, 6.5, 'F');
+                    }
+
+                    if (isTouched && diff !== 0) {
+                        doc.setFillColor(254, 242, 242);
+                        doc.rect(14, y - 4, pageWidth - 28, 6.5, 'F');
+                    }
+
+                    doc.setFontSize(7.5);
+                    doc.setTextColor(30, 41, 59);
+                    doc.text(String(p.codeRM || 'N/A').slice(0, 14), 16, y);
+                    doc.text(String(p.name || '').slice(0, 42), 42, y);
+                    doc.text(String(p.location || '—').slice(0, 16), 115, y);
+                    doc.text(`${systemQty} ${p.unit || ''}`, 145, y);
+                    doc.text(isTouched ? `${physicalQty} ${p.unit || ''}` : '—', 165, y);
+                    
+                    if (diff < 0) doc.setTextColor(185, 28, 28);
+                    else if (diff > 0) doc.setTextColor(29, 78, 216);
+                    else doc.setTextColor(22, 101, 52);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text(diffStr, 182, y);
+                    doc.setFont('helvetica', 'normal');
+
+                    y += 6.5;
+                });
+
+                if (y > 245) {
+                    doc.addPage();
+                    y = 20;
+                } else {
+                    y += 12;
+                }
+
+                doc.setDrawColor(148, 163, 184);
+                doc.line(20, y + 16, 85, y + 16);
+                doc.line(pageWidth - 85, y + 16, pageWidth - 20, y + 16);
+                
+                doc.setFontSize(8);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(71, 85, 105);
+                doc.text("Conferente / Auditor", 32, y + 21);
+                doc.text("Encarregado de Almoxarifado", pageWidth - 78, y + 21);
+
+                const shelfName = (auditSelectedShelf || 'Geral').replace(/[^a-zA-Z0-9]/g, '_');
+                doc.save(`Laudo_Inventario_${shelfName}_${new Date().toISOString().split('T')[0]}.pdf`);
+                showToast("📄 Laudo de Auditoria em PDF gerado com sucesso!");
+            } catch (err) {
+                console.error("Erro ao gerar laudo PDF:", err);
+                showToast("Erro ao gerar PDF de auditoria.", true);
+            }
+        };
+
+        // 7. Registro de Eventos e Listeners do Módulo de Auditoria
+        const setupAuditListeners = () => {
+            // Troca de Prateleira
+            auditShelfSelect?.addEventListener('change', (e) => {
+                auditSelectedShelf = e.target.value;
+                renderAuditTableAndKPIs();
+            });
+
+            // Troca de Grupo
+            auditGroupFilter?.addEventListener('change', (e) => {
+                auditSelectedGroup = e.target.value;
+                renderAuditTableAndKPIs();
+            });
+
+            // Busca de Texto (Debounce)
+            auditSearchInput?.addEventListener('input', debounce((e) => {
+                auditSearchQuery = e.target.value;
+                renderAuditTableAndKPIs();
+            }, 250));
+
+            // Filtros de Status (Pills)
+            document.querySelectorAll('.audit-filter-pill').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.audit-filter-pill').forEach(b => {
+                        b.classList.remove('active', 'bg-indigo-600', 'text-white');
+                        b.classList.add('bg-slate-200/80', 'text-slate-700');
+                    });
+                    btn.classList.add('active', 'bg-indigo-600', 'text-white');
+                    btn.classList.remove('bg-slate-200/80', 'text-slate-700');
+                    auditFilterStatus = btn.dataset.auditFilter || 'all';
+                    renderAuditTableAndKPIs();
+                });
+            });
+
+            // Botões de Ação Geral
+            auditMarkAllOkBtn?.addEventListener('click', markAllPendingMatches);
+            auditResetBtn?.addEventListener('click', resetAuditShelfCount);
+            auditApplyAllBtn?.addEventListener('click', applyAllAuditAdjustments);
+            auditExportExcelBtn?.addEventListener('click', exportAuditReportExcel);
+            auditExportPdfBtn?.addEventListener('click', exportAuditReportPDF);
+
+            // Submissão de Ajuste Individual
+            auditAdjustForm?.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const id = auditAdjustProductId.value;
+                const reason = auditAdjustReason.value.trim();
+                applySingleAuditAdjustment(id, reason);
+            });
+
+            // Submissão de Alteração de Localização
+            auditLocationForm?.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const id = auditLocationProductId.value;
+                const newLoc = auditLocationNewInput.value.trim();
+                applyProductLocationChange(id, newLoc);
+            });
+
+            // Delegação de Eventos na Tabela de Auditoria
+            auditItemsTbody?.addEventListener('click', (e) => {
+                // Passo para Baixo
+                const downBtn = e.target.closest('.audit-step-down');
+                if (downBtn) {
+                    const id = downBtn.dataset.id;
+                    handleAuditStep(id, -1);
+                    return;
+                }
+
+                // Passo para Cima
+                const upBtn = e.target.closest('.audit-step-up');
+                if (upBtn) {
+                    const id = upBtn.dataset.id;
+                    handleAuditStep(id, +1);
+                    return;
+                }
+
+                // Botão Bateu (OK)
+                const matchBtn = e.target.closest('.audit-match-btn');
+                if (matchBtn) {
+                    const id = matchBtn.dataset.id;
+                    handleAuditMatch(id);
+                    return;
+                }
+
+                // Botão Ajustar Individual
+                const adjustBtn = e.target.closest('.audit-open-adjust-btn');
+                if (adjustBtn) {
+                    const id = adjustBtn.dataset.id;
+                    openAuditAdjustModal(id);
+                    return;
+                }
+
+                // Botão Mover / Alterar Local
+                const relocateBtn = e.target.closest('.audit-open-relocate-btn');
+                if (relocateBtn) {
+                    const id = relocateBtn.dataset.id;
+                    openAuditLocationModal(id);
+                    return;
+                }
+            });
+
+            // Input Direto de Quantidade
+            auditItemsTbody?.addEventListener('change', (e) => {
+                const input = e.target.closest('.audit-qty-input');
+                if (input) {
+                    const id = input.dataset.id;
+                    handleAuditInput(id, input.value);
+                }
+            });
+        };
+
+        // Inicialização do Módulo de Auditoria
+        const renderAuditView = () => {
+            populateAuditSelectors();
+            renderAuditTableAndKPIs();
+        };
+        window.renderAuditView = renderAuditView;
+
+        setupAuditListeners();

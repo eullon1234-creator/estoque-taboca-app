@@ -765,4 +765,95 @@ input:focus, select:focus, textarea:focus {
     pointer-events: auto !important;
 }
 
+/* ---------- MÓDULO AUDITORIA DE PRATELEIRAS & INVENTÁRIO ---------- */
+.audit-filter-pill {
+    cursor: pointer;
+    user-select: none;
+}
+.audit-filter-pill.active {
+    background-color: #4f46e5 !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 6px rgba(79, 70, 229, 0.25);
+}
+
+.audit-row-ok {
+    background-color: rgba(236, 253, 245, 0.5) !important;
+}
+.audit-row-divergent {
+    background-color: rgba(254, 242, 242, 0.6) !important;
+}
+
+.audit-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 9999px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+.audit-badge-pending {
+    background: #f1f5f9;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+}
+.audit-badge-ok {
+    background: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+}
+.audit-badge-missing {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+.audit-badge-excess {
+    background: #eff6ff;
+    color: #1e40af;
+    border: 1px solid #bfdbfe;
+}
+
+.audit-qty-input {
+    width: 64px;
+    text-align: center;
+    font-weight: 700;
+    font-size: 0.875rem;
+    padding: 5px 4px;
+    border-radius: 8px;
+    border: 1.5px solid #cbd5e1;
+    background: #ffffff;
+    transition: all 0.15s ease;
+}
+.audit-qty-input:focus {
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+    outline: none;
+}
+.audit-step-btn {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: #f1f5f9;
+    color: #475569;
+    font-weight: 700;
+    font-size: 1rem;
+    transition: all 0.15s ease;
+    cursor: pointer;
+    user-select: none;
+}
+.audit-step-btn:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+.audit-step-btn:active {
+    transform: scale(0.92);
+}
+
+
 
