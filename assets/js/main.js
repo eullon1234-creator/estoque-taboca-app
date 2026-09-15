@@ -922,6 +922,10 @@
                     switchView('inventory-view');
                     searchInput?.focus({ preventScroll: true });
                 }, 0);
+            } else {
+                setTimeout(() => {
+                    switchView('dashboard-view');
+                }, 0);
             }
             
             // 🔒 Timeout de segurança para garantir carregamento
@@ -4628,6 +4632,7 @@
             currentViewId = viewId;
             if (viewId !== 'inventory-view' && viewId !== 'requisitions-view') {
                 selectedProductIds.clear();
+                document.getElementById('quick-share-floating-bar')?.classList.remove('show');
             }
             views.forEach(view => view.classList.add('hidden'));
             document.getElementById(viewId).classList.remove('hidden');
@@ -4724,16 +4729,20 @@
             // Botão de IA desativado (sem API Key configurada)
             aiDescribeBtn.classList.add('hidden');
 
+            const allCheckboxes = document.querySelectorAll('.product-checkbox');
             const displayedCheckedCount = document.querySelectorAll('.product-checkbox:checked').length;
+            const selectAllEl = document.getElementById('select-all-products') || selectAllProductsCheckbox;
 
-            if (displayedCheckedCount === 0) {
-                selectAllCheckbox.checked = false;
-                selectAllCheckbox.indeterminate = selectedProductIds.size > 0;
-            } else if (displayedCheckedCount === allCheckboxes.length && allCheckboxes.length > 0) {
-                selectAllCheckbox.checked = true;
-                selectAllCheckbox.indeterminate = false;
-            } else {
-                selectAllCheckbox.indeterminate = true;
+            if (selectAllEl) {
+                if (displayedCheckedCount === 0) {
+                    selectAllEl.checked = false;
+                    selectAllEl.indeterminate = selectedProductIds.size > 0;
+                } else if (displayedCheckedCount === allCheckboxes.length && allCheckboxes.length > 0) {
+                    selectAllEl.checked = true;
+                    selectAllEl.indeterminate = false;
+                } else {
+                    selectAllEl.indeterminate = true;
+                }
             }
         };
 

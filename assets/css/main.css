@@ -236,7 +236,6 @@ body {
         from { transform: translate(-50%, -100%); }
         to { transform: translate(-50%, 0); }
     }
-}
 
 /* ---------- ABAS DE NAVEGAÇÃO (TABS ANTIGOS) ---------- */
 .top-tab-btn {
@@ -754,6 +753,9 @@ input:focus, select:focus, textarea:focus {
 
 /* ---------- Barra Flutuante de Compartilhamento WhatsApp / PDF ---------- */
 #quick-share-floating-bar {
+    opacity: 0 !important;
+    transform: translate(-50%, 120px) !important;
+    pointer-events: none !important;
     transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
     box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
