@@ -10719,7 +10719,7 @@
             e.preventDefault();
             const dateVal = auditStartDate?.value || new Date().toISOString().split('T')[0];
             const timeVal = auditStartTime?.value || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-            const shelfVal = auditStartShelf?.value || '__ALL__';
+            const shelfVal = (auditStartShelf?.value && auditStartShelf.value.trim() !== '') ? auditStartShelf.value : (auditSelectedShelf || '__ALL__');
             const auditorVal = auditStartAuditor?.value?.trim() || currentUser?.displayName || 'Almoxarifado';
             const notesVal = auditStartNotes?.value?.trim() || '';
 
@@ -10870,9 +10870,12 @@
 
         // 2. Filtro de Produtos da Prateleira
         const getAuditFilteredProducts = () => {
-            if (!Array.isArray(products)) return [];
+            const listSource = (typeof window !== 'undefined' && Array.isArray(window.__auditTestProducts))
+                ? window.__auditTestProducts
+                : products;
+            if (!Array.isArray(listSource)) return [];
 
-            return products.filter(p => {
+            return listSource.filter(p => {
                 const loc = normalizeLoc(p.location);
                 if (auditSelectedShelf === '__NONE__') {
                     if (loc && loc !== 'N/A' && loc !== 'SEM LOCAL') return false;
@@ -11347,7 +11350,7 @@
             }
         };
 
-        // 6. Relatórios Oficiais (Excel e PDF)
+        // 6. Relatórios Oficiais (Excel e PDF) de Alto Padrão
         const exportAuditReportExcel = () => {
             const list = getAuditFilteredProducts();
             if (list.length === 0) {
@@ -11355,41 +11358,266 @@
                 return;
             }
 
-            const sessionDateFormatted = auditSession?.date ? formatAuditDate(auditSession.date) : new Date().toLocaleDateString('pt-BR');
-            const auditorName = auditSession?.auditor || currentUser?.displayName || 'Almoxarifado';
-
-            const rows = list.map(p => {
-                const systemQty = Number(p.quantity) || 0;
-                const isTouched = auditTouched.has(p.id);
-                const physicalQty = isTouched ? (auditCounts.get(p.id) ?? systemQty) : 'Não contado';
-                const diff = isTouched ? (physicalQty - systemQty) : '—';
-                let statusLabel = 'Pendente';
-                if (isTouched) {
-                    statusLabel = diff === 0 ? 'Conforme' : (diff < 0 ? 'Divergente (Falta)' : 'Divergente (Sobra)');
-                }
-                return {
-                    'Data da Auditoria': sessionDateFormatted,
-                    'Auditor / Responsável': auditorName,
-                    'Código RM': p.codeRM || 'N/A',
-                    'Material / Descrição': p.name || '—',
-                    'Unidade': p.unit || 'UN',
-                    'Localização / Prateleira': p.location || 'Sem Local',
-                    'Grupo': p.group || '—',
-                    'Saldo no Sistema': systemQty,
-                    'Contagem Física': physicalQty,
-                    'Diferença': diff,
-                    'Status': statusLabel
-                };
-            });
+            const XLS = typeof XLSX !== 'undefined' ? XLSX : null;
+            if (!XLS) {
+                showToast("Biblioteca de planilhas indisponível.", true);
+                return;
+            }
 
             try {
-                const ws = XLSX.utils.json_to_sheet(rows);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, "Auditoria_Inventario");
-                const shelfName = (auditSelectedShelf || 'Geral').replace(/[^a-zA-Z0-9]/g, '_');
-                const filename = `Inventario_Fisico_${shelfName}_${auditSession?.date || new Date().toISOString().split('T')[0]}.xlsx`;
-                XLSX.writeFile(wb, filename);
-                showToast("📊 Relatório em Excel exportado com sucesso!");
+                const obraNames = { uhe_estrela: 'UHE Estrela', pch_taboca: 'PCH Taboca' };
+                const obraNome = obraNames[currentObraId] || 'UHE Estrela';
+                const sessionDateFormatted = auditSession?.date ? formatAuditDate(auditSession.date) : new Date().toLocaleDateString('pt-BR');
+                const sessionTimeFormatted = auditSession?.time || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                const auditorName = auditSession?.auditor || currentUser?.displayName || 'Almoxarifado';
+                const shelfLabel = auditSelectedShelf === '__ALL__' 
+                    ? 'Todas as Prateleiras' 
+                    : (auditSelectedShelf === '__NONE__' ? 'Sem Localização Definida' : auditSelectedShelf);
+
+                // Estatísticas e contadores
+                let countedCount = 0;
+                let okCount = 0;
+                let faltaCount = 0;
+                let sobraCount = 0;
+                let totalSystemQty = 0;
+                let totalPhysicalQty = 0;
+
+                list.forEach(p => {
+                    const sys = Number(p.quantity) || 0;
+                    totalSystemQty += sys;
+                    if (auditTouched.has(p.id)) {
+                        countedCount++;
+                        const phy = auditCounts.get(p.id) ?? sys;
+                        totalPhysicalQty += phy;
+                        const diff = phy - sys;
+                        if (diff === 0) okCount++;
+                        else if (diff < 0) faltaCount++;
+                        else sobraCount++;
+                    }
+                });
+
+                const totalItems = list.length;
+                const accuracyPct = countedCount > 0 ? Math.round((okCount / countedCount) * 100) : 100;
+
+                const bdr = (color = 'CBD5E1') => ({
+                    top:    { style: 'thin', color: { rgb: color } },
+                    bottom: { style: 'thin', color: { rgb: color } },
+                    left:   { style: 'thin', color: { rgb: color } },
+                    right:  { style: 'thin', color: { rgb: color } }
+                });
+
+                const sTitle = {
+                    font:      { bold: true, sz: 14, color: { rgb: 'FFFFFF' } },
+                    fill:      { fgColor: { rgb: '0F172A' } },
+                    alignment: { horizontal: 'center', vertical: 'center' },
+                    border:    { bottom: { style: 'medium', color: { rgb: '2563EB' } } }
+                };
+
+                const sSub = {
+                    font:      { italic: true, sz: 9.5, color: { rgb: '94A3B8' } },
+                    fill:      { fgColor: { rgb: '1E293B' } },
+                    alignment: { horizontal: 'center', vertical: 'center' }
+                };
+
+                const sKPIBanner = {
+                    font:      { bold: true, sz: 10, color: { rgb: '1E40AF' } },
+                    fill:      { fgColor: { rgb: 'DBEAFE' } },
+                    alignment: { horizontal: 'center', vertical: 'center' },
+                    border:    { top: { style: 'thin', color: { rgb: '93C5FD' } }, bottom: { style: 'thin', color: { rgb: '93C5FD' } } }
+                };
+
+                const sHeader = {
+                    font:      { bold: true, sz: 10, color: { rgb: 'FFFFFF' } },
+                    fill:      { fgColor: { rgb: '1E3A8A' } },
+                    alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+                    border:    bdr('1E3A8A')
+                };
+
+                const sCell = (even, align = 'left', fgColor = '0F172A', bold = false) => ({
+                    font:      { bold, sz: 9.5, color: { rgb: fgColor } },
+                    fill:      { fgColor: { rgb: even ? 'F8FAFC' : 'FFFFFF' } },
+                    alignment: { horizontal: align, vertical: 'center' },
+                    border:    bdr('E2E8F0')
+                });
+
+                const sTotalHdr = {
+                    font:      { bold: true, sz: 10.5, color: { rgb: '0F172A' } },
+                    fill:      { fgColor: { rgb: 'E2E8F0' } },
+                    alignment: { horizontal: 'right', vertical: 'center' },
+                    border:    { top: { style: 'medium', color: { rgb: '1E3A8A' } }, bottom: { style: 'medium', color: { rgb: '1E3A8A' } } }
+                };
+
+                const sTotalVal = (align = 'center', fgColor = '0F172A') => ({
+                    font:      { bold: true, sz: 10.5, color: { rgb: fgColor } },
+                    fill:      { fgColor: { rgb: 'E2E8F0' } },
+                    alignment: { horizontal: align, vertical: 'center' },
+                    border:    { top: { style: 'medium', color: { rgb: '1E3A8A' } }, bottom: { style: 'medium', color: { rgb: '1E3A8A' } } }
+                });
+
+                const wb = XLS.utils.book_new();
+                const ws = XLS.utils.aoa_to_sheet([]);
+
+                ws['!cols'] = [
+                    { wch: 6 },  // A: #
+                    { wch: 15 }, // B: CÓDIGO RM
+                    { wch: 14 }, // C: CÓDIGO SKU
+                    { wch: 42 }, // D: DESCRIÇÃO DO MATERIAL
+                    { wch: 18 }, // E: GRUPO
+                    { wch: 22 }, // F: LOCALIZAÇÃO / PRATELEIRA
+                    { wch: 10 }, // G: UNIDADE
+                    { wch: 16 }, // H: SALDO SISTEMA
+                    { wch: 16 }, // I: CONTAGEM FÍSICA
+                    { wch: 14 }, // J: DIFERENÇA
+                    { wch: 18 }, // K: SITUAÇÃO
+                    { wch: 18 }, // L: DATA AUDITORIA
+                    { wch: 22 }  // M: AUDITOR RESPONSÁVEL
+                ];
+                ws['!merges'] = [];
+                ws['!rows'] = [];
+
+                let r = 0;
+                const sc = (r, c, v, style, t = 's', z = undefined) => { 
+                    const cell = { v, t, s: style };
+                    if (z) cell.z = z;
+                    ws[XLS.utils.encode_cell({ r, c })] = cell; 
+                };
+                const scF = (r, c, f, style, z = undefined) => { 
+                    const cell = { f, t: 'n', s: style };
+                    if (z) cell.z = z;
+                    ws[XLS.utils.encode_cell({ r, c })] = cell; 
+                };
+                const merge = (r_s, c_s, r_e, c_e) => ws['!merges'].push({ s: { r: r_s, c: c_s }, e: { r: r_e, c: c_e } });
+
+                const totalCols = 13;
+
+                // Linha 1: Título Principal
+                for (let c = 0; c < totalCols; c++) sc(r, c, '', sTitle);
+                sc(r, 0, 'GOETZE LOBATO ENGENHARIA — RELATÓRIO DE AUDITORIA & INVENTÁRIO FÍSICO', sTitle);
+                merge(r, 0, r, totalCols - 1);
+                ws['!rows'][r] = { hpt: 32 }; r++;
+
+                // Linha 2: Metadados
+                for (let c = 0; c < totalCols; c++) sc(r, c, '', sSub);
+                sc(r, 0, `Obra: ${obraNome}   |   Local: ${shelfLabel}   |   Data da Auditoria: ${sessionDateFormatted} às ${sessionTimeFormatted}   |   Auditor: ${auditorName}`, sSub);
+                merge(r, 0, r, totalCols - 1);
+                ws['!rows'][r] = { hpt: 20 }; r++;
+
+                // Linha 3: Resumo Executivo
+                for (let c = 0; c < totalCols; c++) sc(r, c, '', sKPIBanner);
+                sc(r, 0, `Itens no Escopo: ${totalItems}   |   Conferidos: ${countedCount} (${totalItems > 0 ? Math.round((countedCount / totalItems) * 100) : 0}%)   |   Conformes: ${okCount}   |   Faltas: ${faltaCount}   |   Sobras: ${sobraCount}   |   Acurácia Geral: ${accuracyPct}%`, sKPIBanner);
+                merge(r, 0, r, totalCols - 1);
+                ws['!rows'][r] = { hpt: 22 }; r++;
+
+                // Linha 4: Espaço
+                for (let c = 0; c < totalCols; c++) sc(r, c, '', { fill: { fgColor: { rgb: 'FFFFFF' } } });
+                ws['!rows'][r] = { hpt: 8 }; r++;
+
+                // Linha 5: Cabeçalhos da Tabela
+                const headers = [
+                    '#',
+                    'CÓDIGO RM',
+                    'CÓDIGO SKU',
+                    'DESCRIÇÃO DO MATERIAL',
+                    'GRUPO',
+                    'LOCALIZAÇÃO / PRATELEIRA',
+                    'UNIDADE',
+                    'SALDO SISTEMA',
+                    'CONTAGEM FÍSICA',
+                    'DIFERENÇA',
+                    'SITUAÇÃO',
+                    'DATA AUDITORIA',
+                    'AUDITOR'
+                ];
+                headers.forEach((h, c) => sc(r, c, h, sHeader));
+                ws['!rows'][r] = { hpt: 26 }; r++;
+
+                // Dados
+                const startRowExcel = r + 1;
+                list.forEach((p, index) => {
+                    const rowIdx = r;
+                    const rowExcel = rowIdx + 1;
+                    const even = index % 2 === 1;
+                    const systemQty = Number(p.quantity) || 0;
+                    const isTouched = auditTouched.has(p.id);
+                    const physicalQty = isTouched ? (auditCounts.get(p.id) ?? systemQty) : null;
+                    const diff = isTouched ? (physicalQty - systemQty) : 0;
+
+                    let statusLabel = 'Pendente';
+                    let statusColor = '64748B';
+                    if (isTouched) {
+                        if (diff === 0) {
+                            statusLabel = 'Conforme';
+                            statusColor = '047857';
+                        } else if (diff < 0) {
+                            statusLabel = `Falta (-${Math.abs(diff)})`;
+                            statusColor = 'B91C1C';
+                        } else {
+                            statusLabel = `Sobra (+${diff})`;
+                            statusColor = '1D4ED8';
+                        }
+                    }
+
+                    sc(rowIdx, 0, index + 1, sCell(even, 'center'), 'n');
+                    sc(rowIdx, 1, p.codeRM || 'N/A', sCell(even, 'center', '1E293B', true));
+                    sc(rowIdx, 2, p.code || '—', sCell(even, 'center'));
+                    sc(rowIdx, 3, p.name || 'Sem descrição', sCell(even, 'left', '0F172A', true));
+                    sc(rowIdx, 4, p.group || '—', sCell(even, 'left'));
+                    sc(rowIdx, 5, p.location || 'Sem Local', sCell(even, 'left'));
+                    sc(rowIdx, 6, p.unit || 'UN', sCell(even, 'center'));
+                    sc(rowIdx, 7, systemQty, sCell(even, 'center', '0F172A', true), 'n', '#,##0');
+
+                    if (isTouched) {
+                        sc(rowIdx, 8, physicalQty, sCell(even, 'center', '1E3A8A', true), 'n', '#,##0');
+                        scF(rowIdx, 9, `I${rowExcel}-H${rowExcel}`, sCell(even, 'center', statusColor, true), '+#,##0;-#,##0;0');
+                    } else {
+                        sc(rowIdx, 8, 'Não conferido', sCell(even, 'center', '94A3B8'));
+                        sc(rowIdx, 9, '—', sCell(even, 'center', '94A3B8'));
+                    }
+
+                    sc(rowIdx, 10, statusLabel, sCell(even, 'center', statusColor, true));
+                    sc(rowIdx, 11, sessionDateFormatted, sCell(even, 'center'));
+                    sc(rowIdx, 12, auditorName, sCell(even, 'center'));
+
+                    ws['!rows'][rowIdx] = { hpt: 20 };
+                    r++;
+                });
+
+                const endRowExcel = r;
+
+                // Linha de Totais Finais
+                sc(r, 0, '', sTotalHdr);
+                sc(r, 1, '', sTotalHdr);
+                sc(r, 2, '', sTotalHdr);
+                sc(r, 3, '', sTotalHdr);
+                sc(r, 4, '', sTotalHdr);
+                sc(r, 5, '', sTotalHdr);
+                sc(r, 6, 'TOTAL GERAL:', sTotalHdr);
+                merge(r, 0, r, 6);
+
+                scF(r, 7, `SUM(H${startRowExcel}:H${endRowExcel})`, sTotalVal('center', '0F172A'), '#,##0');
+                if (countedCount > 0) {
+                    sc(r, 8, `${totalPhysicalQty} (Conferido)`, sTotalVal('center', '1E3A8A'));
+                    const totalDiff = totalPhysicalQty - totalSystemQty;
+                    const diffColor = totalDiff === 0 ? '047857' : (totalDiff < 0 ? 'B91C1C' : '1D4ED8');
+                    sc(r, 9, totalDiff === 0 ? '0' : (totalDiff > 0 ? `+${totalDiff}` : `${totalDiff}`), sTotalVal('center', diffColor));
+                } else {
+                    sc(r, 8, '—', sTotalVal('center'));
+                    sc(r, 9, '—', sTotalVal('center'));
+                }
+
+                sc(r, 10, `${okCount}/${countedCount} OK`, sTotalVal('center', '047857'));
+                sc(r, 11, '', sTotalVal('center'));
+                sc(r, 12, '', sTotalVal('center'));
+                ws['!rows'][r] = { hpt: 24 };
+
+                XLS.utils.book_append_sheet(wb, ws, "Auditoria_Inventario");
+
+                const shelfSlug = (auditSelectedShelf || 'Geral').replace(/[^a-zA-Z0-9]/g, '_');
+                const dateSlug = auditSession?.date || new Date().toISOString().split('T')[0];
+                const filename = `Auditoria_Inventario_${shelfSlug}_${dateSlug}.xlsx`;
+                XLS.writeFile(wb, filename);
+
+                showToast("📊 Planilha Excel executiva gerada com sucesso!");
             } catch (e) {
                 console.error("Erro ao gerar Excel de auditoria:", e);
                 showToast("Erro ao gerar arquivo Excel.", true);
@@ -11403,132 +11631,221 @@
                 return;
             }
 
-            const { jsPDF } = window.jspdf || {};
-            if (!jsPDF) {
-                showToast("Biblioteca de PDF indisponível.", true);
-                return;
-            }
+            const obraNames = { uhe_estrela: 'UHE Estrela', pch_taboca: 'PCH Taboca' };
+            const obraNome = obraNames[currentObraId] || 'UHE Estrela';
+            const now = new Date();
+            const emissaoData = now.toLocaleDateString('pt-BR');
+            const emissaoHora = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            const sessionDateFormatted = auditSession?.date ? formatAuditDate(auditSession.date) : emissaoData;
+            const sessionTimeFormatted = auditSession?.time || emissaoHora;
+            const auditorName = auditSession?.auditor || currentUser?.displayName || 'Almoxarifado';
+            const shelfLabel = auditSelectedShelf === '__ALL__' 
+                ? 'Todas as Prateleiras' 
+                : (auditSelectedShelf === '__NONE__' ? 'Sem Localização Definida' : auditSelectedShelf);
 
-            try {
-                const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-                const pageWidth = doc.internal.pageSize.getWidth();
-                let y = 16;
+            let countedCount = 0;
+            let okCount = 0;
+            let faltaCount = 0;
+            let sobraCount = 0;
 
-                const sessionDateFormatted = auditSession?.date ? formatAuditDate(auditSession.date) : new Date().toLocaleDateString('pt-BR');
-                const sessionTimeFormatted = auditSession?.time || new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
-                const auditorName = auditSession?.auditor || currentUser?.displayName || 'Almoxarifado';
+            list.forEach(p => {
+                if (auditTouched.has(p.id)) {
+                    countedCount++;
+                    const phy = auditCounts.get(p.id) ?? (p.quantity || 0);
+                    const diff = phy - Number(p.quantity || 0);
+                    if (diff === 0) okCount++;
+                    else if (diff < 0) faltaCount++;
+                    else sobraCount++;
+                }
+            });
 
-                doc.setFillColor(30, 41, 59);
-                doc.rect(14, y, pageWidth - 28, 22, 'F');
-                doc.setTextColor(255, 255, 255);
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(13);
-                doc.text("RELATÓRIO DE AUDITORIA & INVENTÁRIO FÍSICO", 18, y + 9);
-                doc.setFontSize(9);
-                doc.setFont('helvetica', 'normal');
-                const shelfLabel = auditSelectedShelf === '__ALL__' ? 'Todas as Prateleiras' : (auditSelectedShelf === '__NONE__' ? 'Sem Localização' : auditSelectedShelf);
-                doc.text(`UHE ESTRELA — Localização: ${shelfLabel} | Data da Auditoria: ${sessionDateFormatted} às ${sessionTimeFormatted}`, 18, y + 16);
-                y += 28;
+            const totalItems = list.length;
+            const pendCount = totalItems - countedCount;
+            const divergentCount = faltaCount + sobraCount;
+            const accuracyPct = countedCount > 0 ? Math.round((okCount / countedCount) * 100) : 100;
+            const progPct = totalItems > 0 ? Math.round((countedCount / totalItems) * 100) : 0;
 
-                doc.setTextColor(51, 65, 85);
-                doc.setFontSize(9);
-                doc.setFont('helvetica', 'bold');
-                doc.text(`Auditor / Responsável: ${auditorName}`, 14, y);
-                y += 6;
+            let tableRowsHtml = '';
+            list.forEach((p, idx) => {
+                const systemQty = Number(p.quantity) || 0;
+                const isTouched = auditTouched.has(p.id);
+                const physicalQty = isTouched ? (auditCounts.get(p.id) ?? systemQty) : null;
+                const diff = isTouched ? (physicalQty - systemQty) : 0;
+                const unit = p.unit || 'UN';
+                const isEven = idx % 2 === 1;
 
-                let okCount = 0, divCount = 0, pendCount = 0;
-                list.forEach(p => {
-                    if (auditTouched.has(p.id)) {
-                        const count = auditCounts.get(p.id) ?? p.quantity;
-                        if (count === p.quantity) okCount++;
-                        else divCount++;
-                    } else pendCount++;
-                });
+                let diffBadge = '<span style="color:#94a3b8; font-weight:normal;">—</span>';
+                let statusBadge = '<span style="display:inline-block; padding:2px 8px; border-radius:12px; font-size:9px; font-weight:bold; background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0;">PENDENTE</span>';
+                let rowBg = isEven ? '#f8fafc' : '#ffffff';
 
-                doc.setFont('helvetica', 'normal');
-                doc.text(`Total de Itens: ${list.length} | Conformes: ${okCount} | Divergências: ${divCount} | Pendentes: ${pendCount}`, 14, y);
-                y += 8;
-
-                doc.setDrawColor(203, 213, 225);
-                doc.line(14, y, pageWidth - 14, y);
-                y += 6;
-
-                doc.setFillColor(241, 245, 249);
-                doc.rect(14, y, pageWidth - 28, 7, 'F');
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(8);
-                doc.setTextColor(71, 85, 105);
-                doc.text("CÓD. RM", 16, y + 5);
-                doc.text("MATERIAL", 42, y + 5);
-                doc.text("LOCAL", 115, y + 5);
-                doc.text("SISTEMA", 145, y + 5);
-                doc.text("FÍSICO", 165, y + 5);
-                doc.text("DIFERENÇA", 182, y + 5);
-                y += 8;
-
-                doc.setFont('helvetica', 'normal');
-                list.forEach((p, idx) => {
-                    if (y > 270) {
-                        doc.addPage();
-                        y = 16;
+                if (isTouched) {
+                    if (diff === 0) {
+                        diffBadge = '<span style="color:#059669; font-weight:bold;">0 (OK)</span>';
+                        statusBadge = '<span style="display:inline-block; padding:2px 8px; border-radius:12px; font-size:9px; font-weight:bold; background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0;">CONFORME</span>';
+                    } else if (diff < 0) {
+                        diffBadge = `<span style="display:inline-block; padding:1px 6px; border-radius:4px; font-size:9.5px; font-weight:800; background:#fef2f2; color:#b91c1c; border:1px solid #fecaca;">-${Math.abs(diff)} ${unit}</span>`;
+                        statusBadge = '<span style="display:inline-block; padding:2px 8px; border-radius:12px; font-size:9px; font-weight:bold; background:#fef2f2; color:#991b1b; border:1px solid #fecaca;">FALTA</span>';
+                        rowBg = '#fff5f5';
+                    } else {
+                        diffBadge = `<span style="display:inline-block; padding:1px 6px; border-radius:4px; font-size:9.5px; font-weight:800; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;">+${diff} ${unit}</span>`;
+                        statusBadge = '<span style="display:inline-block; padding:2px 8px; border-radius:12px; font-size:9px; font-weight:bold; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe;">SOBRA</span>';
+                        rowBg = '#f0f7ff';
                     }
-                    const systemQty = Number(p.quantity) || 0;
-                    const isTouched = auditTouched.has(p.id);
-                    const physicalQty = isTouched ? (auditCounts.get(p.id) ?? systemQty) : '—';
-                    const diff = isTouched ? (physicalQty - systemQty) : 0;
-                    const diffStr = !isTouched ? '—' : (diff === 0 ? 'OK' : (diff > 0 ? `+${diff}` : `${diff}`));
-
-                    if (idx % 2 === 0) {
-                        doc.setFillColor(248, 250, 252);
-                        doc.rect(14, y - 4, pageWidth - 28, 6.5, 'F');
-                    }
-
-                    if (isTouched && diff !== 0) {
-                        doc.setFillColor(254, 242, 242);
-                        doc.rect(14, y - 4, pageWidth - 28, 6.5, 'F');
-                    }
-
-                    doc.setFontSize(7.5);
-                    doc.setTextColor(30, 41, 59);
-                    doc.text(String(p.codeRM || 'N/A').slice(0, 14), 16, y);
-                    doc.text(String(p.name || '').slice(0, 42), 42, y);
-                    doc.text(String(p.location || '—').slice(0, 16), 115, y);
-                    doc.text(`${systemQty} ${p.unit || ''}`, 145, y);
-                    doc.text(isTouched ? `${physicalQty} ${p.unit || ''}` : '—', 165, y);
-                    
-                    if (diff < 0) doc.setTextColor(185, 28, 28);
-                    else if (diff > 0) doc.setTextColor(29, 78, 216);
-                    else doc.setTextColor(22, 101, 52);
-                    doc.setFont('helvetica', 'bold');
-                    doc.text(diffStr, 182, y);
-                    doc.setFont('helvetica', 'normal');
-
-                    y += 6.5;
-                });
-
-                if (y > 245) {
-                    doc.addPage();
-                    y = 20;
-                } else {
-                    y += 12;
                 }
 
-                doc.setDrawColor(148, 163, 184);
-                doc.line(20, y + 16, 85, y + 16);
-                doc.line(pageWidth - 85, y + 16, pageWidth - 20, y + 16);
-                
-                doc.setFontSize(8);
-                doc.setFont('helvetica', 'bold');
-                doc.setTextColor(71, 85, 105);
-                doc.text("Conferente / Auditor", 32, y + 21);
-                doc.text("Encarregado de Almoxarifado", pageWidth - 78, y + 21);
+                tableRowsHtml += `
+                    <tr style="background-color: ${rowBg}; border-bottom: 1px solid #e2e8f0; page-break-inside: avoid;">
+                        <td style="padding: 7px 6px; text-align: center; font-weight: bold; color: #64748b; font-size: 10px;">${idx + 1}</td>
+                        <td style="padding: 7px 8px; text-align: center; font-family: monospace; font-size: 10px; font-weight: bold; color: #1e293b;">${p.codeRM || 'N/A'}</td>
+                        <td style="padding: 7px 10px; font-size: 10.5px; font-weight: bold; color: #0f172a; line-height: 1.25;">
+                            ${p.name || 'Sem nome'}
+                            ${p.group ? `<span style="display:block; font-size:9px; font-weight:normal; color:#64748b; margin-top:2px;">Grupo: ${p.group}</span>` : ''}
+                        </td>
+                        <td style="padding: 7px 8px; text-align: center; font-size: 10px; color: #475569;">${p.location || '<span style="color:#d97706; font-style:italic;">Sem Local</span>'}</td>
+                        <td style="padding: 7px 6px; text-align: center; font-size: 10px; font-weight: 600; color: #64748b;">${unit}</td>
+                        <td style="padding: 7px 8px; text-align: center; font-size: 11px; font-weight: 700; color: #334155;">${systemQty}</td>
+                        <td style="padding: 7px 8px; text-align: center; font-size: 11.5px; font-weight: 800; color: #1e3a8a; background: rgba(224, 231, 255, 0.35);">${isTouched ? physicalQty : '<span style="color:#94a3b8; font-size:9.5px; font-weight:normal;">—</span>'}</td>
+                        <td style="padding: 7px 8px; text-align: center; font-size: 10.5px;">${diffBadge}</td>
+                        <td style="padding: 7px 8px; text-align: center;">${statusBadge}</td>
+                    </tr>
+                `;
+            });
 
-                const shelfName = (auditSelectedShelf || 'Geral').replace(/[^a-zA-Z0-9]/g, '_');
-                doc.save(`Laudo_Inventario_${shelfName}_${auditSession?.date || new Date().toISOString().split('T')[0]}.pdf`);
-                showToast("📄 Laudo de Auditoria em PDF gerado com sucesso!");
-            } catch (err) {
-                console.error("Erro ao gerar laudo PDF:", err);
-                showToast("Erro ao gerar PDF de auditoria.", true);
+            const htmlReport = `
+                <div id="audit-report-pdf-wrapper" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 22px 26px; background: #ffffff; color: #0f172a; max-width: 820px; margin: 0 auto;">
+                    <!-- Cabeçalho Institucional -->
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #1e3a8a; padding-bottom: 12px; margin-bottom: 14px;">
+                        <div>
+                            <h1 style="font-size: 18px; font-weight: 900; color: #0f172a; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">GOETZE LOBATO ENGENHARIA</h1>
+                            <p style="font-size: 13px; font-weight: 800; color: #1e3a8a; margin: 2px 0 0 0; text-transform: uppercase;">Laudo Oficial de Auditoria & Inventário Físico</p>
+                            <p style="font-size: 10px; color: #64748b; margin: 2px 0 0 0;">Controle Operacional de Almoxarifado · Sistema GEL</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="display: inline-block; background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 10px; padding: 6px 12px; text-align: right;">
+                                <p style="font-size: 11px; font-weight: 900; color: #1e3a8a; margin: 0;">OBRA: ${obraNome.toUpperCase()}</p>
+                                <p style="font-size: 10px; font-weight: 700; color: #2563eb; margin: 2px 0 0 0;">Data Auditoria: ${sessionDateFormatted}</p>
+                                <p style="font-size: 9px; color: #64748b; margin: 1px 0 0 0;">Emissão: ${emissaoData} às ${emissaoHora}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dados da Auditoria / Contexto -->
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 9px 14px; margin-bottom: 14px; font-size: 10.5px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px;">
+                        <div><strong style="color:#475569;">Localização / Prateleira:</strong> <span style="font-weight:bold; color:#0f172a;">${shelfLabel}</span></div>
+                        <div><strong style="color:#475569;">Auditor Responsável:</strong> <span style="font-weight:bold; color:#0f172a;">${auditorName}</span></div>
+                        ${auditSession?.notes ? `<div><strong style="color:#475569;">Observação:</strong> <span>${auditSession.notes}</span></div>` : ''}
+                    </div>
+
+                    <!-- Cards de Resumo Executivo (KPIs) -->
+                    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 16px;">
+                        <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; text-align: center;">
+                            <span style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block;">Itens no Escopo</span>
+                            <span style="font-size: 16px; font-weight: 900; color: #0f172a; margin-top: 2px; display: block;">${totalItems}</span>
+                        </div>
+                        <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; text-align: center;">
+                            <span style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block;">Conferidos</span>
+                            <span style="font-size: 16px; font-weight: 900; color: #1e3a8a; margin-top: 2px; display: block;">${countedCount} <span style="font-size:10px; font-weight:normal; color:#64748b;">(${progPct}%)</span></span>
+                        </div>
+                        <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 8px 10px; text-align: center;">
+                            <span style="font-size: 9px; font-weight: 700; color: #065f46; text-transform: uppercase; display: block;">Conformes (100%)</span>
+                            <span style="font-size: 16px; font-weight: 900; color: #047857; margin-top: 2px; display: block;">${okCount}</span>
+                        </div>
+                        <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 8px 10px; text-align: center;">
+                            <span style="font-size: 9px; font-weight: 700; color: #991b1b; text-transform: uppercase; display: block;">Divergências</span>
+                            <span style="font-size: 16px; font-weight: 900; color: #b91c1c; margin-top: 2px; display: block;">${divergentCount} <span style="font-size:9px; font-weight:normal; color:#dc2626;">(-${faltaCount} / +${sobraCount})</span></span>
+                        </div>
+                        <div style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 8px; padding: 8px 10px; text-align: center;">
+                            <span style="font-size: 9px; font-weight: 800; color: #1e40af; text-transform: uppercase; display: block;">Acurácia Físico/RM</span>
+                            <span style="font-size: 16px; font-weight: 900; color: #1d4ed8; margin-top: 2px; display: block;">${accuracyPct}%</span>
+                        </div>
+                    </div>
+
+                    <!-- Tabela Oficial de Auditoria -->
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden;">
+                        <thead>
+                            <tr style="background: #0f172a; color: #ffffff;">
+                                <th style="padding: 8px 6px; text-align: center; font-size: 9.5px; font-weight: bold; width: 28px;">#</th>
+                                <th style="padding: 8px 8px; text-align: center; font-size: 9.5px; font-weight: bold; width: 75px;">Cód. RM</th>
+                                <th style="padding: 8px 10px; text-align: left; font-size: 9.5px; font-weight: bold;">Descrição do Material</th>
+                                <th style="padding: 8px 8px; text-align: center; font-size: 9.5px; font-weight: bold; width: 95px;">Localização</th>
+                                <th style="padding: 8px 6px; text-align: center; font-size: 9.5px; font-weight: bold; width: 40px;">Unid</th>
+                                <th style="padding: 8px 8px; text-align: center; font-size: 9.5px; font-weight: bold; width: 60px;">Sistema</th>
+                                <th style="padding: 8px 8px; text-align: center; font-size: 9.5px; font-weight: bold; width: 65px; background: #1e3a8a;">Físico</th>
+                                <th style="padding: 8px 8px; text-align: center; font-size: 9.5px; font-weight: bold; width: 75px;">Diferença</th>
+                                <th style="padding: 8px 8px; text-align: center; font-size: 9.5px; font-weight: bold; width: 85px;">Situação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRowsHtml}
+                        </tbody>
+                    </table>
+
+                    <!-- Termo de Responsabilidade & Assinaturas Formais -->
+                    <div style="page-break-inside: avoid; margin-top: 20px; border-top: 1px dashed #cbd5e1; padding-top: 14px;">
+                        <p style="font-size: 9.5px; color: #64748b; margin: 0 0 24px 0; text-align: justify; line-height: 1.35;">
+                            <strong>Termo de Responsabilidade:</strong> Declaramos para os devidos fins que a contagem física dos materiais acima discriminados foi executada in loco de forma criteriosa na data referida, comparando a existência real nas prateleiras com os registros de saldo do almoxarifado (TOTVS RM). As divergências apuradas ficam submetidas à análise da liderança de suprimentos para homologação e eventuais baixas/entradas de regularização.
+                        </p>
+
+                        <div style="display: flex; justify-content: space-around; gap: 40px; margin-top: 20px;">
+                            <div style="flex: 1; text-align: center;">
+                                <div style="border-top: 1.5px solid #475569; padding-top: 6px; margin: 0 15px;">
+                                    <p style="font-size: 11px; font-weight: bold; color: #0f172a; margin: 0;">${auditorName}</p>
+                                    <p style="font-size: 9.5px; color: #64748b; margin: 2px 0 0 0;">Conferente / Auditor Responsável</p>
+                                    <p style="font-size: 9px; color: #94a3b8; margin: 2px 0 0 0;">Data: ____/____/________</p>
+                                </div>
+                            </div>
+                            <div style="flex: 1; text-align: center;">
+                                <div style="border-top: 1.5px solid #475569; padding-top: 6px; margin: 0 15px;">
+                                    <p style="font-size: 11px; font-weight: bold; color: #0f172a; margin: 0;">Encarregado de Almoxarifado</p>
+                                    <p style="font-size: 9.5px; color: #64748b; margin: 2px 0 0 0;">Supervisor de Suprimentos · ${obraNome}</p>
+                                    <p style="font-size: 9px; color: #94a3b8; margin: 2px 0 0 0;">Data: ____/____/________</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Rodapé do Laudo -->
+                    <div style="margin-top: 20px; border-top: 1px solid #f1f5f9; padding-top: 8px; display: flex; justify-content: space-between; font-size: 8.5px; color: #94a3b8;">
+                        <span>Goetze Lobato Engenharia · Sistema Integrado de Controle de Estoque</span>
+                        <span>Autenticação eletrônica: AUDIT-${auditSession?.id || Date.now()}</span>
+                        <span>Folha gerada em ${emissaoData} às ${emissaoHora}</span>
+                    </div>
+                </div>
+            `;
+
+            const shelfSlug = (auditSelectedShelf || 'Geral').replace(/[^a-zA-Z0-9]/g, '_');
+            const dateSlug = auditSession?.date || new Date().toISOString().split('T')[0];
+            const pdfFilename = `Laudo_Auditoria_${shelfSlug}_${dateSlug}.pdf`;
+
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlReport;
+            document.body.appendChild(tempDiv);
+
+            if (typeof html2pdf !== 'undefined') {
+                showLoader(true);
+                const opt = {
+                    margin:       [8, 8, 8, 8],
+                    filename:     pdfFilename,
+                    image:        { type: 'jpeg', quality: 0.98 },
+                    html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
+                    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                    pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
+                };
+
+                html2pdf().set(opt).from(tempDiv.firstElementChild).save().then(() => {
+                    tempDiv.remove();
+                    showLoader(false);
+                    showToast("📄 Laudo de Auditoria oficial em PDF gerado com sucesso!");
+                }).catch(err => {
+                    console.error("Erro no html2pdf:", err);
+                    tempDiv.remove();
+                    showLoader(false);
+                    showToast("Erro ao gerar PDF com html2pdf. Abrindo impressão...", true);
+                    window.print();
+                });
+            } else {
+                tempDiv.remove();
+                window.print();
             }
         };
 
