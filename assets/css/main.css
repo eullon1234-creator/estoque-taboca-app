@@ -855,5 +855,26 @@ input:focus, select:focus, textarea:focus {
     transform: scale(0.92);
 }
 
+@keyframes auditPulse {
+    0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7);
+    }
+    70% {
+        transform: scale(1.15);
+        box-shadow: 0 0 0 8px rgba(52, 211, 153, 0);
+    }
+    100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(52, 211, 153, 0);
+    }
+}
 
+.audit-pulse-dot {
+    animation: auditPulse 2s infinite ease-in-out;
+}
 
+#audit-no-session-banner,
+#audit-active-session-banner {
+    transition: all 0.25s ease-in-out;
+}

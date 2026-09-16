@@ -10520,6 +10520,10 @@
         // =====================================================================
         // ======= MÓDULO DE AUDITORIA DE PRATELEIRAS & INVENTÁRIO FÍSICO =======
         // =====================================================================
+        const AUDIT_STORAGE_KEY = 'taboca_active_audit_session';
+        const AUDIT_HISTORY_STORAGE_KEY = 'taboca_audit_history';
+
+        let auditSession = null; // Sessão ativa: { id, date, time, shelf, group, auditor, notes, startedAt, status, counts: {}, touched: [] }
         let auditSelectedShelf = '__ALL__';
         let auditSelectedGroup = '';
         let auditSearchQuery = '';
@@ -10553,7 +10557,28 @@
         const auditExportExcelBtn = document.getElementById('audit-export-excel-btn');
         const auditExportPdfBtn = document.getElementById('audit-export-pdf-btn');
 
+        // Banners e Controles de Sessão de Auditoria
+        const auditNoSessionBanner = document.getElementById('audit-no-session-banner');
+        const auditActiveSessionBanner = document.getElementById('audit-active-session-banner');
+        const btnAuditOpenStartModal = document.getElementById('btn-audit-open-start-modal');
+        const btnAuditOpenStartModalTop = document.getElementById('btn-audit-open-start-modal-top');
+        const auditSessionDateDisplay = document.getElementById('audit-session-date-display');
+        const auditSessionShelfDisplay = document.getElementById('audit-session-shelf-display');
+        const auditSessionAuditorDisplay = document.getElementById('audit-session-auditor-display');
+        const auditAutoSaveIndicator = document.getElementById('audit-auto-save-indicator');
+        const btnAuditSaveDraft = document.getElementById('btn-audit-save-draft');
+        const btnAuditFinish = document.getElementById('btn-audit-finish');
+        const btnAuditDiscard = document.getElementById('btn-audit-discard');
+
         // Modais de Auditoria
+        const auditStartModal = document.getElementById('audit-start-modal');
+        const auditStartForm = document.getElementById('audit-start-form');
+        const auditStartDate = document.getElementById('audit-start-date');
+        const auditStartTime = document.getElementById('audit-start-time');
+        const auditStartShelf = document.getElementById('audit-start-shelf');
+        const auditStartAuditor = document.getElementById('audit-start-auditor');
+        const auditStartNotes = document.getElementById('audit-start-notes');
+
         const auditAdjustModal = document.getElementById('audit-adjust-modal');
         const auditAdjustForm = document.getElementById('audit-adjust-form');
         const auditAdjustProductId = document.getElementById('audit-adjust-product-id');
@@ -10572,8 +10597,227 @@
         const auditLocationCurrentLoc = document.getElementById('audit-location-current-loc');
         const auditLocationNewInput = document.getElementById('audit-location-new-input');
 
-        // Helper para normalizar localizações
+        // Helpers de Formatação e Normalização
         const normalizeLoc = (loc) => (loc || '').trim().toUpperCase();
+
+        const formatAuditDate = (isoDate) => {
+            if (!isoDate) return '—';
+            if (isoDate.includes('-')) {
+                const parts = isoDate.split('-');
+                if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+            return isoDate;
+        };
+
+        // Gerenciamento de Persistência da Sessão no LocalStorage
+        const saveAuditSessionToStorage = () => {
+            if (!auditSession) return;
+            const countsObj = {};
+            auditCounts.forEach((val, key) => { countsObj[key] = val; });
+            const sessionData = {
+                ...auditSession,
+                shelf: auditSelectedShelf,
+                group: auditSelectedGroup,
+                counts: countsObj,
+                touched: Array.from(auditTouched),
+                lastUpdatedAt: Date.now()
+            };
+            try {
+                localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(sessionData));
+                if (auditAutoSaveIndicator) {
+                    const timeStr = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    auditAutoSaveIndicator.innerHTML = `<span class="material-symbols-outlined text-[14px] text-emerald-400">cloud_done</span> Salvo no aparelho (${timeStr})`;
+                }
+            } catch (err) {
+                console.warn("Erro ao salvar sessão de auditoria no localStorage:", err);
+            }
+        };
+
+        const loadAuditSessionFromStorage = () => {
+            try {
+                const raw = localStorage.getItem(AUDIT_STORAGE_KEY);
+                if (!raw) return false;
+                const data = JSON.parse(raw);
+                if (data && data.status === 'in_progress') {
+                    auditSession = data;
+                    auditSelectedShelf = data.shelf || '__ALL__';
+                    auditSelectedGroup = data.group || '';
+                    if (auditShelfSelect) auditShelfSelect.value = auditSelectedShelf;
+                    if (auditGroupFilter) auditGroupFilter.value = auditSelectedGroup;
+
+                    auditCounts.clear();
+                    auditTouched.clear();
+                    if (data.counts && typeof data.counts === 'object') {
+                        Object.entries(data.counts).forEach(([k, v]) => auditCounts.set(k, Number(v) || 0));
+                    }
+                    if (Array.isArray(data.touched)) {
+                        data.touched.forEach(id => auditTouched.add(id));
+                    }
+                    return true;
+                }
+            } catch (err) {
+                console.error("Erro ao carregar sessão de auditoria do localStorage:", err);
+            }
+            return false;
+        };
+
+        const clearAuditSessionFromStorage = () => {
+            auditSession = null;
+            auditCounts.clear();
+            auditTouched.clear();
+            try {
+                localStorage.removeItem(AUDIT_STORAGE_KEY);
+            } catch (e) {}
+        };
+
+        const initQuickAuditSession = () => {
+            if (auditSession) return;
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            const hh = String(now.getHours()).padStart(2, '0');
+            const min = String(now.getMinutes()).padStart(2, '0');
+            auditSession = {
+                id: 'audit_' + Date.now(),
+                date: `${yyyy}-${mm}-${dd}`,
+                time: `${hh}:${min}`,
+                shelf: auditSelectedShelf || '__ALL__',
+                group: auditSelectedGroup || '',
+                auditor: currentUser?.displayName || 'Almoxarifado',
+                notes: 'Auditoria Rápida',
+                startedAt: Date.now(),
+                status: 'in_progress',
+                counts: {},
+                touched: []
+            };
+            saveAuditSessionToStorage();
+        };
+
+        const openAuditStartModal = () => {
+            populateAuditSelectors();
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            const hh = String(today.getHours()).padStart(2, '0');
+            const min = String(today.getMinutes()).padStart(2, '0');
+
+            if (auditStartDate) auditStartDate.value = `${yyyy}-${mm}-${dd}`;
+            if (auditStartTime) auditStartTime.value = `${hh}:${min}`;
+            if (auditStartAuditor) auditStartAuditor.value = currentUser?.displayName || 'Almoxarifado';
+            if (auditStartShelf && auditShelfSelect) {
+                auditStartShelf.innerHTML = auditShelfSelect.innerHTML;
+                auditStartShelf.value = auditSelectedShelf || '__ALL__';
+            }
+            if (auditStartNotes) auditStartNotes.value = '';
+
+            openModal('audit-start-modal');
+        };
+
+        const handleStartAuditSubmit = (e) => {
+            e.preventDefault();
+            const dateVal = auditStartDate?.value || new Date().toISOString().split('T')[0];
+            const timeVal = auditStartTime?.value || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            const shelfVal = auditStartShelf?.value || '__ALL__';
+            const auditorVal = auditStartAuditor?.value?.trim() || currentUser?.displayName || 'Almoxarifado';
+            const notesVal = auditStartNotes?.value?.trim() || '';
+
+            // Limpa contagens anteriores para iniciar uma nova conferência limpa
+            auditCounts.clear();
+            auditTouched.clear();
+
+            auditSelectedShelf = shelfVal;
+            if (auditShelfSelect) auditShelfSelect.value = shelfVal;
+
+            auditSession = {
+                id: 'audit_' + Date.now(),
+                date: dateVal,
+                time: timeVal,
+                shelf: shelfVal,
+                group: '',
+                auditor: auditorVal,
+                notes: notesVal,
+                startedAt: Date.now(),
+                status: 'in_progress',
+                counts: {},
+                touched: []
+            };
+
+            saveAuditSessionToStorage();
+            closeModal('audit-start-modal');
+            renderAuditTableAndKPIs();
+            showToast(`🚀 Auditoria iniciada para ${formatAuditDate(dateVal)}! Salvamento automático ativo.`);
+        };
+
+        const handleSaveDraft = () => {
+            if (!auditSession) {
+                showToast("Nenhuma auditoria em andamento.", true);
+                return;
+            }
+            saveAuditSessionToStorage();
+            showToast("💾 Rascunho salvo com sucesso no seu aparelho!");
+        };
+
+        const handleFinishAudit = () => {
+            if (!auditSession) {
+                showToast("Nenhuma auditoria em andamento.", true);
+                return;
+            }
+
+            const list = getAuditFilteredProducts();
+            let divergentCount = 0;
+            list.forEach(p => {
+                if (auditTouched.has(p.id)) {
+                    const physicalQty = auditCounts.get(p.id) ?? (p.quantity || 0);
+                    if (physicalQty !== Number(p.quantity)) divergentCount++;
+                }
+            });
+
+            const confirmMsg = divergentCount > 0
+                ? `Finalizar conferência da auditoria de ${formatAuditDate(auditSession.date)}?\n\nForam encontradas ${divergentCount} divergência(s). O laudo em PDF será emitido e você poderá aplicar os ajustes de saldo.`
+                : `Finalizar conferência da auditoria de ${formatAuditDate(auditSession.date)}?\n\nTodos os itens conferidos estão 100% conformes com o sistema!`;
+
+            if (!confirm(confirmMsg)) return;
+
+            // Salvar no histórico local de auditorias concluídas
+            try {
+                const historyRaw = localStorage.getItem(AUDIT_HISTORY_STORAGE_KEY) || '[]';
+                const historyList = JSON.parse(historyRaw);
+                historyList.unshift({
+                    ...auditSession,
+                    completedAt: Date.now(),
+                    totalItems: list.length,
+                    divergentCount,
+                    status: 'completed'
+                });
+                localStorage.setItem(AUDIT_HISTORY_STORAGE_KEY, JSON.stringify(historyList.slice(0, 30)));
+            } catch (e) {}
+
+            exportAuditReportPDF();
+
+            if (divergentCount > 0 && !isReadOnlyRole()) {
+                if (confirm(`Deseja aplicar agora as correções de saldo para as ${divergentCount} divergências no sistema?`)) {
+                    applyAllAuditAdjustments();
+                }
+            }
+
+            clearAuditSessionFromStorage();
+            renderAuditTableAndKPIs();
+            showToast("🏁 Auditoria concluída e finalizada com sucesso!");
+        };
+
+        const handleDiscardAudit = () => {
+            if (!auditSession) {
+                resetAuditShelfCount();
+                return;
+            }
+            if (confirm("⚠️ Deseja realmente descartar esta sessão de auditoria e zerar todas as contagens salvas? Esta ação não pode ser desfeita.")) {
+                clearAuditSessionFromStorage();
+                renderAuditTableAndKPIs();
+                showToast("Sessão de auditoria descartada.");
+            }
+        };
 
         // 1. Preenchimento de Seletores (Prateleiras e Grupos)
         const populateAuditSelectors = () => {
@@ -10658,6 +10902,26 @@
         // 3. Renderização da Tabela e Atualização de KPIs
         const renderAuditTableAndKPIs = () => {
             if (!auditItemsTbody) return;
+
+            // Atualização dos Banners de Sessão (Ativa vs Sem Sessão)
+            if (auditSession && auditSession.status === 'in_progress') {
+                auditNoSessionBanner?.classList.add('hidden');
+                auditActiveSessionBanner?.classList.remove('hidden');
+                btnAuditOpenStartModalTop?.classList.add('hidden');
+
+                const dateStr = `${formatAuditDate(auditSession.date)} às ${auditSession.time || '00:00'}`;
+                if (auditSessionDateDisplay) auditSessionDateDisplay.textContent = dateStr;
+
+                const sessionShelfName = auditSession.shelf === '__ALL__' 
+                    ? 'Todas as Prateleiras' 
+                    : (auditSession.shelf === '__NONE__' ? 'Sem Localização' : auditSession.shelf);
+                if (auditSessionShelfDisplay) auditSessionShelfDisplay.textContent = sessionShelfName;
+                if (auditSessionAuditorDisplay) auditSessionAuditorDisplay.textContent = auditSession.auditor || 'Almoxarifado';
+            } else {
+                auditNoSessionBanner?.classList.remove('hidden');
+                auditActiveSessionBanner?.classList.add('hidden');
+                btnAuditOpenStartModalTop?.classList.remove('hidden');
+            }
 
             const list = getAuditFilteredProducts();
 
@@ -10844,6 +11108,8 @@
             const newVal = Math.max(0, current + delta);
             auditTouched.add(productId);
             auditCounts.set(productId, newVal);
+            initQuickAuditSession();
+            saveAuditSessionToStorage();
             renderAuditTableAndKPIs();
         };
 
@@ -10857,6 +11123,8 @@
                 auditTouched.add(productId);
                 auditCounts.set(productId, Math.max(0, parseInt(rawVal) || 0));
             }
+            initQuickAuditSession();
+            saveAuditSessionToStorage();
             renderAuditTableAndKPIs();
         };
 
@@ -10865,6 +11133,8 @@
             if (!p) return;
             auditTouched.add(productId);
             auditCounts.set(productId, Number(p.quantity) || 0);
+            initQuickAuditSession();
+            saveAuditSessionToStorage();
             renderAuditTableAndKPIs();
         };
 
@@ -10878,6 +11148,8 @@
                     count++;
                 }
             });
+            initQuickAuditSession();
+            saveAuditSessionToStorage();
             renderAuditTableAndKPIs();
             showToast(`✅ ${count} item(ns) pendente(s) marcados como conformes.`);
         };
@@ -10889,6 +11161,7 @@
                     auditTouched.delete(p.id);
                     auditCounts.delete(p.id);
                 });
+                saveAuditSessionToStorage();
                 renderAuditTableAndKPIs();
                 showToast("Contagem reiniciada.");
             }
@@ -10952,12 +11225,15 @@
 
                 p.quantity = newQty;
 
+                const dateHeader = auditSession?.date ? ` [Auditoria de ${formatAuditDate(auditSession.date)}]` : '';
                 const type = diff > 0 ? 'Ajuste Entrada' : 'Ajuste Saída';
                 await addHistoryEntry(productId, type, Math.abs(diff), newQty, {
-                    details: `${reason || 'Inventário Físico / Auditoria de Prateleira'} | Anterior: ${oldQty} -> Ajustado: ${newQty}`
+                    details: `${reason || 'Inventário Físico / Auditoria de Prateleira'}${dateHeader} | Anterior: ${oldQty} -> Ajustado: ${newQty}`,
+                    auditDate: auditSession?.date || null
                 }, p);
 
                 auditCounts.set(productId, newQty);
+                saveAuditSessionToStorage();
 
                 showToast(`✅ Saldo ajustado com sucesso para ${newQty} ${p.unit || 'UN'}!`);
                 closeModal('audit-adjust-modal');
@@ -11010,15 +11286,18 @@
 
                 await batch.commit();
 
+                const dateHeader = auditSession?.date ? ` [Auditoria de ${formatAuditDate(auditSession.date)}]` : '';
                 for (const item of divergentItems) {
                     item.product.quantity = item.newQty;
                     auditCounts.set(item.product.id, item.newQty);
                     const type = item.diff > 0 ? 'Ajuste Entrada' : 'Ajuste Saída';
                     await addHistoryEntry(item.product.id, type, Math.abs(item.diff), item.newQty, {
-                        details: `Inventário Físico em Lote - Prateleira ${item.product.location || 'Geral'} | Anterior: ${item.oldQty} -> Ajustado: ${item.newQty}`
+                        details: `Inventário Físico em Lote${dateHeader} - Prateleira ${item.product.location || 'Geral'} | Anterior: ${item.oldQty} -> Ajustado: ${item.newQty}`,
+                        auditDate: auditSession?.date || null
                     }, item.product);
                 }
 
+                saveAuditSessionToStorage();
                 showToast(`🎉 ${divergentItems.length} divergência(s) ajustada(s) com sucesso no estoque!`);
                 renderAuditTableAndKPIs();
             } catch (err) {
@@ -11076,6 +11355,9 @@
                 return;
             }
 
+            const sessionDateFormatted = auditSession?.date ? formatAuditDate(auditSession.date) : new Date().toLocaleDateString('pt-BR');
+            const auditorName = auditSession?.auditor || currentUser?.displayName || 'Almoxarifado';
+
             const rows = list.map(p => {
                 const systemQty = Number(p.quantity) || 0;
                 const isTouched = auditTouched.has(p.id);
@@ -11086,6 +11368,8 @@
                     statusLabel = diff === 0 ? 'Conforme' : (diff < 0 ? 'Divergente (Falta)' : 'Divergente (Sobra)');
                 }
                 return {
+                    'Data da Auditoria': sessionDateFormatted,
+                    'Auditor / Responsável': auditorName,
                     'Código RM': p.codeRM || 'N/A',
                     'Material / Descrição': p.name || '—',
                     'Unidade': p.unit || 'UN',
@@ -11103,7 +11387,7 @@
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws, "Auditoria_Inventario");
                 const shelfName = (auditSelectedShelf || 'Geral').replace(/[^a-zA-Z0-9]/g, '_');
-                const filename = `Inventario_Fisico_${shelfName}_${new Date().toISOString().split('T')[0]}.xlsx`;
+                const filename = `Inventario_Fisico_${shelfName}_${auditSession?.date || new Date().toISOString().split('T')[0]}.xlsx`;
                 XLSX.writeFile(wb, filename);
                 showToast("📊 Relatório em Excel exportado com sucesso!");
             } catch (e) {
@@ -11130,6 +11414,10 @@
                 const pageWidth = doc.internal.pageSize.getWidth();
                 let y = 16;
 
+                const sessionDateFormatted = auditSession?.date ? formatAuditDate(auditSession.date) : new Date().toLocaleDateString('pt-BR');
+                const sessionTimeFormatted = auditSession?.time || new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+                const auditorName = auditSession?.auditor || currentUser?.displayName || 'Almoxarifado';
+
                 doc.setFillColor(30, 41, 59);
                 doc.rect(14, y, pageWidth - 28, 22, 'F');
                 doc.setTextColor(255, 255, 255);
@@ -11139,13 +11427,13 @@
                 doc.setFontSize(9);
                 doc.setFont('helvetica', 'normal');
                 const shelfLabel = auditSelectedShelf === '__ALL__' ? 'Todas as Prateleiras' : (auditSelectedShelf === '__NONE__' ? 'Sem Localização' : auditSelectedShelf);
-                doc.text(`UHE ESTRELA — Localização: ${shelfLabel} | Data: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'})}`, 18, y + 16);
+                doc.text(`UHE ESTRELA — Localização: ${shelfLabel} | Data da Auditoria: ${sessionDateFormatted} às ${sessionTimeFormatted}`, 18, y + 16);
                 y += 28;
 
                 doc.setTextColor(51, 65, 85);
                 doc.setFontSize(9);
                 doc.setFont('helvetica', 'bold');
-                doc.text(`Auditor / Responsável: ${currentUser?.displayName || 'Almoxarifado'}`, 14, y);
+                doc.text(`Auditor / Responsável: ${auditorName}`, 14, y);
                 y += 6;
 
                 let okCount = 0, divCount = 0, pendCount = 0;
@@ -11236,7 +11524,7 @@
                 doc.text("Encarregado de Almoxarifado", pageWidth - 78, y + 21);
 
                 const shelfName = (auditSelectedShelf || 'Geral').replace(/[^a-zA-Z0-9]/g, '_');
-                doc.save(`Laudo_Inventario_${shelfName}_${new Date().toISOString().split('T')[0]}.pdf`);
+                doc.save(`Laudo_Inventario_${shelfName}_${auditSession?.date || new Date().toISOString().split('T')[0]}.pdf`);
                 showToast("📄 Laudo de Auditoria em PDF gerado com sucesso!");
             } catch (err) {
                 console.error("Erro ao gerar laudo PDF:", err);
@@ -11246,15 +11534,31 @@
 
         // 7. Registro de Eventos e Listeners do Módulo de Auditoria
         const setupAuditListeners = () => {
+            // Controle de Sessão de Auditoria
+            btnAuditOpenStartModal?.addEventListener('click', openAuditStartModal);
+            btnAuditOpenStartModalTop?.addEventListener('click', openAuditStartModal);
+            auditStartForm?.addEventListener('submit', handleStartAuditSubmit);
+            btnAuditSaveDraft?.addEventListener('click', handleSaveDraft);
+            btnAuditFinish?.addEventListener('click', handleFinishAudit);
+            btnAuditDiscard?.addEventListener('click', handleDiscardAudit);
+
             // Troca de Prateleira
             auditShelfSelect?.addEventListener('change', (e) => {
                 auditSelectedShelf = e.target.value;
+                if (auditSession) {
+                    auditSession.shelf = auditSelectedShelf;
+                    saveAuditSessionToStorage();
+                }
                 renderAuditTableAndKPIs();
             });
 
             // Troca de Grupo
             auditGroupFilter?.addEventListener('change', (e) => {
                 auditSelectedGroup = e.target.value;
+                if (auditSession) {
+                    auditSession.group = auditSelectedGroup;
+                    saveAuditSessionToStorage();
+                }
                 renderAuditTableAndKPIs();
             });
 
@@ -11356,6 +11660,9 @@
 
         // Inicialização do Módulo de Auditoria
         const renderAuditView = () => {
+            if (!auditSession) {
+                loadAuditSessionFromStorage();
+            }
             populateAuditSelectors();
             renderAuditTableAndKPIs();
         };
