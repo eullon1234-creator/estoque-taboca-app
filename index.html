@@ -3419,13 +3419,259 @@
                 if (this.modoAtual === 'lote') this.renderizarListaLote();
             },
 
-            // Processar arquivo de foto
+            // Processar arquivo de foto local
             lerArquivoComoBase64(file) {
                 return new Promise((resolve) => {
                     const reader = new FileReader();
                     reader.onload = (e) => resolve(e.target.result);
                     reader.onerror = () => resolve(null);
                     reader.readAsDataURL(file);
+                });
+            },
+
+            urlBase64Cache: new Map(),
+
+            // Converter qualquer URL de foto (Google Drive, Firebase, Nuvem, Web) para Base64 Data URL
+            // Isso elimina 100% dos bloqueios de CORS e garante que a foto apareça no download do PNG e PDF
+            async urlParaBase64(url) {
+                if (!url || typeof url !== 'string') return '';
+                if (url.startsWith('data:image/')) return url;
+
+                if (!this.urlBase64Cache) this.urlBase64Cache = new Map();
+                if (this.urlBase64Cache.has(url)) {
+                    return this.urlBase64Cache.get(url);
+                }
+
+                url = this.normalizarUrlFoto(url);
+
+                const blobParaDataUrl = (blob) => new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.onerror = () => resolve(null);
+                    reader.readAsDataURL(blob);
+                });
+
+                let resultado = null;
+
+                // 1ª Tentativa: fetch direto com modo CORS
+                try {
+                    const res = await fetch(url, { mode: 'cors', credentials: 'omit' });
+                    if (res.ok) {
+                        const blob = await res.blob();
+                        if (blob && blob.size > 0) {
+                            const b64 = await blobParaDataUrl(blob);
+                            if (b64 && b64.startsWith('data:image/')) resultado = b64;
+                        }
+                    }
+                } catch (e1) {}
+
+                // 2ª Tentativa: canvas invisível com Image(crossOrigin)
+                if (!resultado) {
+                    try {
+                        const b64Canvas = await new Promise((resolve) => {
+                            const img = new Image();
+                            img.crossOrigin = 'anonymous';
+                            const timer = setTimeout(() => resolve(null), 3500);
+                            img.onload = () => {
+                                clearTimeout(timer);
+                                try {
+                                    const canvas = document.createElement('canvas');
+                                    canvas.width = img.naturalWidth || img.width || 400;
+                                    canvas.height = img.naturalHeight || img.height || 400;
+                                    const ctx = canvas.getContext('2d');
+                                    ctx.drawImage(img, 0, 0);
+                                    resolve(canvas.toDataURL('image/png'));
+                                } catch (e) {
+                                    resolve(null);
+                                }
+                            };
+                            img.onerror = () => {
+                                clearTimeout(timer);
+                                resolve(null);
+                            };
+                            img.src = url;
+                        });
+                        if (b64Canvas && b64Canvas.startsWith('data:image/')) resultado = b64Canvas;
+                    } catch (e2) {}
+                }
+
+                // 3ª Tentativa: Proxy de CORS global de alta velocidade (images.weserv.nl)
+                if (!resultado && (url.startsWith('http://') || url.startsWith('https://'))) {
+                    try {
+                        const proxyUrl = `https://images.weserv.nl/?url=${encodeURIComponent(url)}&output=png`;
+                        const res = await fetch(proxyUrl, { mode: 'cors' });
+                        if (res.ok) {
+                            const blob = await res.blob();
+                            if (blob && blob.size > 0) {
+                                const b64 = await blobParaDataUrl(blob);
+                                if (b64 && b64.startsWith('data:image/')) resultado = b64;
+                            }
+                        }
+                    } catch (e3) {}
+
+                    // 4ª Tentativa: Proxy secundário AllOrigins
+                    if (!resultado) {
+                        try {
+                            const proxyUrl2 = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+                            const res = await fetch(proxyUrl2, { mode: 'cors' });
+                            if (res.ok) {
+                                const blob = await res.blob();
+                                if (blob && blob.size > 0) {
+                                    const b64 = await blobParaDataUrl(blob);
+                                    if (b64 && b64.startsWith('data:image/')) resultado = b64;
+                                }
+                            }
+                        } catch (e4) {}
+                    }
+                }
+
+                if (resultado && resultado.startsWith('data:image/')) {
+                    this.urlBase64Cache.set(url, resultado);
+                    return resultado;
+                }
+
+                return url;
+            },
+
+            // Prepara elemento antes de exportar garantindo que fotos sejam Base64 e estejam decodificadas
+            async prepararElementoParaExportacao(targetElement) {
+                if (!targetElement) return;
+
+                const imagens = Array.from(targetElement.querySelectorAll('img.placa-img-prod'));
+                for (const img of imagens) {
+                    const src = img.currentSrc || img.src || img.getAttribute('src') || '';
+                    if (src && !src.startsWith('data:image/')) {
+                        try {
+                            const b64 = await this.urlParaBase64(src);
+                            if (b64 && b64.startsWith('data:image/')) {
+                                img.src = b64;
+                            }
+                        } catch (err) {
+                            console.warn('Falha ao converter foto para base64:', err);
+                        }
+                    }
+
+                    if (!img.complete) {
+                        await new Promise((resolve) => {
+                            img.onload = resolve;
+                            img.onerror = resolve;
+                            setTimeout(resolve, 1500);
+                        });
+                    }
+                    if (img.decode) {
+                        try {
+                            await img.decode();
+                        } catch (e) {}
+                    }
+                }
+            },
+
+            // Captura canvas da placa com dimensões em pixels travadas no clone para compatibilidade total com html2canvas
+            async capturarCanvasPlaca(elemento, scale = 3) {
+                if (!elemento) throw new Error('Elemento não encontrado para captura.');
+
+                // 1. Converte fotos para base64 e decodifica
+                await this.prepararElementoParaExportacao(elemento);
+
+                // 2. Renderiza no html2canvas com onclone fixando medidas em pixels reais
+                return await html2canvas(elemento, {
+                    scale: scale,
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: '#FFFFFF',
+                    logging: false,
+                    onclone: (clonedDoc) => {
+                        const liveCards = elemento.classList?.contains('placa-card-render')
+                            ? [elemento]
+                            : Array.from(elemento.querySelectorAll('.placa-card-render'));
+                        const clonedCards = Array.from(clonedDoc.querySelectorAll('.placa-card-render'));
+
+                        clonedCards.forEach((clonedCard, idx) => {
+                            const liveCard = liveCards[idx] || liveCards[0];
+                            if (!liveCard) return;
+
+                            const rectCard = liveCard.getBoundingClientRect();
+                            const cardW = Math.round(rectCard.width || 600);
+                            const cardH = Math.round(rectCard.height || (cardW * 2 / 3));
+
+                            // Fixar dimensões do card para contornar limitação de aspect-ratio do html2canvas
+                            clonedCard.style.width = cardW + 'px';
+                            clonedCard.style.height = cardH + 'px';
+                            clonedCard.style.aspectRatio = 'auto';
+
+                            // Círculo Externo
+                            const liveCirculoExt = liveCard.querySelector('.placa-circulo-externo');
+                            const clonedCirculoExt = clonedCard.querySelector('.placa-circulo-externo');
+                            if (clonedCirculoExt) {
+                                let size = liveCirculoExt ? Math.round(liveCirculoExt.getBoundingClientRect().height || liveCirculoExt.getBoundingClientRect().width) : 0;
+                                if (!size || size < 20) {
+                                    size = Math.round(cardH * 0.72);
+                                }
+
+                                clonedCirculoExt.style.width = size + 'px';
+                                clonedCirculoExt.style.height = size + 'px';
+                                clonedCirculoExt.style.minWidth = size + 'px';
+                                clonedCirculoExt.style.minHeight = size + 'px';
+                                clonedCirculoExt.style.maxWidth = size + 'px';
+                                clonedCirculoExt.style.maxHeight = size + 'px';
+                                clonedCirculoExt.style.flex = `0 0 ${size}px`;
+                                clonedCirculoExt.style.aspectRatio = 'auto';
+                            }
+
+                            // Círculo Interno
+                            const clonedCirculoInt = clonedCard.querySelector('.placa-circulo-interno');
+                            if (clonedCirculoInt) {
+                                clonedCirculoInt.style.width = '100%';
+                                clonedCirculoInt.style.height = '100%';
+                                clonedCirculoInt.style.display = 'flex';
+                                clonedCirculoInt.style.alignItems = 'center';
+                                clonedCirculoInt.style.justifyContent = 'center';
+                                clonedCirculoInt.style.overflow = 'hidden';
+                            }
+
+                            // Imagem do Produto
+                            const liveImg = liveCard.querySelector('.placa-img-prod');
+                            const clonedImg = clonedCard.querySelector('.placa-img-prod');
+                            if (clonedImg) {
+                                if (liveImg && liveImg.src) {
+                                    clonedImg.src = liveImg.src;
+                                }
+                                const liveExt = liveCard.querySelector('.placa-circulo-externo');
+                                const size = liveExt ? Math.round(liveExt.getBoundingClientRect().height || liveExt.getBoundingClientRect().width) : Math.round(cardH * 0.72);
+                                const imgSize = Math.round((size || 200) * 0.86);
+                                clonedImg.style.width = imgSize + 'px';
+                                clonedImg.style.height = imgSize + 'px';
+                                clonedImg.style.maxWidth = imgSize + 'px';
+                                clonedImg.style.maxHeight = imgSize + 'px';
+                                clonedImg.style.objectFit = 'contain';
+                                clonedImg.style.display = 'block';
+                            }
+
+                            // Seta
+                            const liveSeta = liveCard.querySelector('.placa-seta-box');
+                            const clonedSeta = clonedCard.querySelector('.placa-seta-box');
+                            if (liveSeta && clonedSeta) {
+                                const rectSeta = liveSeta.getBoundingClientRect();
+                                if (rectSeta.width) {
+                                    clonedSeta.style.width = Math.round(rectSeta.width) + 'px';
+                                }
+                            }
+
+                            // Tipografia calculada copiada da tela real
+                            const liveL1 = liveCard.querySelector('.placa-texto-linha1, .placa-texto-single');
+                            const clonedL1 = clonedCard.querySelector('.placa-texto-linha1, .placa-texto-single');
+                            if (liveL1 && clonedL1) {
+                                const fs = window.getComputedStyle(liveL1).fontSize;
+                                if (fs) clonedL1.style.fontSize = fs;
+                            }
+                            const liveL2 = liveCard.querySelector('.placa-texto-linha2');
+                            const clonedL2 = clonedCard.querySelector('.placa-texto-linha2');
+                            if (liveL2 && clonedL2) {
+                                const fs = window.getComputedStyle(liveL2).fontSize;
+                                if (fs) clonedL2.style.fontSize = fs;
+                            }
+                        });
+                    }
                 });
             },
 
@@ -3591,6 +3837,19 @@
                 this.atualizarDropzonePreview(foto);
 
                 this.atualizarPreview();
+
+                // Converte a foto para Base64 em segundo plano para download instantâneo e livre de CORS
+                if (foto && !foto.startsWith('data:image/')) {
+                    this.urlParaBase64(foto).then(b64 => {
+                        if (b64 && b64.startsWith('data:image/') && this.currentPlaca.foto === foto) {
+                            this.currentPlaca.foto = b64;
+                            const imgEl = document.querySelector('#preview-render-target .placa-img-prod');
+                            if (imgEl) imgEl.src = b64;
+                            this.renderizarFotoBoxEstoque(b64);
+                            this.atualizarDropzonePreview(b64);
+                        }
+                    }).catch(() => {});
+                }
             },
 
             renderizarFotoBoxEstoque(foto) {
@@ -3774,6 +4033,20 @@
                 this.renderizarListaLote(document.getElementById('placa-lote-filtro')?.value || '');
                 this.renderizarFolha();
                 this.showModal(`${selecionados.length} placa(s) adicionada(s) à folha de impressão!`);
+
+                // Converte em segundo plano as fotos dos itens adicionados para Base64
+                this.placasFolha.forEach(async (placaItem, idx) => {
+                    if (placaItem.foto && !placaItem.foto.startsWith('data:image/')) {
+                        try {
+                            const b64 = await this.urlParaBase64(placaItem.foto);
+                            if (b64 && b64.startsWith('data:image/')) {
+                                placaItem.foto = b64;
+                                const imgEl = document.querySelector(`#card-placa-folha-${idx} .placa-img-prod`);
+                                if (imgEl) imgEl.src = b64;
+                            }
+                        } catch (e) {}
+                    }
+                });
             },
 
             // Atualizar configuração da folha
@@ -3926,7 +4199,7 @@
                     return;
                 }
 
-                this.placasFolha.push({
+                const novaPlaca = {
                     id: 'placa_' + Date.now(),
                     linha1: l1 || 'IDENTIFICAÇÃO',
                     linha2: l2,
@@ -3935,7 +4208,20 @@
                     tamanhoSeta: document.getElementById('placa-tamanho-seta')?.value || this.currentPlaca.tamanhoSeta || 'padrao',
                     espacoSeta: document.getElementById('placa-espaco-seta')?.value || this.currentPlaca.espacoSeta || 'padrao',
                     formato: this.formatoFolha
-                });
+                };
+
+                this.placasFolha.push(novaPlaca);
+
+                if (novaPlaca.foto && !novaPlaca.foto.startsWith('data:image/')) {
+                    this.urlParaBase64(novaPlaca.foto).then(b64 => {
+                        if (b64 && b64.startsWith('data:image/')) {
+                            novaPlaca.foto = b64;
+                            const idx = this.placasFolha.indexOf(novaPlaca);
+                            const imgEl = document.querySelector(`#card-placa-folha-${idx} .placa-img-prod`);
+                            if (imgEl) imgEl.src = b64;
+                        }
+                    }).catch(() => {});
+                }
 
                 this.renderizarFolha();
                 this.showModal('Placa adicionada à folha de impressão com sucesso!');
@@ -4044,8 +4330,8 @@
                 }
 
                 const txtSpan = document.getElementById('txt-btn-pdf') || btnElement;
-                const textoOriginal = txtSpan.textContent;
-                txtSpan.textContent = 'Gerando PDF...';
+                const textoOriginal = txtSpan ? txtSpan.textContent : '';
+                if (txtSpan) txtSpan.textContent = 'Gerando PDF...';
                 if (btnElement) btnElement.disabled = true;
 
                 try {
@@ -4066,13 +4352,7 @@
                         const elemento = document.getElementById(`card-placa-folha-${i}`) || document.getElementById('preview-render-target');
                         if (!elemento) continue;
 
-                        const canvas = await html2canvas(elemento, {
-                            scale: 2.5,
-                            useCORS: true,
-                            backgroundColor: '#FFFFFF',
-                            logging: false
-                        });
-
+                        const canvas = await this.capturarCanvasPlaca(elemento, 2.5);
                         const imgData = canvas.toDataURL('image/jpeg', 0.98);
                         // Dimensões A4 Paisagem: 297mm x 210mm com margens de 8mm
                         doc.addImage(imgData, 'JPEG', 8, 8, 281, 194);
@@ -4083,7 +4363,7 @@
                     console.error('Erro ao gerar PDF:', err);
                     this.showModal('Não foi possível gerar o PDF diretamente. Você pode usar o botão "Imprimir A4" e salvar como PDF pelo navegador.');
                 } finally {
-                    txtSpan.textContent = textoOriginal;
+                    if (txtSpan) txtSpan.textContent = textoOriginal;
                     if (btnElement) btnElement.disabled = false;
                 }
             },
@@ -4097,21 +4377,27 @@
                 const l2 = (this.currentPlaca.linha2 || '').replace(/[^a-zA-Z0-9]/g, '_');
                 const nomeArquivo = `Placa_${l1}${l2 ? '_' + l2 : ''}.png`;
 
-                try {
-                    const canvas = await html2canvas(elemento, {
-                        scale: 3, // Altíssima resolução para impressão gráfica
-                        useCORS: true,
-                        backgroundColor: '#FFFFFF',
-                        logging: false
-                    });
+                const btns = document.querySelectorAll('button[onclick*="baixarPNGPreview"]');
+                const originalContents = Array.from(btns).map(b => b.innerHTML);
+                btns.forEach(b => {
+                    b.innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">progress_activity</span><span>Gerando PNG...</span>';
+                    b.disabled = true;
+                });
 
+                try {
+                    const canvas = await this.capturarCanvasPlaca(elemento, 3);
                     const link = document.createElement('a');
                     link.download = nomeArquivo;
                     link.href = canvas.toDataURL('image/png');
                     link.click();
                 } catch (e) {
                     console.error('Erro ao baixar PNG:', e);
-                    this.showModal('Erro ao gerar imagem PNG.');
+                    this.showModal('Erro ao gerar imagem PNG da placa. Tente novamente.');
+                } finally {
+                    btns.forEach((b, i) => {
+                        b.innerHTML = originalContents[i] || 'Baixar PNG';
+                        b.disabled = false;
+                    });
                 }
             },
 
@@ -4125,19 +4411,14 @@
                 const l2 = (placa.linha2 || '').replace(/[^a-zA-Z0-9]/g, '_');
 
                 try {
-                    const canvas = await html2canvas(elemento, {
-                        scale: 3,
-                        useCORS: true,
-                        backgroundColor: '#FFFFFF',
-                        logging: false
-                    });
-
+                    const canvas = await this.capturarCanvasPlaca(elemento, 3);
                     const link = document.createElement('a');
                     link.download = `Placa_${l1}${l2 ? '_' + l2 : ''}.png`;
                     link.href = canvas.toDataURL('image/png');
                     link.click();
                 } catch (e) {
                     console.error('Erro ao exportar PNG da placa:', e);
+                    this.showModal('Erro ao exportar imagem PNG desta placa.');
                 }
             },
 
