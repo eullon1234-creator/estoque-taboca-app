@@ -103,6 +103,7 @@
 
         // ⭐ UHE Estrela State
         let estrelaProducts = [];
+        window.estrelaProducts = estrelaProducts;
         let estrelaEntries = [];
         let estrelaExits = [];
         let estrelaProductsRef;
@@ -1112,6 +1113,10 @@
 
             estrelaUnsubscribers.push(onSnapshot(estrelaProductsRef, (snapshot) => {
                 estrelaProducts = snapshot.docs.map(d => sanitizeProductData({ id: d.id, ...d.data() }));
+                try {
+                    window.estrelaProducts = estrelaProducts;
+                    window.placasApp?.carregarProdutosCache?.();
+                } catch (e) { /* ambiente restrito */ }
                 if (isDataLoaded && currentViewId === 'estrela-view') renderEstrelaEstoque();
             }, (error) => handleFirestoreError(error, 'produtos Estrela')));
 

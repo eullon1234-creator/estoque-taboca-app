@@ -40,13 +40,15 @@
             display: flex;
             flex-direction: column;
             justify-content: center;
+            container-type: inline-size;
+            container-name: placa;
         }
 
         /* Moldura Externa Grossa com Cantos Arredondados */
         .placa-moldura-ext {
-            border: 8px solid var(--placa-azul);
-            border-radius: 22px;
-            padding: 8px;
+            border: clamp(5px, 1.3cqw, 10px) solid var(--placa-azul);
+            border-radius: clamp(14px, 3.5cqw, 26px);
+            padding: clamp(5px, 1.2cqw, 10px);
             box-sizing: border-box;
             width: 100%;
             height: 100%;
@@ -57,9 +59,9 @@
 
         /* Moldura Interna Fina */
         .placa-moldura-int {
-            border: 2.5px solid var(--placa-azul);
-            border-radius: 14px;
-            padding: 10px 14px;
+            border: clamp(1.5px, 0.4cqw, 3px) solid var(--placa-azul);
+            border-radius: clamp(9px, 2.2cqw, 16px);
+            padding: clamp(6px, 1.6cqw, 14px) clamp(8px, 2.2cqw, 18px);
             box-sizing: border-box;
             width: 100%;
             height: 100%;
@@ -71,7 +73,7 @@
 
         /* Linhas Horizontais de Sinalização (Superior e Inferior) */
         .placa-barra-h {
-            height: 6px;
+            height: clamp(3px, 0.8cqw, 6.5px);
             background-color: var(--placa-azul);
             border-radius: 2px;
             width: 100%;
@@ -86,18 +88,20 @@
             justify-content: space-between;
             flex: 1;
             width: 100%;
-            gap: 16px;
+            gap: clamp(8px, 2.5cqw, 20px);
             min-height: 0;
-            padding: 6px 4px;
+            padding: clamp(4px, 1cqw, 8px) clamp(2px, 0.5cqw, 6px);
+            box-sizing: border-box;
         }
 
         /* Círculo Duplo com Foto (Lado Esquerdo) */
         .placa-circulo-externo {
-            height: 88%;
+            height: 94%;
+            max-height: 100%;
             aspect-ratio: 1 / 1;
-            border: 3.5px solid var(--placa-azul);
+            border: clamp(2px, 0.5cqw, 4px) solid var(--placa-azul);
             border-radius: 50%;
-            padding: 4px;
+            padding: clamp(2px, 0.6cqw, 5px);
             background-color: var(--placa-branco);
             box-sizing: border-box;
             display: flex;
@@ -109,7 +113,7 @@
         .placa-circulo-interno {
             width: 100%;
             height: 100%;
-            border: 6.5px solid var(--placa-azul);
+            border: clamp(3px, 1cqw, 7.5px) solid var(--placa-azul);
             border-radius: 50%;
             background-color: var(--placa-branco);
             box-sizing: border-box;
@@ -127,21 +131,25 @@
             display: block;
         }
 
-        /* Bloco Direito: Texto Impactante e Seta */
+        /* Bloco Direito: Texto Impactante e Seta (Sem Sobreposição) */
         .placa-bloco-info {
             flex: 1;
             height: 100%;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: space-between;
             text-align: center;
             min-width: 0;
             position: relative;
+            padding: clamp(2px, 0.8cqw, 8px) 0 0 0;
+            box-sizing: border-box;
+            overflow: hidden;
         }
 
         .placa-texto-container {
             width: 100%;
+            flex: 1 1 auto;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -150,42 +158,72 @@
             color: var(--placa-azul);
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            line-height: 0.95;
+            line-height: 0.98;
             word-break: break-word;
+            min-height: 0;
+            padding: 0 4px;
+            box-sizing: border-box;
+            overflow: hidden;
         }
 
         .placa-texto-linha1 {
-            font-size: clamp(24px, 5.5vw, 68px);
             font-weight: 900;
+            max-width: 100%;
+            line-height: 0.98;
+            letter-spacing: 0.5px;
+            word-break: break-word;
         }
 
         .placa-texto-linha2 {
-            font-size: clamp(20px, 4.8vw, 60px);
             font-weight: 900;
-            margin-top: 2px;
+            margin-top: clamp(2px, 0.6cqw, 6px);
+            max-width: 100%;
+            line-height: 0.98;
+            letter-spacing: 0.5px;
+            word-break: break-word;
         }
 
         /* Texto Único Gigante (ex: CIMENTO) */
         .placa-texto-single {
-            font-size: clamp(34px, 8vw, 92px);
             font-weight: 900;
-            line-height: 0.95;
+            line-height: 0.98;
+            max-width: 100%;
+            letter-spacing: 0.5px;
+            word-break: break-word;
         }
 
-        /* Seta Indicadora para Baixo */
+        /* Seta Indicadora para Baixo - Fixada na base com espaçamento seguro */
         .placa-seta-box {
             display: flex;
-            align-items: center;
+            align-items: flex-end;
             justify-content: center;
-            margin-top: 6px;
+            margin-top: auto; /* Empurra a seta para a base */
+            margin-bottom: 0;
+            padding-top: clamp(6px, 1.5cqw, 14px); /* Espaço seguro garantido entre texto e seta */
+            padding-bottom: clamp(1px, 0.3cqw, 4px);
             flex-shrink: 0;
+            width: 100%;
         }
 
         .placa-seta-svg {
-            width: clamp(42px, 8vw, 84px);
-            height: clamp(34px, 6.5vw, 68px);
+            width: clamp(26px, 6cqw, 50px);
+            height: clamp(20px, 4.5cqw, 38px);
+            max-height: 42px;
             fill: var(--placa-azul);
-            filter: drop-shadow(0 1px 1px rgba(0,0,0,0.05));
+            display: block;
+        }
+
+        /* Modificadores de Seta */
+        .seta-pequena .placa-seta-svg {
+            width: clamp(20px, 4.5cqw, 36px);
+            height: clamp(16px, 3.6cqw, 28px);
+        }
+        .seta-grande .placa-seta-svg {
+            width: clamp(32px, 7.5cqw, 60px);
+            height: clamp(24px, 5.5cqw, 46px);
+        }
+        .seta-oculta .placa-seta-box {
+            display: none !important;
         }
 
         /* Placas na Folha de Impressão */
@@ -1344,7 +1382,8 @@
                                 </div>
 
                                 <!-- PAINEL 1: DO ESTOQUE (AUTOMÁTICO) -->
-                                <div id="painel-modo-estoque" class="space-y-4">
+                                <div id="painel-modo-estoque" class="space-y-3.5">
+                                    <!-- Caixa de Busca -->
                                     <div>
                                         <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                                             🔍 Buscar Material no Estoque
@@ -1361,13 +1400,45 @@
                                         <p class="text-[11px] text-slate-400 mt-1">Ao selecionar, o nome e a foto do cadastro são carregados automaticamente.</p>
                                     </div>
 
+                                    <!-- Card de Produto Selecionado do Estoque -->
+                                    <div id="placa-estoque-card-selecionado" class="hidden p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl space-y-3 animate-in fade-in duration-150">
+                                        <div class="flex items-start justify-between gap-2">
+                                            <div class="min-w-0">
+                                                <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-blue-100 text-blue-800 tracking-wider">Item do Estoque</span>
+                                                <h4 id="placa-sel-nome" class="text-xs sm:text-sm font-extrabold text-slate-800 mt-1 truncate">Produto</h4>
+                                                <p id="placa-sel-meta" class="text-[10px] sm:text-[11px] text-slate-500 font-medium">Cód: S/C</p>
+                                            </div>
+                                            <button type="button" onclick="window.placasApp?.limparProdutoSelecionado()" class="text-xs font-bold text-slate-500 hover:text-red-600 bg-white hover:bg-red-50 p-1.5 rounded-lg border border-slate-200 transition shrink-0" title="Trocar material / Fazer nova busca">
+                                                <span class="material-symbols-outlined text-[16px]">close</span>
+                                            </button>
+                                        </div>
+
+                                        <!-- Linhas Editáveis para Ajuste Fino -->
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-blue-100">
+                                            <div>
+                                                <label class="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Linha 1 do Nome</label>
+                                                <input type="text" id="placa-estoque-input-linha1" class="w-full px-2.5 py-1.5 text-xs font-bold uppercase bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-600/30">
+                                            </div>
+                                            <div>
+                                                <label class="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Linha 2 (Opcional)</label>
+                                                <input type="text" id="placa-estoque-input-linha2" class="w-full px-2.5 py-1.5 text-xs font-bold uppercase bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-600/30">
+                                            </div>
+                                        </div>
+
+                                        <!-- Status e Gerenciamento da Foto -->
+                                        <div id="placa-estoque-foto-box">
+                                            <!-- Preenchido via JS -->
+                                        </div>
+                                        <input type="file" id="placa-estoque-file-input" accept="image/*" class="hidden">
+                                    </div>
+
                                     <!-- Sugestões Rápidas de Produtos com Foto -->
-                                    <div class="pt-2">
-                                        <div class="flex items-center justify-between mb-2">
-                                            <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Produtos com foto</span>
+                                    <div class="pt-1">
+                                        <div class="flex items-center justify-between mb-1.5">
+                                            <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Produtos com foto cadastrada</span>
                                             <span id="placas-qtd-com-foto" class="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">0 itens</span>
                                         </div>
-                                        <div id="placas-atalhos-produtos" class="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pr-1">
+                                        <div id="placas-atalhos-produtos" class="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1">
                                             <!-- Inserido dinamicamente via JS -->
                                         </div>
                                     </div>
@@ -1437,23 +1508,42 @@
 
                                 <!-- CONTROLES COMPARTILHADOS: Ajustes e Formato -->
                                 <div class="pt-4 border-t border-slate-100 space-y-3">
-                                    <div class="grid grid-cols-2 gap-3">
+                                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                                         <div>
-                                            <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Tamanho do Texto</label>
+                                            <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Tamanho Texto</label>
                                             <select id="placa-tamanho-fonte" onchange="window.placasApp?.atualizarPreview()" class="w-full p-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg outline-none">
                                                 <option value="auto">Automático (Ideal)</option>
                                                 <option value="gigante">Gigante</option>
                                                 <option value="grande">Grande</option>
                                                 <option value="medio">Médio</option>
+                                                <option value="pequeno">Pequeno</option>
                                             </select>
                                         </div>
                                         <div>
-                                            <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Folha de Impressão</label>
-                                            <select id="placa-formato-folha" onchange="window.placasApp?.atualizarFormatoFolha()" class="w-full p-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg outline-none">
-                                                <option value="single">1 Placa por Folha A4 (Grande)</option>
-                                                <option value="duplo">2 Placas por Folha A4 (Médio)</option>
+                                            <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Seta Indicadora</label>
+                                            <select id="placa-tamanho-seta" onchange="window.placasApp?.atualizarPreview()" class="w-full p-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg outline-none">
+                                                <option value="padrao">Padrão (Ideal)</option>
+                                                <option value="compacta">Compacta</option>
+                                                <option value="grande">Grande</option>
+                                                <option value="oculta">Ocultar Seta</option>
                                             </select>
                                         </div>
+                                        <div class="col-span-2 sm:col-span-1">
+                                            <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Espaço da Seta</label>
+                                            <select id="placa-espaco-seta" onchange="window.placasApp?.atualizarPreview()" class="w-full p-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg outline-none">
+                                                <option value="padrao">Normal (Seguro)</option>
+                                                <option value="afastada">Mais Afastada</option>
+                                                <option value="proxima">Mais Próxima</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Folha de Impressão</label>
+                                        <select id="placa-formato-folha" onchange="window.placasApp?.atualizarFormatoFolha()" class="w-full p-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg outline-none">
+                                            <option value="single">1 Placa por Folha A4 (Grande - Paisagem)</option>
+                                            <option value="duplo">2 Placas por Folha A4 (Médio - 2 por folha)</option>
+                                        </select>
                                     </div>
 
                                     <!-- Botão Principal: Adicionar à Folha -->
@@ -3110,7 +3200,10 @@
                 linha2: 'GROUT',
                 foto: '',
                 tamanho: 'auto',
-                origem: 'manual'
+                tamanhoSeta: 'padrao',
+                espacoSeta: 'padrao',
+                origem: 'manual',
+                produtoId: null
             },
 
             init() {
@@ -3153,9 +3246,18 @@
                     });
                 }
 
-                // Colagem direta de imagem com Ctrl+V
+                // File input para foto no painel do Estoque
+                const estoqueFileInput = document.getElementById('placa-estoque-file-input');
+                if (estoqueFileInput) {
+                    estoqueFileInput.addEventListener('change', async (e) => {
+                        if (e.target.files && e.target.files[0]) {
+                            await this.processarArquivoFoto(e.target.files[0]);
+                        }
+                    });
+                }
+
+                // Colagem direta de imagem com Ctrl+V (atua em qualquer modo)
                 document.addEventListener('paste', async (e) => {
-                    // Só atua se a view de placas estiver visível
                     const view = document.getElementById('custom-plaques-view');
                     if (!view || view.classList.contains('hidden')) return;
 
@@ -3167,7 +3269,6 @@
                             const file = items[i].getAsFile();
                             if (file) {
                                 await this.processarArquivoFoto(file);
-                                if (this.modoAtual !== 'manual') this.setModo('manual');
                                 break;
                             }
                         }
@@ -3181,6 +3282,8 @@
                 if (inLinha1) {
                     inLinha1.addEventListener('input', (e) => {
                         this.currentPlaca.linha1 = e.target.value.toUpperCase();
+                        const inEstoqueL1 = document.getElementById('placa-estoque-input-linha1');
+                        if (inEstoqueL1) inEstoqueL1.value = this.currentPlaca.linha1;
                         this.atualizarPreview();
                     });
                 }
@@ -3188,6 +3291,28 @@
                 if (inLinha2) {
                     inLinha2.addEventListener('input', (e) => {
                         this.currentPlaca.linha2 = e.target.value.toUpperCase();
+                        const inEstoqueL2 = document.getElementById('placa-estoque-input-linha2');
+                        if (inEstoqueL2) inEstoqueL2.value = this.currentPlaca.linha2;
+                        this.atualizarPreview();
+                    });
+                }
+
+                // Inputs de texto no card do Estoque
+                const inEstoqueL1 = document.getElementById('placa-estoque-input-linha1');
+                const inEstoqueL2 = document.getElementById('placa-estoque-input-linha2');
+
+                if (inEstoqueL1) {
+                    inEstoqueL1.addEventListener('input', (e) => {
+                        this.currentPlaca.linha1 = e.target.value.toUpperCase();
+                        if (inLinha1) inLinha1.value = this.currentPlaca.linha1;
+                        this.atualizarPreview();
+                    });
+                }
+
+                if (inEstoqueL2) {
+                    inEstoqueL2.addEventListener('input', (e) => {
+                        this.currentPlaca.linha2 = e.target.value.toUpperCase();
+                        if (inLinha2) inLinha2.value = this.currentPlaca.linha2;
                         this.atualizarPreview();
                     });
                 }
@@ -3230,8 +3355,8 @@
 
                     if (btn) {
                         btn.className = isActive
-                            ? 'flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 bg-white text-blue-700 shadow-xs'
-                            : 'flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 text-slate-600 hover:text-slate-900';
+                            ? 'flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 bg-white text-blue-700 shadow-xs font-bold'
+                            : 'flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 text-slate-600 hover:text-slate-900 font-medium';
                     }
                     if (painel) {
                         painel.classList.toggle('hidden', !isActive);
@@ -3243,20 +3368,53 @@
                 }
             },
 
-            // Extrair URL da foto do produto com compatibilidade total (imageUrl do Firestore, image, etc.)
-            obterFotoProduto(p) {
-                if (!p) return '';
-                const url = p.imageUrl || p.image || p.photoUrl || p.photoURL || p.foto || p.img || p.thumbnail || '';
-                return String(url ?? '').trim();
+            // Normalizador de URL (converte links do Google Drive, Dropbox, etc. para imagem direta)
+            normalizarUrlFoto(raw) {
+                if (!raw) return '';
+                let url = String(raw).trim();
+                if (!url) return '';
+
+                // Google Drive: view ou open link -> imagem direta
+                const gdMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+                                url.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/) ||
+                                url.match(/drive\.google\.com\/uc\?id=([a-zA-Z0-9_-]+)/);
+                if (gdMatch && gdMatch[1]) {
+                    return `https://drive.google.com/uc?export=view&id=${gdMatch[1]}`;
+                }
+
+                // Dropbox: dl=0 -> raw=1
+                if (url.includes('dropbox.com') && url.includes('dl=0')) {
+                    return url.replace('dl=0', 'raw=1');
+                }
+
+                return url;
             },
 
-            // Carregar cache de produtos do estoque global
+            // Extrair URL da foto do produto com compatibilidade total (imageUrl, photoUrl, image, foto, etc.)
+            obterFotoProduto(p) {
+                if (!p) return '';
+                const url = p.imageUrl || p.image || p.photoUrl || p.photoURL || p.photo || p.foto || p.fotoUrl || p.img || p.thumbnail || p.picture || p.url || p.foto_url || p.image_url || '';
+                return this.normalizarUrlFoto(url);
+            },
+
+            // Carregar cache de produtos do estoque global (unifica produtos gerais e da UHE Estrela)
             carregarProdutosCache() {
-                if (typeof products !== 'undefined' && Array.isArray(products) && products.length > 0) {
-                    this.productsCache = [...products];
-                } else if (typeof window.products !== 'undefined' && Array.isArray(window.products) && window.products.length > 0) {
-                    this.productsCache = [...window.products];
-                }
+                const map = new Map();
+                const addList = (list) => {
+                    if (!Array.isArray(list)) return;
+                    list.forEach(p => {
+                        if (p && p.id && !map.has(String(p.id))) {
+                            map.set(String(p.id), p);
+                        }
+                    });
+                };
+
+                addList(window.products);
+                addList(window.estrelaProducts);
+                if (typeof products !== 'undefined') addList(products);
+                if (typeof estrelaProducts !== 'undefined') addList(estrelaProducts);
+
+                this.productsCache = Array.from(map.values());
                 this.renderizarAtalhosProdutos();
                 if (this.modoAtual === 'lote') this.renderizarListaLote();
             },
@@ -3276,20 +3434,32 @@
                 if (!base64) return;
 
                 this.currentPlaca.foto = base64;
-                
-                // Atualizar preview no dropzone
+                this.atualizarDropzonePreview(base64);
+                this.atualizarPreview();
+            },
+
+            atualizarDropzonePreview(foto) {
+                // Dropzone manual
                 const placeholder = document.getElementById('placa-dropzone-placeholder');
                 const previewContainer = document.getElementById('placa-dropzone-preview');
                 const previewImg = document.getElementById('placa-dropzone-img');
 
                 if (placeholder && previewContainer && previewImg) {
-                    placeholder.classList.add('hidden');
-                    previewContainer.classList.remove('hidden');
-                    previewContainer.classList.add('flex');
-                    previewImg.src = base64;
+                    if (foto) {
+                        placeholder.classList.add('hidden');
+                        previewContainer.classList.remove('hidden');
+                        previewContainer.classList.add('flex');
+                        previewImg.src = foto;
+                    } else {
+                        placeholder.classList.remove('hidden');
+                        previewContainer.classList.add('hidden');
+                        previewContainer.classList.remove('flex');
+                        previewImg.src = '';
+                    }
                 }
 
-                this.atualizarPreview();
+                // Card do estoque (se estiver ativo)
+                this.renderizarFotoBoxEstoque(foto);
             },
 
             removerFotoManual(event) {
@@ -3297,15 +3467,15 @@
                 this.currentPlaca.foto = '';
                 const fileInput = document.getElementById('placa-file-input');
                 if (fileInput) fileInput.value = '';
+                this.atualizarDropzonePreview('');
+                this.atualizarPreview();
+            },
 
-                const placeholder = document.getElementById('placa-dropzone-placeholder');
-                const previewContainer = document.getElementById('placa-dropzone-preview');
-                if (placeholder && previewContainer) {
-                    placeholder.classList.remove('hidden');
-                    previewContainer.classList.add('hidden');
-                    previewContainer.classList.remove('flex');
-                }
-
+            removerFotoEstoque() {
+                this.currentPlaca.foto = '';
+                const fileInput = document.getElementById('placa-estoque-file-input');
+                if (fileInput) fileInput.value = '';
+                this.atualizarDropzonePreview('');
                 this.atualizarPreview();
             },
 
@@ -3335,7 +3505,7 @@
                 const termoLower = termo.toLowerCase();
                 const filtrados = this.productsCache.filter(p => {
                     const nome = (p.name || '').toLowerCase();
-                    const cod = String(p.rmCode || p.code || '').toLowerCase();
+                    const cod = String(p.rmCode || p.code || p.codeRM || '').toLowerCase();
                     return nome.includes(termoLower) || cod.includes(termoLower);
                 }).slice(0, 15);
 
@@ -3347,15 +3517,16 @@
 
                 box.innerHTML = filtrados.map(p => {
                     const foto = this.obterFotoProduto(p);
+                    const safeId = String(p.id).replace(/'/g, "\\'");
                     return `
-                        <div onclick="window.placasApp.selecionarProdutoEstoque('${p.id}')" class="p-2.5 hover:bg-blue-50/80 cursor-pointer flex items-center justify-between gap-3 transition">
+                        <div onclick="window.placasApp.selecionarProdutoEstoque('${safeId}')" class="p-2.5 hover:bg-blue-50/80 cursor-pointer flex items-center justify-between gap-3 transition">
                             <div class="flex items-center gap-2.5 min-w-0">
                                 <div class="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
                                     ${foto ? `<img src="${foto}" class="w-full h-full object-contain" referrerpolicy="no-referrer" onerror="this.style.display='none'">` : `<span class="material-symbols-outlined text-slate-400 text-[18px]">inventory_2</span>`}
                                 </div>
                                 <div class="min-w-0">
                                     <p class="text-xs font-bold text-slate-800 truncate">${p.name || 'Produto Sem Nome'}</p>
-                                    <p class="text-[10px] text-slate-400">Cód: ${p.rmCode || p.code || 'S/C'} · Qtd: ${p.quantity ?? 0} ${p.unit || ''}</p>
+                                    <p class="text-[10px] text-slate-400">Cód: ${p.rmCode || p.code || p.codeRM || 'S/C'} · Qtd: ${p.quantity ?? 0} ${p.unit || ''}</p>
                                 </div>
                             </div>
                             <span class="material-symbols-outlined text-blue-600 text-[18px] shrink-0">arrow_forward</span>
@@ -3377,6 +3548,7 @@
             },
 
             aplicarProdutoNaPlaca(produto) {
+                if (!produto) return;
                 const nomeCompleto = (produto.name || '').trim();
                 const partes = this.quebrarNomeInteligente(nomeCompleto);
                 const foto = this.obterFotoProduto(produto);
@@ -3385,32 +3557,82 @@
                     linha1: partes.linha1.toUpperCase(),
                     linha2: partes.linha2.toUpperCase(),
                     foto: foto,
-                    tamanho: 'auto',
-                    origem: 'estoque'
+                    tamanho: document.getElementById('placa-tamanho-fonte')?.value || 'auto',
+                    tamanhoSeta: document.getElementById('placa-tamanho-seta')?.value || 'padrao',
+                    espacoSeta: document.getElementById('placa-espaco-seta')?.value || 'padrao',
+                    origem: 'estoque',
+                    produtoId: produto.id,
+                    produtoNome: produto.name
                 };
 
-                // Atualiza campos do modo manual caso o usuário queira refinar
+                // Exibe e atualiza o card de produto selecionado no painel do estoque
+                const cardSel = document.getElementById('placa-estoque-card-selecionado');
+                const txtNome = document.getElementById('placa-sel-nome');
+                const txtMeta = document.getElementById('placa-sel-meta');
+                const inEstoqueL1 = document.getElementById('placa-estoque-input-linha1');
+                const inEstoqueL2 = document.getElementById('placa-estoque-input-linha2');
+
+                if (cardSel) cardSel.classList.remove('hidden');
+                if (txtNome) txtNome.textContent = produto.name || 'Produto';
+                if (txtMeta) txtMeta.textContent = `Cód: ${produto.codeRM || produto.code || produto.rmCode || 'S/C'} · Estoque: ${produto.quantity ?? 0} ${produto.unit || ''}`;
+                if (inEstoqueL1) inEstoqueL1.value = this.currentPlaca.linha1;
+                if (inEstoqueL2) inEstoqueL2.value = this.currentPlaca.linha2;
+
+                // Renderiza a caixa de foto do produto selecionado
+                this.renderizarFotoBoxEstoque(foto);
+
+                // Atualiza também os campos do modo manual
                 const inLinha1 = document.getElementById('placa-input-linha1');
                 const inLinha2 = document.getElementById('placa-input-linha2');
                 if (inLinha1) inLinha1.value = this.currentPlaca.linha1;
                 if (inLinha2) inLinha2.value = this.currentPlaca.linha2;
 
-                // Atualiza preview no dropzone manual com a foto do estoque
-                const placeholder = document.getElementById('placa-dropzone-placeholder');
-                const previewContainer = document.getElementById('placa-dropzone-preview');
-                const previewImg = document.getElementById('placa-dropzone-img');
-                if (foto && placeholder && previewContainer && previewImg) {
-                    placeholder.classList.add('hidden');
-                    previewContainer.classList.remove('hidden');
-                    previewContainer.classList.add('flex');
-                    previewImg.src = foto;
-                } else if (!foto && placeholder && previewContainer) {
-                    placeholder.classList.remove('hidden');
-                    previewContainer.classList.add('hidden');
-                    previewContainer.classList.remove('flex');
-                }
+                // Atualiza o preview no dropzone manual
+                this.atualizarDropzonePreview(foto);
 
                 this.atualizarPreview();
+            },
+
+            renderizarFotoBoxEstoque(foto) {
+                const box = document.getElementById('placa-estoque-foto-box');
+                if (!box) return;
+
+                if (foto) {
+                    box.innerHTML = `
+                        <div class="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border border-emerald-200 text-xs">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <img src="${foto}" class="w-8 h-8 rounded-full object-contain border border-slate-200 bg-white shrink-0" referrerpolicy="no-referrer" onerror="this.src=''">
+                                <span class="text-emerald-700 font-bold truncate">✅ Foto carregada</span>
+                            </div>
+                            <div class="flex items-center gap-1 shrink-0">
+                                <button type="button" onclick="document.getElementById('placa-estoque-file-input').click()" class="px-2 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded transition cursor-pointer">Trocar Foto</button>
+                                <button type="button" onclick="window.placasApp.removerFotoEstoque()" class="px-2 py-1 text-[11px] font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded transition cursor-pointer">Remover</button>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    box.innerHTML = `
+                        <div class="p-2.5 bg-amber-50 rounded-lg border border-amber-200 text-xs space-y-1.5">
+                            <div class="flex items-center gap-1.5 text-amber-800 font-bold">
+                                <span class="material-symbols-outlined text-[16px] text-amber-600">info</span>
+                                <span>Item sem foto salva no cadastro do estoque.</span>
+                            </div>
+                            <p class="text-[11px] text-amber-700">Você pode adicionar a foto para a placa abaixo (ou colar com Ctrl+V):</p>
+                            <button type="button" onclick="document.getElementById('placa-estoque-file-input').click()" class="w-full py-1.5 bg-white hover:bg-amber-100/60 border border-amber-300 rounded-lg font-bold text-slate-700 text-xs flex items-center justify-center gap-1.5 transition cursor-pointer">
+                                <span class="material-symbols-outlined text-[16px] text-blue-600">add_photo_alternate</span>
+                                <span>Adicionar Foto para a Placa</span>
+                            </button>
+                        </div>
+                    `;
+                }
+            },
+
+            limparProdutoSelecionado() {
+                const cardSel = document.getElementById('placa-estoque-card-selecionado');
+                if (cardSel) cardSel.classList.add('hidden');
+                this.currentPlaca.origem = 'manual';
+                this.currentPlaca.produtoId = null;
+                this.limparBuscaEstoque();
             },
 
             // Quebra inteligente do nome em 2 linhas equilibradas
@@ -3454,8 +3676,9 @@
 
                 container.innerHTML = comFoto.slice(0, 16).map(p => {
                     const foto = this.obterFotoProduto(p);
+                    const safeId = String(p.id).replace(/'/g, "\\'");
                     return `
-                        <button type="button" onclick="window.placasApp.selecionarProdutoEstoque('${p.id}')" class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-200 text-slate-700 hover:text-blue-700 transition text-[11px] font-bold truncate max-w-[190px] cursor-pointer" title="${p.name}">
+                        <button type="button" onclick="window.placasApp.selecionarProdutoEstoque('${safeId}')" class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-200 text-slate-700 hover:text-blue-700 transition text-[11px] font-bold truncate max-w-[190px] cursor-pointer" title="${p.name}">
                             <img src="${foto}" class="w-4 h-4 rounded-full object-contain shrink-0 bg-white" referrerpolicy="no-referrer" onerror="this.style.display='none'">
                             <span class="truncate">${p.name}</span>
                         </button>
@@ -3539,7 +3762,9 @@
                         linha1: partes.linha1.toUpperCase(),
                         linha2: partes.linha2.toUpperCase(),
                         foto: foto,
-                        tamanho: 'auto',
+                        tamanho: document.getElementById('placa-tamanho-fonte')?.value || 'auto',
+                        tamanhoSeta: document.getElementById('placa-tamanho-seta')?.value || 'padrao',
+                        espacoSeta: document.getElementById('placa-espaco-seta')?.value || 'padrao',
                         formato: this.formatoFolha
                     });
                 });
@@ -3558,39 +3783,70 @@
                 this.renderizarFolha();
             },
 
-            // Gerar o HTML da placa fiel às 3 fotos do usuário
+            // Gerar o HTML da placa fiel às fotos oficiais (Sem NENHUMA sobreposição)
             gerarHtmlPlaca(placa, options = { isPreview: false, index: null, layout: 'single' }) {
                 const l1 = (placa.linha1 || '').trim();
                 const l2 = (placa.linha2 || '').trim();
                 const hasBoth = Boolean(l1 && l2);
                 const fotoUrl = placa.foto || '';
                 const tamanho = document.getElementById('placa-tamanho-fonte')?.value || placa.tamanho || 'auto';
+                const tamanhoSeta = document.getElementById('placa-tamanho-seta')?.value || placa.tamanhoSeta || 'padrao';
+                const espacoSeta = document.getElementById('placa-espaco-seta')?.value || placa.espacoSeta || 'padrao';
 
-                // Determinação de classes tipográficas para fidelidade visual
-                let classeTextoLinha1 = 'placa-texto-linha1';
-                let classeTextoLinha2 = 'placa-texto-linha2';
+                // Cálculo tipográfico inteligente por cqw com base na extensão do texto
+                const len1 = l1.length;
+                const len2 = l2.length;
+                let cqwLinha1, cqwLinha2, cqwSingle;
 
                 if (!hasBoth) {
-                    classeTextoLinha1 = 'placa-texto-single';
-                } else if (tamanho === 'gigante') {
-                    classeTextoLinha1 = 'text-[38px] sm:text-[48px] font-black leading-none';
-                    classeTextoLinha2 = 'text-[32px] sm:text-[42px] font-black leading-none mt-1';
-                } else if (tamanho === 'medio') {
-                    classeTextoLinha1 = 'text-[22px] sm:text-[30px] font-black leading-none';
-                    classeTextoLinha2 = 'text-[18px] sm:text-[26px] font-black leading-none mt-1';
+                    if (len1 <= 7) cqwSingle = 8.4;
+                    else if (len1 <= 12) cqwSingle = 7.0;
+                    else if (len1 <= 18) cqwSingle = 5.6;
+                    else cqwSingle = 4.6;
+                } else {
+                    if (len1 <= 6) cqwLinha1 = 5.8;
+                    else if (len1 <= 11) cqwLinha1 = 5.0;
+                    else if (len1 <= 16) cqwLinha1 = 4.2;
+                    else cqwLinha1 = 3.5;
+
+                    if (len2 <= 6) cqwLinha2 = 5.4;
+                    else if (len2 <= 11) cqwLinha2 = 4.6;
+                    else if (len2 <= 16) cqwLinha2 = 3.8;
+                    else cqwLinha2 = 3.2;
                 }
 
-                // Seta indicadora geométrica sólida idêntica às fotos
-                const setaHtml = `
-                    <div class="placa-seta-box">
-                        <svg viewBox="0 0 100 85" class="placa-seta-svg" xmlns="http://www.w3.org/2000/svg">
-                            <rect x="36" y="0" width="28" height="42" />
-                            <polygon points="8,40 50,82 92,40" />
+                // Modificadores de tamanho manual
+                let mult = 1.0;
+                if (tamanho === 'gigante') mult = 1.18;
+                else if (tamanho === 'grande') mult = 1.08;
+                else if (tamanho === 'medio') mult = 0.88;
+                else if (tamanho === 'pequeno') mult = 0.76;
+
+                const fontStyleLinha1 = hasBoth ? `font-size: clamp(14px, ${(cqwLinha1 * mult).toFixed(2)}cqw, ${Math.round(cqwLinha1 * mult * 8.5)}px);` : '';
+                const fontStyleLinha2 = hasBoth ? `font-size: clamp(12px, ${(cqwLinha2 * mult).toFixed(2)}cqw, ${Math.round(cqwLinha2 * mult * 8.5)}px);` : '';
+                const fontStyleSingle = !hasBoth ? `font-size: clamp(20px, ${(cqwSingle * mult).toFixed(2)}cqw, ${Math.round(cqwSingle * mult * 8.5)}px);` : '';
+
+                // Espaçamento seguro entre texto e seta
+                let paddingTopSeta = 'clamp(6px, 1.6cqw, 14px)';
+                if (espacoSeta === 'afastada') paddingTopSeta = 'clamp(10px, 2.5cqw, 22px)';
+                else if (espacoSeta === 'proxima') paddingTopSeta = 'clamp(4px, 1cqw, 8px)';
+
+                let setaClass = '';
+                if (tamanhoSeta === 'compacta') setaClass = 'seta-pequena';
+                else if (tamanhoSeta === 'grande') setaClass = 'seta-grande';
+                else if (tamanhoSeta === 'oculta') setaClass = 'seta-oculta';
+
+                // Seta indicadora para baixo com proporção fixa e sem sobreposição
+                const setaHtml = tamanhoSeta === 'oculta' ? '' : `
+                    <div class="placa-seta-box ${setaClass}" style="padding-top: ${paddingTopSeta};">
+                        <svg viewBox="0 0 100 80" class="placa-seta-svg" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="36" y="0" width="28" height="38" />
+                            <polygon points="10,36 50,78 90,36" />
                         </svg>
                     </div>
                 `;
 
-                // Círculo com anéis concêntricos duplos
+                // Círculo concêntrico duplo com foto
                 const circuloHtml = `
                     <div class="placa-circulo-externo">
                         <div class="placa-circulo-interno">
@@ -3606,12 +3862,16 @@
                     </div>
                 `;
 
-                // Bloco direito: texto + seta
+                // Bloco direito: texto centralizado no topo/meio + seta empurrada para a base
                 const blocoDireitoHtml = `
                     <div class="placa-bloco-info">
                         <div class="placa-texto-container">
-                            <div class="${classeTextoLinha1}">${l1 || 'IDENTIFICAÇÃO'}</div>
-                            ${hasBoth ? `<div class="${classeTextoLinha2}">${l2}</div>` : ''}
+                            ${hasBoth ? `
+                                <div class="placa-texto-linha1" style="${fontStyleLinha1}">${l1 || 'IDENTIFICAÇÃO'}</div>
+                                <div class="placa-texto-linha2" style="${fontStyleLinha2}">${l2}</div>
+                            ` : `
+                                <div class="placa-texto-single" style="${fontStyleSingle}">${l1 || 'IDENTIFICAÇÃO'}</div>
+                            `}
                         </div>
                         ${setaHtml}
                     </div>
@@ -3671,7 +3931,9 @@
                     linha1: l1 || 'IDENTIFICAÇÃO',
                     linha2: l2,
                     foto: this.currentPlaca.foto || '',
-                    tamanho: document.getElementById('placa-tamanho-fonte')?.value || 'auto',
+                    tamanho: document.getElementById('placa-tamanho-fonte')?.value || this.currentPlaca.tamanho || 'auto',
+                    tamanhoSeta: document.getElementById('placa-tamanho-seta')?.value || this.currentPlaca.tamanhoSeta || 'padrao',
+                    espacoSeta: document.getElementById('placa-espaco-seta')?.value || this.currentPlaca.espacoSeta || 'padrao',
                     formato: this.formatoFolha
                 });
 
@@ -3750,7 +4012,14 @@
             imprimirA4() {
                 // Se a folha estiver vazia, adiciona a placa do preview atual automaticamente
                 if (this.placasFolha.length === 0) {
-                    this.placasFolha.push({ ...this.currentPlaca, id: 'placa_temp_' + Date.now() });
+                    this.placasFolha.push({ 
+                        ...this.currentPlaca, 
+                        tamanho: document.getElementById('placa-tamanho-fonte')?.value || this.currentPlaca.tamanho || 'auto',
+                        tamanhoSeta: document.getElementById('placa-tamanho-seta')?.value || this.currentPlaca.tamanhoSeta || 'padrao',
+                        espacoSeta: document.getElementById('placa-espaco-seta')?.value || this.currentPlaca.espacoSeta || 'padrao',
+                        formato: this.formatoFolha,
+                        id: 'placa_temp_' + Date.now() 
+                    });
                     this.renderizarFolha();
                 }
 
@@ -3763,7 +4032,14 @@
             async baixarPDF(btnElement) {
                 // Se a folha estiver vazia, adiciona a placa atual
                 if (this.placasFolha.length === 0) {
-                    this.placasFolha.push({ ...this.currentPlaca, id: 'placa_temp_' + Date.now() });
+                    this.placasFolha.push({ 
+                        ...this.currentPlaca, 
+                        tamanho: document.getElementById('placa-tamanho-fonte')?.value || this.currentPlaca.tamanho || 'auto',
+                        tamanhoSeta: document.getElementById('placa-tamanho-seta')?.value || this.currentPlaca.tamanhoSeta || 'padrao',
+                        espacoSeta: document.getElementById('placa-espaco-seta')?.value || this.currentPlaca.espacoSeta || 'padrao',
+                        formato: this.formatoFolha,
+                        id: 'placa_temp_' + Date.now() 
+                    });
                     this.renderizarFolha();
                 }
 
