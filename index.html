@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UHE Estrela</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -21,28 +21,240 @@
     <meta name="apple-mobile-web-app-title" content="Estoque">
     <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
     
-    <!-- Estilos para Plaquinhas Customizadas -->
+    <!-- Estilos Oficiais para Placas de Identificação Visual (Materiais Encobertos) -->
     <style>
-        /* Configurações de impressão para folha A4 */
-        @page {
-            size: A4;
-            margin: 10mm;
+        :root {
+            --placa-azul: #002B7F;
+            --placa-branco: #FFFFFF;
         }
-        @media print {
-            .print\\:hidden { display: none !important; }
-            body { background-color: white !important; margin: 0; padding: 0; }
-            #folha-a4 { box-shadow: none !important; margin: 0 !important; width: 100% !important; max-width: none !important; }
-            #custom-plaques-view .bg-white.p-6 { display: none !important; }
+
+        /* Container da Placa de Identificação com proporção 3:2 */
+        .placa-card-render {
+            width: 100%;
+            aspect-ratio: 3 / 2;
+            background-color: var(--placa-branco);
+            box-sizing: border-box;
+            position: relative;
+            user-select: none;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
-        
-        /* Estilos da etiqueta/plaquinha */
-        .etiqueta {
+
+        /* Moldura Externa Grossa com Cantos Arredondados */
+        .placa-moldura-ext {
+            border: 8px solid var(--placa-azul);
+            border-radius: 22px;
+            padding: 8px;
+            box-sizing: border-box;
+            width: 100%;
+            height: 100%;
+            background-color: var(--placa-branco);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Moldura Interna Fina */
+        .placa-moldura-int {
+            border: 2.5px solid var(--placa-azul);
+            border-radius: 14px;
+            padding: 10px 14px;
+            box-sizing: border-box;
+            width: 100%;
+            height: 100%;
+            background-color: var(--placa-branco);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* Linhas Horizontais de Sinalização (Superior e Inferior) */
+        .placa-barra-h {
+            height: 6px;
+            background-color: var(--placa-azul);
+            border-radius: 2px;
+            width: 100%;
+            flex-shrink: 0;
+        }
+
+        /* Área Central entre as Linhas */
+        .placa-corpo-central {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            flex: 1;
+            width: 100%;
+            gap: 16px;
+            min-height: 0;
+            padding: 6px 4px;
+        }
+
+        /* Círculo Duplo com Foto (Lado Esquerdo) */
+        .placa-circulo-externo {
+            height: 88%;
+            aspect-ratio: 1 / 1;
+            border: 3.5px solid var(--placa-azul);
+            border-radius: 50%;
+            padding: 4px;
+            background-color: var(--placa-branco);
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .placa-circulo-interno {
+            width: 100%;
+            height: 100%;
+            border: 6.5px solid var(--placa-azul);
+            border-radius: 50%;
+            background-color: var(--placa-branco);
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .placa-img-prod {
+            width: 86%;
+            height: 86%;
+            object-fit: contain;
+            display: block;
+        }
+
+        /* Bloco Direito: Texto Impactante e Seta */
+        .placa-bloco-info {
+            flex: 1;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            min-width: 0;
+            position: relative;
+        }
+
+        .placa-texto-container {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Anton', 'Bebas Neue', Impact, 'Arial Black', sans-serif;
+            color: var(--placa-azul);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            line-height: 0.95;
+            word-break: break-word;
+        }
+
+        .placa-texto-linha1 {
+            font-size: clamp(24px, 5.5vw, 68px);
+            font-weight: 900;
+        }
+
+        .placa-texto-linha2 {
+            font-size: clamp(20px, 4.8vw, 60px);
+            font-weight: 900;
+            margin-top: 2px;
+        }
+
+        /* Texto Único Gigante (ex: CIMENTO) */
+        .placa-texto-single {
+            font-size: clamp(34px, 8vw, 92px);
+            font-weight: 900;
+            line-height: 0.95;
+        }
+
+        /* Seta Indicadora para Baixo */
+        .placa-seta-box {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 6px;
+            flex-shrink: 0;
+        }
+
+        .placa-seta-svg {
+            width: clamp(42px, 8vw, 84px);
+            height: clamp(34px, 6.5vw, 68px);
+            fill: var(--placa-azul);
+            filter: drop-shadow(0 1px 1px rgba(0,0,0,0.05));
+        }
+
+        /* Placas na Folha de Impressão */
+        .placa-item-folha {
+            position: relative;
+            background: #fff;
             page-break-inside: avoid;
             break-inside: avoid;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+            border-radius: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
         }
-        
-        .etiqueta:hover button {
-            opacity: 1;
+
+        .placa-item-folha:hover {
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        }
+
+        /* Configurações Físicas para Impressão */
+        @media print {
+            @page {
+                size: A4 landscape;
+                margin: 6mm;
+            }
+            body {
+                background: #fff !important;
+                color: #000 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            /* Oculta tudo que não for a área de impressão de placas */
+            #app-container, header, aside, #nav-drawer, #nav-drawer-backdrop,
+            .no-print, .print-hide, #painel-controle-placas, #preview-card-placa {
+                display: none !important;
+            }
+            #custom-plaques-view {
+                display: block !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            #folha-impressao-placas {
+                display: block !important;
+                box-shadow: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 100% !important;
+            }
+            .placa-item-folha {
+                box-shadow: none !important;
+                margin: 0 0 10mm 0 !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                page-break-after: always !important;
+                width: 100% !important;
+                max-width: 282mm !important;
+                height: 188mm !important;
+            }
+            .placa-item-folha.modo-duplo {
+                width: 100% !important;
+                height: 128mm !important;
+                page-break-after: auto !important;
+                margin-bottom: 6mm !important;
+            }
+            .placa-item-folha button {
+                display: none !important;
+            }
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
         }
     </style>
 </head>
@@ -220,8 +432,9 @@
                             <span class="truncate">Gerar Plaquinhas</span>
                         </button>
                         <button data-view="custom-plaques-view" type="button" class="tab-btn">
-                            <span class="nav-icon"><span class="material-symbols-outlined text-[18px]">sell</span></span>
-                            <span class="truncate">Plaquinhas Custom</span>
+                            <span class="nav-icon text-blue-700 bg-blue-50 border border-blue-200"><span class="material-symbols-outlined text-[18px]">signpost</span></span>
+                            <span class="truncate flex-1 text-left font-semibold">Placas de Identificação</span>
+                            <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 shrink-0">MODELO NOVO</span>
                         </button>
                         <p id="nav-section-estrela" class="hidden"></p>
                         <button id="nav-btn-estrela" data-view="estrela-view" type="button" class="tab-btn">
@@ -1055,128 +1268,256 @@
                     </div>
                 </div>
 
-                <!-- PLAQUINHAS CUSTOMIZADAS VIEW -->
+                <!-- ═══════════════════════════════════════════════════════ -->
+                <!-- PLACAS DE IDENTIFICAÇÃO VISUAL (MATERIAIS ENCOBERTOS)   -->
+                <!-- ═══════════════════════════════════════════════════════ -->
                 <div id="custom-plaques-view" class="view-content hidden">
-                    <div class="space-y-6">
-                        <!-- TAB MANUAL (CUSTOMIZADO) -->
-                        <div id="manual-panel" class="space-y-4">
-                            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                                <h2 class="text-2xl font-semibold text-slate-800 mb-6">Gerador de Plaquinhas Customizadas</h2>
-                            
-                            <!-- Modal Customizado para Alertas -->
-                            <div id="custom-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 transition-opacity">
-                                <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
-                                    <p id="modal-message" class="text-gray-800 text-lg mb-6 font-medium"></p>
-                                    <div id="modal-buttons" class="flex justify-center gap-3"></div>
-                                </div>
-                            </div>
-
-                            <!-- BUSCA RÁPIDA: preencher formulário automaticamente -->
-                            <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
-                                <h3 class="text-sm font-semibold text-blue-800 mb-3">🔍 Buscar Produto no Estoque</h3>
-                                <div class="relative">
-                                    <input type="text" id="quick-search" placeholder="Digite o nome do produto..." autocomplete="off" class="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500/40 text-sm">
-                                    <div id="quick-search-results" class="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto hidden"></div>
-                                </div>
-                                <p class="text-xs text-blue-600 mt-2">Clique no produto para preencher foto e nome automaticamente no formulário abaixo.</p>
-                            </div>
-
-                            <form id="form-etiqueta" class="space-y-4">
-                                <!-- Imagens -->
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Imagem do Item (Até 10 fotos)</label>
-                                    <div id="dropzone-item" class="border-2 border-dashed border-gray-300 rounded-md p-6 text-center cursor-pointer hover:bg-blue-50 transition relative bg-gray-50">
-                                        <input type="file" id="img-item" accept="image/*" multiple class="hidden">
-                                        
-                                        <div id="placeholder-item" class="text-gray-500 text-sm pointer-events-none">
-                                            <svg class="mx-auto h-8 w-8 mb-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                                            <p>Clique, arraste ou <strong class="text-blue-600">cole</strong> até 10 fotos aqui</p>
+                    <!-- Cabeçalho Principal da Aba -->
+                    <div class="bg-white rounded-2xl border border-slate-200/80 p-5 mb-6 shadow-xs print:hidden">
+                        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                            <div>
+                                <div class="flex items-center gap-2.5">
+                                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-700 to-indigo-800 text-white flex items-center justify-center shadow-md shadow-blue-700/20">
+                                        <span class="material-symbols-outlined text-[22px]">signpost</span>
+                                    </div>
+                                    <div>
+                                        <div class="flex items-center gap-2">
+                                            <h2 class="text-xl sm:text-2xl font-extrabold text-slate-800 tracking-tight">Placas de Identificação</h2>
+                                            <span class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">Modelo Oficial 5S</span>
                                         </div>
+                                        <p class="text-xs sm:text-sm text-slate-500 mt-0.5">Placas industriais de alta visibilidade para identificação de paletes, prateleiras e materiais encobertos.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Ações Rápidas de Impressão e Download -->
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button type="button" onclick="window.placasApp?.imprimirA4?.()" class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs sm:text-sm transition shadow-sm cursor-pointer" title="Imprimir direto em folha A4">
+                                    <span class="material-symbols-outlined text-[18px]">print</span>
+                                    <span>Imprimir A4</span>
+                                </button>
+                                <button type="button" id="btn-baixar-pdf-placas" onclick="window.placasApp?.baixarPDF?.(this)" class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 active:scale-95 text-white font-bold text-xs sm:text-sm transition shadow-sm cursor-pointer" title="Baixar folha completa em PDF">
+                                    <span class="material-symbols-outlined text-[18px]">picture_as_pdf</span>
+                                    <span id="txt-btn-pdf">Baixar PDF</span>
+                                </button>
+                                <button type="button" onclick="window.placasApp?.baixarPNGPreview?.()" class="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-bold text-xs sm:text-sm transition border border-slate-200 cursor-pointer" title="Baixar imagem PNG da placa em alta definição">
+                                    <span class="material-symbols-outlined text-[18px]">image</span>
+                                    <span>Baixar Imagem PNG</span>
+                                </button>
+                                <button type="button" onclick="window.placasApp?.confirmarLimpeza?.()" class="p-2.5 rounded-xl text-red-600 hover:bg-red-50 active:scale-95 transition border border-red-100 cursor-pointer" title="Limpar folha inteira">
+                                    <span class="material-symbols-outlined text-[20px]">delete_sweep</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
 
-                                        <div id="preview-container-item" class="hidden flex-col items-center w-full">
-                                            <div id="preview-grid" class="flex flex-wrap gap-2 justify-center mb-2 w-full"></div>
-                                            <div class="text-xs text-gray-500 mb-2 font-medium" id="preview-count"></div>
-                                            <button type="button" onclick="window.customPlaquesApp?.removerImagensItem?.(event)" class="text-xs text-red-600 font-medium hover:underline bg-red-50 px-3 py-1 rounded z-10 relative">Remover Todas</button>
+                    <!-- Modal Customizado de Alertas / Confirmação -->
+                    <div id="placas-custom-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 transition-opacity print:hidden">
+                        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-sm w-full mx-4 text-center border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
+                            <div class="w-12 h-12 rounded-full bg-blue-50 text-blue-700 flex items-center justify-center mx-auto mb-3">
+                                <span class="material-symbols-outlined text-[26px]">info</span>
+                            </div>
+                            <p id="placas-modal-message" class="text-slate-800 text-sm sm:text-base font-semibold mb-6"></p>
+                            <div id="placas-modal-buttons" class="flex justify-center gap-2.5"></div>
+                        </div>
+                    </div>
+
+                    <!-- Layout Principal em 2 Colunas -->
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 print:hidden">
+                        <!-- COLUNA ESQUERDA: Painel de Controle e Modos (5 colunas) -->
+                        <div class="lg:col-span-5 space-y-4">
+                            <!-- Card de Configuração e Criação -->
+                            <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
+                                <!-- Seletor de Modos (Estoque / Manual / Lote) -->
+                                <div class="flex p-1 bg-slate-100 rounded-xl mb-4 text-xs font-bold">
+                                    <button type="button" id="tab-modo-estoque" onclick="window.placasApp?.setModo('estoque')" class="flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 bg-white text-blue-700 shadow-xs">
+                                        <span class="material-symbols-outlined text-[16px]">inventory_2</span>
+                                        <span>Do Estoque</span>
+                                    </button>
+                                    <button type="button" id="tab-modo-manual" onclick="window.placasApp?.setModo('manual')" class="flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 text-slate-600 hover:text-slate-900">
+                                        <span class="material-symbols-outlined text-[16px]">edit_note</span>
+                                        <span>Manual</span>
+                                    </button>
+                                    <button type="button" id="tab-modo-lote" onclick="window.placasApp?.setModo('lote')" class="flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 text-slate-600 hover:text-slate-900">
+                                        <span class="material-symbols-outlined text-[16px]">library_add</span>
+                                        <span>Em Lote</span>
+                                    </button>
+                                </div>
+
+                                <!-- PAINEL 1: DO ESTOQUE (AUTOMÁTICO) -->
+                                <div id="painel-modo-estoque" class="space-y-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                                            🔍 Buscar Material no Estoque
+                                        </label>
+                                        <div class="relative">
+                                            <input type="text" id="placa-busca-estoque" placeholder="Digite o nome do produto (ex: Cimento, Grout, Kanaflex)..." autocomplete="off" class="w-full pl-9 pr-8 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600 outline-none transition">
+                                            <span class="material-symbols-outlined absolute left-2.5 top-2.5 text-slate-400 text-[18px]">search</span>
+                                            <button type="button" id="btn-limpar-busca-estoque" onclick="window.placasApp?.limparBuscaEstoque()" class="hidden absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600">
+                                                <span class="material-symbols-outlined text-[18px]">close</span>
+                                            </button>
+                                            <!-- Lista Suspensa de Resultados -->
+                                            <div id="placa-resultados-estoque" class="hidden absolute z-30 w-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl max-h-72 overflow-y-auto divide-y divide-slate-100"></div>
+                                        </div>
+                                        <p class="text-[11px] text-slate-400 mt-1">Ao selecionar, o nome e a foto do cadastro são carregados automaticamente.</p>
+                                    </div>
+
+                                    <!-- Sugestões Rápidas de Produtos com Foto -->
+                                    <div class="pt-2">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Produtos com foto</span>
+                                            <span id="placas-qtd-com-foto" class="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">0 itens</span>
+                                        </div>
+                                        <div id="placas-atalhos-produtos" class="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pr-1">
+                                            <!-- Inserido dinamicamente via JS -->
                                         </div>
                                     </div>
                                 </div>
 
-                                <!-- Logo -->
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Logo (Opcional)</label>
-                                    <input type="file" id="img-logo" accept="image/*" class="mt-2 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-gray-50 file:text-gray-700 hover:file:bg-gray-100 transition">
+                                <!-- PAINEL 2: CRIAÇÃO MANUAL -->
+                                <div id="painel-modo-manual" class="space-y-3.5 hidden">
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                                            Linha 1 do Nome (Texto Principal)
+                                        </label>
+                                        <input type="text" id="placa-input-linha1" placeholder="Ex: SIKA, CIMENTO, KANAFLEX 3/4..." class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600 outline-none font-bold uppercase tracking-wide transition">
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                                            Linha 2 do Nome (Opcional)
+                                        </label>
+                                        <input type="text" id="placa-input-linha2" placeholder="Ex: GROUT, ELETRODUTO, CPII F-32..." class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600 outline-none font-bold uppercase tracking-wide transition">
+                                        <p class="text-[11px] text-slate-400 mt-1">Se preenchido, o texto se divide em 2 linhas com tamanho balanceado.</p>
+                                    </div>
+
+                                    <!-- Dropzone para Foto Manual -->
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                                            Foto do Material
+                                        </label>
+                                        <div id="placa-dropzone" class="border-2 border-dashed border-slate-300 rounded-xl p-4 text-center cursor-pointer hover:bg-blue-50/50 hover:border-blue-400 transition bg-slate-50/60 relative">
+                                            <input type="file" id="placa-file-input" accept="image/*" class="hidden">
+                                            
+                                            <div id="placa-dropzone-placeholder" class="py-2">
+                                                <span class="material-symbols-outlined text-[32px] text-blue-600 mb-1">add_photo_alternate</span>
+                                                <p class="text-xs font-bold text-slate-700">Clique, arraste ou <span class="text-blue-700 underline">cole (Ctrl+V)</span> a foto aqui</p>
+                                                <p class="text-[10px] text-slate-400 mt-0.5">Formatos suportados: PNG, JPG, WebP</p>
+                                            </div>
+
+                                            <div id="placa-dropzone-preview" class="hidden flex-col items-center">
+                                                <div class="w-20 h-20 rounded-full border-2 border-blue-700 p-1 bg-white shadow-xs mb-2 flex items-center justify-center overflow-hidden">
+                                                    <img id="placa-dropzone-img" src="" alt="Preview" class="max-w-full max-h-full object-contain">
+                                                </div>
+                                                <button type="button" onclick="window.placasApp?.removerFotoManual(event)" class="text-xs text-red-600 font-bold hover:underline bg-red-50 px-2.5 py-1 rounded-lg">
+                                                    Remover Foto
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <!-- Textos -->
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Textos Separados por Vírgula</label>
-                                    <textarea id="texto-item" rows="2" class="mt-2 p-2 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="Ex: MARTELO, ALICATE, CHAVE... (A ordem dos nomes seguirá a ordem das fotos)"></textarea>
-                                    <p class="text-xs text-gray-500 mt-1">Coloque um nome para cada foto adicionada, separando por vírgula.</p>
-                                </div>
-
-                                <!-- Estilo -->
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Estilo do Texto</label>
-                                    <select id="estilo-texto" class="mt-2 p-2 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                                        <option value="nome">Nome Completo (Texto Menor)</option>
-                                        <option value="tamanho">Apenas Tamanho (Texto Gigante)</option>
-                                    </select>
-                                </div>
-
-                                <!-- Botão Adicionar -->
-                                <button type="button" onclick="window.customPlaquesApp?.adicionarPlaquinha?.()" class="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 transition font-bold shadow-sm text-lg">
-                                    Adicionar à Folha
-                                </button>
-                            </form>
-
-                            <hr class="my-6 border-gray-200">
-
-                            <!-- Ações -->
-                            <div class="flex flex-col gap-2">
-                                <div class="flex gap-2">
-                                    <button onclick="window.print()" class="flex-1 bg-green-600 text-white py-2 px-3 rounded-md hover:bg-green-700 transition font-medium shadow-sm flex justify-center items-center gap-2 text-sm">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M2.5 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z"/><path d="M5 1a2 2 0 0 0-2 2v2H2a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h1v1a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-1h1a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2H5zM4 3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2H4V3zm1 5a2 2 0 0 0-2 2v1H2a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v-1a2 2 0 0 0-2-2H5zm7 2v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1z"/></svg>
-                                        Imprimir A4
+                                <!-- PAINEL 3: EM LOTE (MÚLTIPLOS) -->
+                                <div id="painel-modo-lote" class="space-y-3.5 hidden">
+                                    <div class="flex gap-2">
+                                        <input type="text" id="placa-lote-filtro" placeholder="Filtrar por nome..." class="flex-1 px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-600/30">
+                                        <button type="button" onclick="window.placasApp?.selecionarTodosLote()" class="px-2.5 py-1.5 text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition">Marcar Todos</button>
+                                        <button type="button" onclick="window.placasApp?.limparSelecaoLote()" class="px-2.5 py-1.5 text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition">Limpar</button>
+                                    </div>
+                                    <div class="flex items-center justify-between text-xs font-bold text-slate-600 px-1">
+                                        <span><span id="placa-lote-contador">0</span> item(ns) selecionado(s)</span>
+                                    </div>
+                                    <div id="placa-lote-lista" class="max-h-60 overflow-y-auto space-y-1 p-2 bg-slate-50 border border-slate-200 rounded-xl divide-y divide-slate-100">
+                                        <!-- Inserido dinamicamente via JS -->
+                                    </div>
+                                    <button type="button" id="btn-adicionar-lote" onclick="window.placasApp?.adicionarLoteAFolha()" disabled class="w-full py-2.5 px-4 rounded-xl bg-blue-700 text-white font-bold text-sm hover:bg-blue-800 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 cursor-pointer">
+                                        <span class="material-symbols-outlined text-[18px]">playlist_add</span>
+                                        <span>Adicionar Selecionados à Folha</span>
                                     </button>
-                                    <button onclick="window.customPlaquesApp?.baixarPDF?.(this)" class="flex-1 bg-blue-800 text-white py-2 px-3 rounded-md hover:bg-blue-900 transition font-medium shadow-sm flex justify-center items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M14 4.5V14a2 2 0 0 1-2 2h-1v-1h1a1 1 0 0 0 1-1V4.5h-2A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v9H2V2a2 2 0 0 1 2-2h5.5L14 4.5ZM5.76 15.27a.5.5 0 0 1-.5.5.5.5 0 0 1-.5-.5V10.5a.5.5 0 0 1 .5-.5.5.5 0 0 1 .5.5v4.77ZM8 10.5a.5.5 0 0 1 .5.5v3.793l1.146-1.147a.5.5 0 0 1 .708.708l-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 0 1 .708-.708L7.5 14.793V11a.5.5 0 0 1 .5-.5Z"/></svg>
-                                        <span>Baixar PDF</span>
+                                </div>
+
+                                <!-- CONTROLES COMPARTILHADOS: Ajustes e Formato -->
+                                <div class="pt-4 border-t border-slate-100 space-y-3">
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Tamanho do Texto</label>
+                                            <select id="placa-tamanho-fonte" onchange="window.placasApp?.atualizarPreview()" class="w-full p-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg outline-none">
+                                                <option value="auto">Automático (Ideal)</option>
+                                                <option value="gigante">Gigante</option>
+                                                <option value="grande">Grande</option>
+                                                <option value="medio">Médio</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Folha de Impressão</label>
+                                            <select id="placa-formato-folha" onchange="window.placasApp?.atualizarFormatoFolha()" class="w-full p-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg outline-none">
+                                                <option value="single">1 Placa por Folha A4 (Grande)</option>
+                                                <option value="duplo">2 Placas por Folha A4 (Médio)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- Botão Principal: Adicionar à Folha -->
+                                    <button type="button" onclick="window.placasApp?.adicionarAtualAFolha()" class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-800 hover:to-indigo-800 active:scale-98 text-white font-extrabold text-sm sm:text-base shadow-md shadow-blue-700/25 transition flex items-center justify-center gap-2 cursor-pointer">
+                                        <span class="material-symbols-outlined text-[20px]">add_circle</span>
+                                        <span>Adicionar à Folha de Impressão</span>
                                     </button>
                                 </div>
-                                <button onclick="window.customPlaquesApp?.confirmarLimpeza?.()" class="w-full bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 transition font-medium shadow-sm flex justify-center items-center gap-2 text-sm mt-1">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
-                                    Limpar Folha Inteira
-                                </button>
-                            </div>
-                        </div>
-                        </div>
-
-                        <!-- ADICIONAR MÚLTIPLOS DO ESTOQUE -->
-                        <div class="bg-white p-4 rounded-xl border border-slate-200">
-                            <h3 class="text-sm font-semibold text-slate-700 mb-3">📦 Adicionar Múltiplos do Estoque</h3>
-                            <div class="flex gap-2 mb-3 flex-wrap">
-                                <input type="text" id="multi-search" placeholder="🔍 Buscar por nome..." class="flex-1 min-w-[160px] px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/40">
-                                <button id="multi-select-all" type="button" class="px-3 py-1.5 bg-blue-100 text-blue-600 font-medium rounded-lg hover:bg-blue-200 text-sm cursor-pointer">Selecionar Tudo</button>
-                                <button id="multi-clear-all" type="button" class="px-3 py-1.5 bg-slate-100 text-slate-600 font-medium rounded-lg hover:bg-slate-200 text-sm cursor-pointer">Limpar Seleção</button>
-                            </div>
-                            <div class="flex items-center justify-between mb-3">
-                                <span class="text-sm font-semibold text-slate-600"><span id="multi-selected-count">0</span> produto(s) selecionado(s)</span>
-                                <button id="multi-add-btn" disabled class="bg-blue-600 text-white font-bold py-1.5 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm cursor-pointer flex items-center gap-1.5">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M6.271 5.055a.5.5 0 0 1 .52.038l3.5 2.5a.5.5 0 0 1 0 .814l-3.5 2.5A.5.5 0 0 1 6 10.5v-5a.5.5 0 0 1 .271-.445z"/></svg>
-                                    Adicionar à Folha
-                                </button>
-                            </div>
-                            <div id="multi-products-list" class="max-h-60 overflow-y-auto space-y-1 border border-slate-100 rounded-lg p-2 bg-slate-50">
-                                <p class="text-slate-400 text-sm text-center py-4">Carregando produtos...</p>
                             </div>
                         </div>
 
-                        <!-- Área de Visualização A4 -->
-                        <div class="flex justify-center">
-                            <div id="folha-a4" class="bg-white shadow-xl p-0 flex flex-wrap content-start" style="width:210mm; min-height:297mm;">
-                                <!-- Etiquetas serão inseridas aqui -->
+                        <!-- COLUNA DIREITA: Live Preview + Folha de Impressão (7 colunas) -->
+                        <div class="lg:col-span-7 space-y-6">
+                            <!-- CARD DO LIVE PREVIEW -->
+                            <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
+                                <div class="flex items-center justify-between mb-3">
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                        <h3 class="text-xs font-black uppercase tracking-wider text-slate-700">Pré-visualização em Tempo Real</h3>
+                                    </div>
+                                    <button type="button" onclick="window.placasApp?.baixarPNGPreview()" class="text-xs font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer">
+                                        <span class="material-symbols-outlined text-[16px]">download</span>
+                                        <span>Baixar PNG</span>
+                                    </button>
+                                </div>
+
+                                <!-- Moldura da Placa Renderizada em Tempo Real -->
+                                <div class="bg-slate-100/70 p-3 sm:p-5 rounded-2xl border border-slate-200/60 flex items-center justify-center">
+                                    <div id="preview-render-target" class="w-full max-w-[620px]">
+                                        <!-- O HTML da placa viva é montado aqui -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- CARD DA FOLHA DE IMPRESSÃO / LISTA DE PLACAS -->
+                            <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
+                                <div class="flex items-center justify-between mb-4">
+                                    <div>
+                                        <h3 class="text-sm font-extrabold text-slate-800">Folha de Impressão / Fila de Placas</h3>
+                                        <p class="text-xs text-slate-400">Placas adicionadas que serão impressas juntas ou baixadas no PDF.</p>
+                                    </div>
+                                    <span id="placas-folha-badge" class="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-extrabold">
+                                        0 placa(s) na folha
+                                    </span>
+                                </div>
+
+                                <!-- Lista de Placas Adicionadas na Folha -->
+                                <div id="folha-lista-cards" class="space-y-4">
+                                    <!-- Estado vazio -->
+                                    <div id="folha-vazia-placeholder" class="text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                                        <span class="material-symbols-outlined text-[42px] text-slate-300 mb-1">dashboard_customize</span>
+                                        <p class="text-sm font-semibold text-slate-600">Nenhuma placa adicionada na folha ainda.</p>
+                                        <p class="text-xs text-slate-400 mt-0.5">Selecione um produto do estoque ou crie manualmente e clique em "Adicionar à Folha".</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- ═══════════════════════════════════════════════════════ -->
+                    <!-- CONTAINER EXCLUSIVO DE IMPRESSÃO FÍSICA (A4)           -->
+                    <!-- ═══════════════════════════════════════════════════════ -->
+                    <div id="folha-impressao-placas" class="hidden print:block">
+                        <!-- Placas inseridas aqui na hora da impressão física -->
                     </div>
                 </div>
 
@@ -2661,8 +3002,8 @@
                 <span class="text-xs font-semibold" style="color:#414754;">Plaquinhas</span>
             </button>
             <button data-view="custom-plaques-view" class="drawer-btn flex flex-col items-center justify-center gap-1.5 p-4 rounded-2xl" style="background:#fff;">
-                <span class="material-symbols-outlined" style="font-size:26px; color:#4f46e5;">sell</span>
-                <span class="text-xs font-semibold" style="color:#414754;">Customizado</span>
+                <span class="material-symbols-outlined" style="font-size:26px; color:#002B7F;">signpost</span>
+                <span class="text-xs font-semibold text-center" style="color:#414754;">Placas Identificação</span>
             </button>
             <button data-view="dead-stock-view" class="drawer-btn flex flex-col items-center justify-center gap-1.5 p-4 rounded-2xl" style="background:#fff;">
                 <span class="material-symbols-outlined" style="font-size:26px; color:#d97706;">local_offer</span>
@@ -2754,131 +3095,745 @@
     <script type="module" src="assets/js/main.js?v=2.1.1"></script>
 
     <!-- Script Gerador de Plaquinhas Customizadas -->
+    <!-- Script Oficial de Placas de Identificação Visual (Materiais Encobertos) -->
     <script>
-        // App de Plaquinhas Customizadas
-        window.customPlaquesApp = {
-            imagensItens: [],
+        window.placasApp = {
+            modoAtual: 'estoque', // 'estoque' | 'manual' | 'lote'
             productsCache: [],
-            selectedMultipleIds: new Set(),
+            placasFolha: [],
+            selectedLoteIds: new Set(),
+            formatoFolha: 'single', // 'single' (1 por A4) | 'duplo' (2 por A4)
+            
+            // Placa atualmente em edição/preview
+            currentPlaca: {
+                linha1: 'SIKA',
+                linha2: 'GROUT',
+                foto: '',
+                tamanho: 'auto',
+                origem: 'manual'
+            },
 
-            // Carregar produtos do estoque para busca e multi-select
+            init() {
+                this.setupEventListeners();
+                this.carregarProdutosCache();
+                this.renderizarPreview();
+                this.renderizarFolha();
+            },
+
+            setupEventListeners() {
+                // Dropzone de foto manual
+                const dropzone = document.getElementById('placa-dropzone');
+                const fileInput = document.getElementById('placa-file-input');
+
+                if (dropzone && fileInput) {
+                    dropzone.addEventListener('click', (e) => {
+                        if (e.target.tagName !== 'BUTTON') fileInput.click();
+                    });
+
+                    fileInput.addEventListener('change', async (e) => {
+                        if (e.target.files && e.target.files[0]) {
+                            await this.processarArquivoFoto(e.target.files[0]);
+                        }
+                    });
+
+                    dropzone.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        dropzone.classList.add('border-blue-600', 'bg-blue-50/70');
+                    });
+                    dropzone.addEventListener('dragleave', (e) => {
+                        e.preventDefault();
+                        dropzone.classList.remove('border-blue-600', 'bg-blue-50/70');
+                    });
+                    dropzone.addEventListener('drop', async (e) => {
+                        e.preventDefault();
+                        dropzone.classList.remove('border-blue-600', 'bg-blue-50/70');
+                        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                            await this.processarArquivoFoto(e.dataTransfer.files[0]);
+                        }
+                    });
+                }
+
+                // Colagem direta de imagem com Ctrl+V
+                document.addEventListener('paste', async (e) => {
+                    // Só atua se a view de placas estiver visível
+                    const view = document.getElementById('custom-plaques-view');
+                    if (!view || view.classList.contains('hidden')) return;
+
+                    const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
+                    if (!items) return;
+
+                    for (let i = 0; i < items.length; i++) {
+                        if (items[i].kind === 'file' && items[i].type.startsWith('image/')) {
+                            const file = items[i].getAsFile();
+                            if (file) {
+                                await this.processarArquivoFoto(file);
+                                if (this.modoAtual !== 'manual') this.setModo('manual');
+                                break;
+                            }
+                        }
+                    }
+                });
+
+                // Inputs manuais de texto
+                const inLinha1 = document.getElementById('placa-input-linha1');
+                const inLinha2 = document.getElementById('placa-input-linha2');
+
+                if (inLinha1) {
+                    inLinha1.addEventListener('input', (e) => {
+                        this.currentPlaca.linha1 = e.target.value.toUpperCase();
+                        this.atualizarPreview();
+                    });
+                }
+
+                if (inLinha2) {
+                    inLinha2.addEventListener('input', (e) => {
+                        this.currentPlaca.linha2 = e.target.value.toUpperCase();
+                        this.atualizarPreview();
+                    });
+                }
+
+                // Busca rápida do estoque
+                const inBusca = document.getElementById('placa-busca-estoque');
+                const boxResultados = document.getElementById('placa-resultados-estoque');
+                const btnLimpar = document.getElementById('btn-limpar-busca-estoque');
+
+                if (inBusca && boxResultados) {
+                    inBusca.addEventListener('input', (e) => {
+                        const termo = e.target.value.trim();
+                        if (btnLimpar) btnLimpar.classList.toggle('hidden', !termo);
+                        this.filtrarResultadosEstoque(termo);
+                    });
+
+                    document.addEventListener('click', (e) => {
+                        if (!e.target.closest('#placa-busca-estoque') && !e.target.closest('#placa-resultados-estoque')) {
+                            boxResultados.classList.add('hidden');
+                        }
+                    });
+                }
+
+                // Filtro do modo em lote
+                const inFiltroLote = document.getElementById('placa-lote-filtro');
+                if (inFiltroLote) {
+                    inFiltroLote.addEventListener('input', (e) => {
+                        this.renderizarListaLote(e.target.value);
+                    });
+                }
+            },
+
+            // Alternar modos (Estoque / Manual / Lote)
+            setModo(modo) {
+                this.modoAtual = modo;
+                ['estoque', 'manual', 'lote'].forEach(m => {
+                    const btn = document.getElementById(`tab-modo-${m}`);
+                    const painel = document.getElementById(`painel-modo-${m}`);
+                    const isActive = m === modo;
+
+                    if (btn) {
+                        btn.className = isActive
+                            ? 'flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 bg-white text-blue-700 shadow-xs'
+                            : 'flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 text-slate-600 hover:text-slate-900';
+                    }
+                    if (painel) {
+                        painel.classList.toggle('hidden', !isActive);
+                    }
+                });
+
+                if (modo === 'lote') {
+                    this.renderizarListaLote();
+                }
+            },
+
+            // Carregar cache de produtos do estoque global
             carregarProdutosCache() {
                 if (typeof products !== 'undefined' && Array.isArray(products)) {
                     this.productsCache = [...products];
-                    this.renderizarListaMulti(document.getElementById('multi-search')?.value || '');
+                } else if (typeof window.products !== 'undefined' && Array.isArray(window.products)) {
+                    this.productsCache = [...window.products];
                 }
+                this.renderizarAtalhosProdutos();
+                if (this.modoAtual === 'lote') this.renderizarListaLote();
             },
 
-            // Preencher formulário com dados de um produto (busca rápida)
-            selecionarProdutoForm(productId) {
-                const product = this.productsCache.find(p => String(p.id) === String(productId));
-                if (!product) return;
-
-                if (product.image) {
-                    this.imagensItens = [product.image];
-                    this.renderizarPreviews();
-                }
-
-                document.getElementById('texto-item').value = product.name || '';
+            // Processar arquivo de foto
+            lerArquivoComoBase64(file) {
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.onerror = () => resolve(null);
+                    reader.readAsDataURL(file);
+                });
             },
 
-            // Renderizar lista de produtos para seleção múltipla
-            renderizarListaMulti(filtro = '') {
-                const container = document.getElementById('multi-products-list');
-                if (!container) return;
+            async processarArquivoFoto(file) {
+                const base64 = await this.lerArquivoComoBase64(file);
+                if (!base64) return;
 
-                let produtos = this.productsCache;
-                if (filtro.trim()) {
-                    const termo = filtro.toLowerCase().trim();
-                    produtos = produtos.filter(p => p.name.toLowerCase().includes(termo));
+                this.currentPlaca.foto = base64;
+                
+                // Atualizar preview no dropzone
+                const placeholder = document.getElementById('placa-dropzone-placeholder');
+                const previewContainer = document.getElementById('placa-dropzone-preview');
+                const previewImg = document.getElementById('placa-dropzone-img');
+
+                if (placeholder && previewContainer && previewImg) {
+                    placeholder.classList.add('hidden');
+                    previewContainer.classList.remove('hidden');
+                    previewContainer.classList.add('flex');
+                    previewImg.src = base64;
                 }
 
-                if (produtos.length === 0) {
-                    container.innerHTML = '<p class="text-slate-400 text-sm text-center py-4">Nenhum produto encontrado.</p>';
+                this.atualizarPreview();
+            },
+
+            removerFotoManual(event) {
+                if (event) event.stopPropagation();
+                this.currentPlaca.foto = '';
+                const fileInput = document.getElementById('placa-file-input');
+                if (fileInput) fileInput.value = '';
+
+                const placeholder = document.getElementById('placa-dropzone-placeholder');
+                const previewContainer = document.getElementById('placa-dropzone-preview');
+                if (placeholder && previewContainer) {
+                    placeholder.classList.remove('hidden');
+                    previewContainer.classList.add('hidden');
+                    previewContainer.classList.remove('flex');
+                }
+
+                this.atualizarPreview();
+            },
+
+            // Buscar produtos no estoque
+            limparBuscaEstoque() {
+                const inBusca = document.getElementById('placa-busca-estoque');
+                const box = document.getElementById('placa-resultados-estoque');
+                const btn = document.getElementById('btn-limpar-busca-estoque');
+                if (inBusca) inBusca.value = '';
+                if (box) box.classList.add('hidden');
+                if (btn) btn.classList.add('hidden');
+            },
+
+            filtrarResultadosEstoque(termo) {
+                const box = document.getElementById('placa-resultados-estoque');
+                if (!box) return;
+
+                if (!termo) {
+                    box.classList.add('hidden');
                     return;
                 }
 
-                container.innerHTML = produtos.map(p => `
-                    <label class="flex items-center gap-3 p-2 rounded-lg hover:bg-white cursor-pointer transition">
-                        <input type="checkbox" data-product-id="${p.id}" class="multi-product-checkbox w-4 h-4 accent-blue-600" ${this.selectedMultipleIds.has(p.id) ? 'checked' : ''}>
-                        <div class="flex-1 min-w-0">
-                            <p class="font-medium text-slate-800 truncate text-sm">${p.name}</p>
-                            <p class="text-xs text-slate-500">Qtd: ${p.quantity || 0}</p>
+                const termoLower = termo.toLowerCase();
+                const filtrados = this.productsCache.filter(p => {
+                    const nome = (p.name || '').toLowerCase();
+                    const cod = String(p.rmCode || p.code || '').toLowerCase();
+                    return nome.includes(termoLower) || cod.includes(termoLower);
+                }).slice(0, 15);
+
+                if (filtrados.length === 0) {
+                    box.innerHTML = '<div class="p-4 text-xs text-slate-400 text-center font-medium">Nenhum produto encontrado.</div>';
+                    box.classList.remove('hidden');
+                    return;
+                }
+
+                box.innerHTML = filtrados.map(p => `
+                    <div onclick="window.placasApp.selecionarProdutoEstoque('${p.id}')" class="p-2.5 hover:bg-blue-50/80 cursor-pointer flex items-center justify-between gap-3 transition">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <div class="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                                ${p.image ? `<img src="${p.image}" class="w-full h-full object-contain" onerror="this.src=''">` : `<span class="material-symbols-outlined text-slate-400 text-[18px]">inventory_2</span>`}
+                            </div>
+                            <div class="min-w-0">
+                                <p class="text-xs font-bold text-slate-800 truncate">${p.name || 'Produto Sem Nome'}</p>
+                                <p class="text-[10px] text-slate-400">Cód: ${p.rmCode || p.code || 'S/C'} · Qtd: ${p.quantity ?? 0} ${p.unit || ''}</p>
+                            </div>
+                        </div>
+                        <span class="material-symbols-outlined text-blue-600 text-[18px] shrink-0">arrow_forward</span>
+                    </div>
+                `).join('');
+
+                box.classList.remove('hidden');
+            },
+
+            // Selecionar produto do estoque para montar a placa
+            selecionarProdutoEstoque(productId) {
+                const produto = this.productsCache.find(p => String(p.id) === String(productId));
+                if (!produto) return;
+
+                this.aplicarProdutoNaPlaca(produto);
+                this.limparBuscaEstoque();
+            },
+
+            aplicarProdutoNaPlaca(produto) {
+                const nomeCompleto = (produto.name || '').trim();
+                const partes = this.quebrarNomeInteligente(nomeCompleto);
+
+                this.currentPlaca = {
+                    linha1: partes.linha1.toUpperCase(),
+                    linha2: partes.linha2.toUpperCase(),
+                    foto: produto.image || '',
+                    tamanho: 'auto',
+                    origem: 'estoque'
+                };
+
+                // Atualiza campos do modo manual caso o usuário queira refinar
+                const inLinha1 = document.getElementById('placa-input-linha1');
+                const inLinha2 = document.getElementById('placa-input-linha2');
+                if (inLinha1) inLinha1.value = this.currentPlaca.linha1;
+                if (inLinha2) inLinha2.value = this.currentPlaca.linha2;
+
+                this.atualizarPreview();
+            },
+
+            // Quebra inteligente do nome em 2 linhas equilibradas
+            quebrarNomeInteligente(nome) {
+                if (!nome) return { linha1: 'PRODUTO', linha2: '' };
+                const palavras = nome.split(/\s+/).filter(Boolean);
+                if (palavras.length === 1) return { linha1: palavras[0], linha2: '' };
+
+                // Se tiver 2 palavras (ex: SIKA GROUT)
+                if (palavras.length === 2) {
+                    return { linha1: palavras[0], linha2: palavras[1] };
+                }
+
+                // Mais de 2 palavras: divide ao meio
+                const pontoMedio = Math.ceil(palavras.length / 2);
+                const l1 = palavras.slice(0, pontoMedio).join(' ');
+                const l2 = palavras.slice(pontoMedio).join(' ');
+                return { linha1: l1, linha2: l2 };
+            },
+
+            // Renderizar atalhos rápidos com produtos que possuem foto
+            renderizarAtalhosProdutos() {
+                const container = document.getElementById('placas-atalhos-produtos');
+                const badge = document.getElementById('placas-qtd-com-foto');
+                if (!container) return;
+
+                const comFoto = this.productsCache.filter(p => p.image && p.image.length > 5);
+                if (badge) badge.textContent = `${comFoto.length} itens`;
+
+                if (comFoto.length === 0) {
+                    container.innerHTML = '<span class="text-[11px] text-slate-400">Nenhum produto com foto cadastrada.</span>';
+                    return;
+                }
+
+                container.innerHTML = comFoto.slice(0, 12).map(p => `
+                    <button type="button" onclick="window.placasApp.selecionarProdutoEstoque('${p.id}')" class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-200 text-slate-700 hover:text-blue-700 transition text-[11px] font-bold truncate max-w-[190px] cursor-pointer" title="${p.name}">
+                        <img src="${p.image}" class="w-4 h-4 rounded-full object-contain shrink-0 bg-white" onerror="this.style.display='none'">
+                        <span class="truncate">${p.name}</span>
+                    </button>
+                `).join('');
+            },
+
+            // MODO LOTE: Lista de seleção múltipla
+            renderizarListaLote(filtro = '') {
+                const container = document.getElementById('placa-lote-lista');
+                if (!container) return;
+
+                let lista = this.productsCache;
+                if (filtro.trim()) {
+                    const termo = filtro.toLowerCase().trim();
+                    lista = lista.filter(p => (p.name || '').toLowerCase().includes(termo));
+                }
+
+                if (lista.length === 0) {
+                    container.innerHTML = '<div class="p-4 text-xs text-slate-400 text-center">Nenhum produto encontrado.</div>';
+                    return;
+                }
+
+                container.innerHTML = lista.map(p => `
+                    <label class="flex items-center gap-3 p-2 hover:bg-white rounded-lg cursor-pointer transition">
+                        <input type="checkbox" data-lote-id="${p.id}" ${this.selectedLoteIds.has(String(p.id)) ? 'checked' : ''} onchange="window.placasApp.toggleItemLote('${p.id}', this.checked)" class="w-4 h-4 accent-blue-700 rounded cursor-pointer">
+                        <div class="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                            ${p.image ? `<img src="${p.image}" class="w-full h-full object-contain" onerror="this.src=''">` : `<span class="material-symbols-outlined text-slate-400 text-[16px]">inventory_2</span>`}
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-xs font-bold text-slate-800 truncate">${p.name || 'Produto'}</p>
+                            <p class="text-[10px] text-slate-400">Estoque: ${p.quantity ?? 0} ${p.unit || ''}</p>
                         </div>
                     </label>
                 `).join('');
 
-                container.querySelectorAll('.multi-product-checkbox').forEach(cb => {
-                    cb.addEventListener('change', (e) => {
-                        const id = e.target.dataset.productId;
-                        if (e.target.checked) this.selectedMultipleIds.add(id);
-                        else this.selectedMultipleIds.delete(id);
-                        this.atualizarContadorMulti();
+                this.atualizarContadorLote();
+            },
+
+            toggleItemLote(id, checked) {
+                const strId = String(id);
+                if (checked) this.selectedLoteIds.add(strId);
+                else this.selectedLoteIds.delete(strId);
+                this.atualizarContadorLote();
+            },
+
+            selecionarTodosLote() {
+                this.productsCache.forEach(p => this.selectedLoteIds.add(String(p.id)));
+                this.renderizarListaLote(document.getElementById('placa-lote-filtro')?.value || '');
+            },
+
+            limparSelecaoLote() {
+                this.selectedLoteIds.clear();
+                this.renderizarListaLote(document.getElementById('placa-lote-filtro')?.value || '');
+            },
+
+            atualizarContadorLote() {
+                const contador = document.getElementById('placa-lote-contador');
+                const btn = document.getElementById('btn-adicionar-lote');
+                const total = this.selectedLoteIds.size;
+                if (contador) contador.textContent = total;
+                if (btn) btn.disabled = total === 0;
+            },
+
+            adicionarLoteAFolha() {
+                if (this.selectedLoteIds.size === 0) return;
+
+                const selecionados = this.productsCache.filter(p => this.selectedLoteIds.has(String(p.id)));
+                selecionados.forEach(p => {
+                    const partes = this.quebrarNomeInteligente(p.name);
+                    this.placasFolha.push({
+                        id: 'placa_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                        linha1: partes.linha1.toUpperCase(),
+                        linha2: partes.linha2.toUpperCase(),
+                        foto: p.image || '',
+                        tamanho: 'auto',
+                        formato: this.formatoFolha
                     });
                 });
+
+                this.selectedLoteIds.clear();
+                this.atualizarContadorLote();
+                this.renderizarListaLote(document.getElementById('placa-lote-filtro')?.value || '');
+                this.renderizarFolha();
+                this.showModal(`${selecionados.length} placa(s) adicionada(s) à folha de impressão!`);
             },
 
-            atualizarContadorMulti() {
-                const countEl = document.getElementById('multi-selected-count');
-                const btnEl = document.getElementById('multi-add-btn');
-                if (countEl) countEl.textContent = this.selectedMultipleIds.size;
-                if (btnEl) btnEl.disabled = this.selectedMultipleIds.size === 0;
+            // Atualizar configuração da folha
+            atualizarFormatoFolha() {
+                const sel = document.getElementById('placa-formato-folha');
+                if (sel) this.formatoFolha = sel.value;
+                this.renderizarFolha();
             },
 
-            // Adicionar múltiplos produtos selecionados direto na folha A4
-            adicionarSelecionadosFolha() {
-                if (this.selectedMultipleIds.size === 0) {
-                    this.showModal('Selecione pelo menos um produto!');
+            // Gerar o HTML da placa fiel às 3 fotos do usuário
+            gerarHtmlPlaca(placa, options = { isPreview: false, index: null, layout: 'single' }) {
+                const l1 = (placa.linha1 || '').trim();
+                const l2 = (placa.linha2 || '').trim();
+                const hasBoth = Boolean(l1 && l2);
+                const fotoUrl = placa.foto || '';
+                const tamanho = document.getElementById('placa-tamanho-fonte')?.value || placa.tamanho || 'auto';
+
+                // Determinação de classes tipográficas para fidelidade visual
+                let classeTextoLinha1 = 'placa-texto-linha1';
+                let classeTextoLinha2 = 'placa-texto-linha2';
+
+                if (!hasBoth) {
+                    classeTextoLinha1 = 'placa-texto-single';
+                } else if (tamanho === 'gigante') {
+                    classeTextoLinha1 = 'text-[38px] sm:text-[48px] font-black leading-none';
+                    classeTextoLinha2 = 'text-[32px] sm:text-[42px] font-black leading-none mt-1';
+                } else if (tamanho === 'medio') {
+                    classeTextoLinha1 = 'text-[22px] sm:text-[30px] font-black leading-none';
+                    classeTextoLinha2 = 'text-[18px] sm:text-[26px] font-black leading-none mt-1';
+                }
+
+                // Seta indicadora geométrica sólida idêntica às fotos
+                const setaHtml = `
+                    <div class="placa-seta-box">
+                        <svg viewBox="0 0 100 85" class="placa-seta-svg" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="36" y="0" width="28" height="42" />
+                            <polygon points="8,40 50,82 92,40" />
+                        </svg>
+                    </div>
+                `;
+
+                // Círculo com anéis concêntricos duplos
+                const circuloHtml = `
+                    <div class="placa-circulo-externo">
+                        <div class="placa-circulo-interno">
+                            ${fotoUrl ? `
+                                <img src="${fotoUrl}" alt="${l1}" class="placa-img-prod" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext x=%2250%22 y=%2250%22 font-size=%2214%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22 fill=%22%23999%22%3EFOTO%3C/text%3E%3C/svg%3E';">
+                            ` : `
+                                <div class="flex flex-col items-center justify-center text-blue-800/40 select-none">
+                                    <span class="material-symbols-outlined text-[36px] sm:text-[48px]">inventory_2</span>
+                                    <span class="text-[9px] sm:text-[10px] font-black tracking-wider">SEM FOTO</span>
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                `;
+
+                // Bloco direito: texto + seta
+                const blocoDireitoHtml = `
+                    <div class="placa-bloco-info">
+                        <div class="placa-texto-container">
+                            <div class="${classeTextoLinha1}">${l1 || 'IDENTIFICAÇÃO'}</div>
+                            ${hasBoth ? `<div class="${classeTextoLinha2}">${l2}</div>` : ''}
+                        </div>
+                        ${setaHtml}
+                    </div>
+                `;
+
+                const layoutClass = this.formatoFolha === 'duplo' ? 'modo-duplo' : 'modo-single';
+
+                return `
+                    <div class="placa-card-render ${layoutClass}">
+                        <div class="placa-moldura-ext">
+                            <div class="placa-moldura-int">
+                                <!-- Linha Horizontal Superior -->
+                                <div class="placa-barra-h"></div>
+
+                                <!-- Conteúdo Central -->
+                                <div class="placa-corpo-central">
+                                    ${circuloHtml}
+                                    ${blocoDireitoHtml}
+                                </div>
+
+                                <!-- Linha Horizontal Inferior -->
+                                <div class="placa-barra-h"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            },
+
+            // Atualizar e renderizar o preview em tempo real
+            atualizarPreview() {
+                const inLinha1 = document.getElementById('placa-input-linha1');
+                const inLinha2 = document.getElementById('placa-input-linha2');
+                if (inLinha1 && inLinha1.value.trim()) this.currentPlaca.linha1 = inLinha1.value.toUpperCase();
+                if (inLinha2) this.currentPlaca.linha2 = inLinha2.value.toUpperCase();
+
+                this.renderizarPreview();
+            },
+
+            renderizarPreview() {
+                const target = document.getElementById('preview-render-target');
+                if (!target) return;
+                target.innerHTML = this.gerarHtmlPlaca(this.currentPlaca, { isPreview: true });
+            },
+
+            // Adicionar placa atual à folha
+            adicionarAtualAFolha() {
+                const l1 = (this.currentPlaca.linha1 || '').trim();
+                const l2 = (this.currentPlaca.linha2 || '').trim();
+
+                if (!l1 && !this.currentPlaca.foto) {
+                    this.showModal('Preencha ao menos o nome do material ou selecione um produto com foto.');
                     return;
                 }
 
-                const folha = document.getElementById('folha-a4');
-                const produtos = this.productsCache.filter(p => this.selectedMultipleIds.has(p.id));
+                this.placasFolha.push({
+                    id: 'placa_' + Date.now(),
+                    linha1: l1 || 'IDENTIFICAÇÃO',
+                    linha2: l2,
+                    foto: this.currentPlaca.foto || '',
+                    tamanho: document.getElementById('placa-tamanho-fonte')?.value || 'auto',
+                    formato: this.formatoFolha
+                });
 
-                for (const product of produtos) {
-                    const div = document.createElement('div');
-                    div.className = 'etiqueta group';
-                    div.style.cssText = 'width:86mm;height:52mm;border:2px solid #333;border-radius:6px;position:relative;display:inline-block;margin:2mm;box-sizing:border-box;background-color:#fff;vertical-align:top;page-break-inside:avoid;break-inside:avoid;';
-
-                    const imagemUrl = product.image || '';
-                    const nomeProduct = product.name || 'SEM NOME';
-
-                    div.innerHTML = `
-                        <div style="position:absolute;left:2mm;top:2mm;width:48mm;height:48mm;display:flex;align-items:center;justify-content:center;border-radius:4px;background:#f0f0f0;">
-                            ${imagemUrl ? `<img src="${imagemUrl}" alt="${nomeProduct}" style="max-width:100%;max-height:100%;object-fit:contain;" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext x=%2250%22 y=%2250%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22%3E?%3C/text%3E%3C/svg%3E'">` : '<div style="font-size:14px;color:#999;">Sem foto</div>'}
-                        </div>
-                        <div style="position:absolute;left:52mm;top:2mm;width:32mm;height:48mm;border-left:2px dashed #ccc;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2mm;font-size:9pt;font-weight:bold;color:#222;line-height:1.2;word-wrap:break-word;overflow:hidden;">
-                            ${nomeProduct}
-                        </div>
-                        <button onclick="this.parentElement.remove()" title="Remover Etiqueta" style="position:absolute;top:-8px;right:-8px;background:#ef4444;color:white;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,0.2);opacity:0;transition:opacity 0.3s;cursor:pointer;z-index:10;border:none;padding:0;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0'" class="print:hidden">\n                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16"><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg>\n                        </button>\n                    `;
-
-                    folha.appendChild(div);
-                }
-
-                this.selectedMultipleIds.clear();
-                this.atualizarContadorMulti();
-                this.renderizarListaMulti(document.getElementById('multi-search')?.value || '');
-
-                this.showModal(`${produtos.length} plaquinha(s) adicionada(s) à folha!`);
+                this.renderizarFolha();
+                this.showModal('Placa adicionada à folha de impressão com sucesso!');
             },
 
-            // Sistema de Modal Customizado
-            showModal(message, isConfirm = false, onConfirm = null) {
-                const modal = document.getElementById('custom-modal');
-                const msgEl = document.getElementById('modal-message');
-                const btnContainer = document.getElementById('modal-buttons');
+            // Renderizar a lista de placas na folha
+            renderizarFolha() {
+                const container = document.getElementById('folha-lista-cards');
+                const badge = document.getElementById('placas-folha-badge');
+                const impressaoContainer = document.getElementById('folha-impressao-placas');
+                if (!container) return;
 
-                msgEl.textContent = message;
+                const total = this.placasFolha.length;
+                if (badge) badge.textContent = `${total} placa(s) na folha`;
+
+                if (total === 0) {
+                    container.innerHTML = `
+                        <div id="folha-vazia-placeholder" class="text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                            <span class="material-symbols-outlined text-[42px] text-slate-300 mb-1">dashboard_customize</span>
+                            <p class="text-sm font-semibold text-slate-600">Nenhuma placa adicionada na folha ainda.</p>
+                            <p class="text-xs text-slate-400 mt-0.5">Selecione um produto do estoque ou crie manualmente e clique em "Adicionar à Folha".</p>
+                        </div>
+                    `;
+                    if (impressaoContainer) impressaoContainer.innerHTML = '';
+                    return;
+                }
+
+                // Renderiza os cards na interface
+                container.innerHTML = this.placasFolha.map((placa, index) => `
+                    <div class="placa-item-folha p-3 sm:p-4 border border-slate-200 bg-white">
+                        <div class="flex items-center justify-between mb-2 text-xs font-bold text-slate-500">
+                            <span>#${index + 1} · ${placa.linha1} ${placa.linha2}</span>
+                            <div class="flex items-center gap-2">
+                                <button type="button" onclick="window.placasApp.baixarPNGPlaca(${index})" class="px-2 py-1 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 transition flex items-center gap-1 cursor-pointer">
+                                    <span class="material-symbols-outlined text-[14px]">download</span>
+                                    <span>PNG</span>
+                                </button>
+                                <button type="button" onclick="window.placasApp.removerPlacaFolha(${index})" class="px-2 py-1 rounded-md bg-red-50 text-red-600 hover:bg-red-100 transition flex items-center gap-1 cursor-pointer">
+                                    <span class="material-symbols-outlined text-[14px]">delete</span>
+                                    <span>Remover</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="card-placa-folha-${index}">
+                            ${this.gerarHtmlPlaca(placa, { index })}
+                        </div>
+                    </div>
+                `).join('');
+
+                // Renderiza também no container físico para a janela de impressão do browser
+                if (impressaoContainer) {
+                    impressaoContainer.innerHTML = this.placasFolha.map((placa, index) => `
+                        <div class="placa-item-folha ${this.formatoFolha === 'duplo' ? 'modo-duplo' : ''}">
+                            ${this.gerarHtmlPlaca(placa, { index })}
+                        </div>
+                    `).join('');
+                }
+            },
+
+            removerPlacaFolha(index) {
+                this.placasFolha.splice(index, 1);
+                this.renderizarFolha();
+            },
+
+            confirmarLimpeza() {
+                if (this.placasFolha.length === 0) return;
+                this.showModal('Tem certeza que deseja apagar todas as placas da folha?', true, () => {
+                    this.placasFolha = [];
+                    this.renderizarFolha();
+                });
+            },
+
+            // Impressão A4 direta pelo navegador
+            imprimirA4() {
+                // Se a folha estiver vazia, adiciona a placa do preview atual automaticamente
+                if (this.placasFolha.length === 0) {
+                    this.placasFolha.push({ ...this.currentPlaca, id: 'placa_temp_' + Date.now() });
+                    this.renderizarFolha();
+                }
+
+                setTimeout(() => {
+                    window.print();
+                }, 150);
+            },
+
+            // Baixar PDF da folha completa em modo Paisagem
+            async baixarPDF(btnElement) {
+                // Se a folha estiver vazia, adiciona a placa atual
+                if (this.placasFolha.length === 0) {
+                    this.placasFolha.push({ ...this.currentPlaca, id: 'placa_temp_' + Date.now() });
+                    this.renderizarFolha();
+                }
+
+                const txtSpan = document.getElementById('txt-btn-pdf') || btnElement;
+                const textoOriginal = txtSpan.textContent;
+                txtSpan.textContent = 'Gerando PDF...';
+                if (btnElement) btnElement.disabled = true;
+
+                try {
+                    const { jsPDF } = window.jspdf || {};
+                    if (!jsPDF) {
+                        throw new Error('Biblioteca jsPDF não disponível.');
+                    }
+
+                    const doc = new jsPDF({
+                        orientation: 'landscape',
+                        unit: 'mm',
+                        format: 'a4'
+                    });
+
+                    for (let i = 0; i < this.placasFolha.length; i++) {
+                        if (i > 0) doc.addPage('a4', 'landscape');
+
+                        const elemento = document.getElementById(`card-placa-folha-${i}`) || document.getElementById('preview-render-target');
+                        if (!elemento) continue;
+
+                        const canvas = await html2canvas(elemento, {
+                            scale: 2.5,
+                            useCORS: true,
+                            backgroundColor: '#FFFFFF',
+                            logging: false
+                        });
+
+                        const imgData = canvas.toDataURL('image/jpeg', 0.98);
+                        // Dimensões A4 Paisagem: 297mm x 210mm com margens de 8mm
+                        doc.addImage(imgData, 'JPEG', 8, 8, 281, 194);
+                    }
+
+                    doc.save(`Placas_Identificacao_Almoxarifado_${Date.now()}.pdf`);
+                } catch (err) {
+                    console.error('Erro ao gerar PDF:', err);
+                    this.showModal('Não foi possível gerar o PDF diretamente. Você pode usar o botão "Imprimir A4" e salvar como PDF pelo navegador.');
+                } finally {
+                    txtSpan.textContent = textoOriginal;
+                    if (btnElement) btnElement.disabled = false;
+                }
+            },
+
+            // Baixar imagem PNG de alta resolução da placa atual
+            async baixarPNGPreview() {
+                const elemento = document.getElementById('preview-render-target');
+                if (!elemento) return;
+
+                const l1 = (this.currentPlaca.linha1 || 'Placa').replace(/[^a-zA-Z0-9]/g, '_');
+                const l2 = (this.currentPlaca.linha2 || '').replace(/[^a-zA-Z0-9]/g, '_');
+                const nomeArquivo = `Placa_${l1}${l2 ? '_' + l2 : ''}.png`;
+
+                try {
+                    const canvas = await html2canvas(elemento, {
+                        scale: 3, // Altíssima resolução para impressão gráfica
+                        useCORS: true,
+                        backgroundColor: '#FFFFFF',
+                        logging: false
+                    });
+
+                    const link = document.createElement('a');
+                    link.download = nomeArquivo;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                } catch (e) {
+                    console.error('Erro ao baixar PNG:', e);
+                    this.showModal('Erro ao gerar imagem PNG.');
+                }
+            },
+
+            // Baixar imagem PNG de uma placa específica da folha
+            async baixarPNGPlaca(index) {
+                const elemento = document.getElementById(`card-placa-folha-${index}`);
+                if (!elemento) return;
+
+                const placa = this.placasFolha[index] || {};
+                const l1 = (placa.linha1 || 'Placa').replace(/[^a-zA-Z0-9]/g, '_');
+                const l2 = (placa.linha2 || '').replace(/[^a-zA-Z0-9]/g, '_');
+
+                try {
+                    const canvas = await html2canvas(elemento, {
+                        scale: 3,
+                        useCORS: true,
+                        backgroundColor: '#FFFFFF',
+                        logging: false
+                    });
+
+                    const link = document.createElement('a');
+                    link.download = `Placa_${l1}${l2 ? '_' + l2 : ''}.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                } catch (e) {
+                    console.error('Erro ao exportar PNG da placa:', e);
+                }
+            },
+
+            // Sistema de Modal
+            showModal(mensagem, isConfirm = false, onConfirm = null) {
+                const modal = document.getElementById('placas-custom-modal');
+                const msgEl = document.getElementById('placas-modal-message');
+                const btnContainer = document.getElementById('placas-modal-buttons');
+                if (!modal || !msgEl || !btnContainer) return;
+
+                msgEl.textContent = mensagem;
                 btnContainer.innerHTML = '';
 
                 if (isConfirm) {
                     const btnCancel = document.createElement('button');
-                    btnCancel.className = 'px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition font-medium';
+                    btnCancel.className = 'px-4 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-200 transition cursor-pointer';
                     btnCancel.textContent = 'Cancelar';
-                    btnCancel.onclick = () => { modal.classList.add('hidden'); };
+                    btnCancel.onclick = () => modal.classList.add('hidden');
 
                     const btnOk = document.createElement('button');
-                    btnOk.className = 'px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition font-medium';
+                    btnOk.className = 'px-4 py-2 bg-red-600 text-white text-xs font-bold rounded-xl hover:bg-red-700 transition cursor-pointer';
                     btnOk.textContent = 'Confirmar';
                     btnOk.onclick = () => {
                         modal.classList.add('hidden');
@@ -2889,324 +3844,32 @@
                     btnContainer.appendChild(btnOk);
                 } else {
                     const btnOk = document.createElement('button');
-                    btnOk.className = 'px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition font-medium w-full max-w-[120px]';
+                    btnOk.className = 'px-6 py-2 bg-blue-700 text-white text-xs font-bold rounded-xl hover:bg-blue-800 transition cursor-pointer';
                     btnOk.textContent = 'OK';
-                    btnOk.onclick = () => { modal.classList.add('hidden'); };
+                    btnOk.onclick = () => modal.classList.add('hidden');
                     btnContainer.appendChild(btnOk);
                 }
 
                 modal.classList.remove('hidden');
-            },
-
-            lerArquivo(fileObj) {
-                return new Promise((resolve) => {
-                    if (fileObj && fileObj.files && fileObj.files[0]) {
-                        const reader = new FileReader();
-                        reader.onload = function (e) { resolve(e.target.result); };
-                        reader.readAsDataURL(fileObj.files[0]);
-                    } else {
-                        resolve(null);
-                    }
-                });
-            },
-
-            async processarArquivos(files) {
-                let adicionados = 0;
-                for (let i = 0; i < files.length; i++) {
-                    if (this.imagensItens.length >= 10) {
-                        this.showModal("Você atingiu o limite máximo de 10 imagens por vez.");
-                        break;
-                    }
-                    if (files[i] && files[i].type && files[i].type.startsWith('image/')) {
-                        const base64 = await this.lerArquivo({ files: [files[i]] });
-                        if(base64) {
-                            this.imagensItens.push(base64);
-                            adicionados++;
-                        }
-                    }
-                }
-                if(adicionados > 0) this.renderizarPreviews();
-            },
-
-            renderizarPreviews() {
-                const placeholder = document.getElementById('placeholder-item');
-                const previewContainer = document.getElementById('preview-container-item');
-                const previewGrid = document.getElementById('preview-grid');
-                const previewCount = document.getElementById('preview-count');
-                
-                if (this.imagensItens.length === 0) {
-                    placeholder.classList.remove('hidden');
-                    previewContainer.classList.add('hidden');
-                    previewContainer.classList.remove('flex');
-                    previewGrid.innerHTML = '';
-                } else {
-                    placeholder.classList.add('hidden');
-                    previewContainer.classList.remove('hidden');
-                    previewContainer.classList.add('flex');
-                    
-                    previewGrid.innerHTML = '';
-                    this.imagensItens.forEach((src) => {
-                        const img = document.createElement('img');
-                        img.src = src;
-                        img.className = 'h-14 w-14 object-cover rounded shadow-sm bg-white p-1 border border-gray-200';
-                        previewGrid.appendChild(img);
-                    });
-                    
-                    previewCount.textContent = `${this.imagensItens.length} de 10 foto(s) adicionada(s)`;
-                }
-            },
-
-            removerImagensItem(event) {
-                if(event) event.stopPropagation();
-                this.imagensItens = [];
-                document.getElementById('img-item').value = ''; 
-                this.renderizarPreviews();
-            },
-
-            async adicionarPlaquinha() {
-                const inputLogo = document.getElementById('img-logo');
-                const textoRaw = document.getElementById('texto-item').value;
-                const estilo = document.getElementById('estilo-texto').value;
-
-                const textos = textoRaw.split(',').map(t => t.trim());
-
-                if (this.imagensItens.length === 0 && textos.join('').length === 0) {
-                    this.showModal("Por favor, adicione imagens ou textos para criar a plaquinha.");
-                    return;
-                }
-
-                const srcLogo = await this.lerArquivo(inputLogo) || '';
-                const folha = document.getElementById('folha-a4');
-                
-                const quantidadeDeLacos = Math.max(this.imagensItens.length, textos.length);
-
-                for (let i = 0; i < quantidadeDeLacos; i++) {
-                    const srcItem = this.imagensItens[i] || '';
-                    const textoAtual = textos[i] || '';
-                    
-                    if(!srcItem && !textoAtual) continue;
-
-                    const div = document.createElement('div');
-                    div.className = 'etiqueta group';
-                    div.style.cssText = 'width:86mm;height:52mm;border:2px solid #333;border-radius:6px;position:relative;display:inline-block;margin:2mm;box-sizing:border-box;background-color:#fff;vertical-align:top;page-break-inside:avoid;break-inside:avoid;';
-
-                    let infoHtml = '';
-                    
-                    if (srcLogo) {
-                        infoHtml += `<img src="${srcLogo}" style="width:100%;height:16mm;margin-bottom:2mm;object-fit:contain;" alt="Logo">`;
-                    } else if (estilo === 'tamanho') {
-                         infoHtml += `<div style="font-size:10px;color:#999;font-weight:bold;margin-bottom:1mm;letter-spacing:0.08em;text-transform:uppercase;">Tamanho</div>`;
-                    }
-
-                    if (estilo === 'tamanho') {
-                        infoHtml += `<div style="font-size:24pt;font-weight:bold;color:#222;">${textoAtual}</div>`;
-                    } else {
-                        infoHtml += `<div style="font-size:9pt;font-weight:bold;color:#222;line-height:1.2;display:flex;align-items:center;justify-content:center;flex:1;">${textoAtual.replace(/\\n/g, '<br>')}</div>`;
-                    }
-
-                    div.innerHTML = `
-                        <div style="position:absolute;left:2mm;top:2mm;width:48mm;height:48mm;display:flex;align-items:center;justify-content:center;">
-                            ${srcItem ? `<img src="${srcItem}" alt="Item" style="max-width:100%;max-height:100%;object-fit:contain;">` : ''}
-                        </div>
-                        <div style="position:absolute;left:52mm;top:2mm;width:32mm;height:48mm;border-left:2px dashed #ccc;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2mm;">
-                            ${infoHtml}
-                        </div>
-                        <button onclick="this.parentElement.remove()" title="Remover Etiqueta" style="position:absolute;top:-8px;right:-8px;background:#ef4444;color:white;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,0.2);opacity:0;transition:opacity 0.3s;cursor:pointer;z-index:10;border:none;padding:0;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0'" class="print:hidden">\n                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16"><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg>\n                        </button>\n                    `;
-
-                    folha.appendChild(div);
-                }
-
-                this.removerImagensItem();
-                document.getElementById('texto-item').value = '';
-            },
-
-            baixarPDF(btnElement) {
-                const folha = document.getElementById('folha-a4');
-                if(folha.children.length === 0) {
-                    this.showModal("A folha está vazia. Adicione plaquinhas antes de gerar o PDF.");
-                    return;
-                }
-
-                const spanTexto = btnElement.querySelector('span') || btnElement;
-                const originalText = spanTexto.textContent;
-                spanTexto.textContent = 'Gerando...';
-                btnElement.disabled = true;
-
-                const opt = {
-                    margin:       5,
-                    filename:     'Plaquinhas_Almoxarifado.pdf',
-                    image:        { type: 'jpeg', quality: 1.0 },
-                    html2canvas:  { 
-                        scale: 2, 
-                        useCORS: true, 
-                        logging: false,
-                        scrollY: 0
-                    },
-                    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                    pagebreak:    { mode: 'css', avoid: '.etiqueta' }
-                };
-
-                if (typeof html2pdf !== 'undefined') {
-                    html2pdf().set(opt).from(folha).save().then(() => {
-                        spanTexto.textContent = originalText;
-                        btnElement.disabled = false;
-                    }).catch(err => {
-                        spanTexto.textContent = originalText;
-                        btnElement.disabled = false;
-                        this.showModal("Houve um erro ao gerar o PDF. Tente imprimir como PDF através do botão 'Imprimir A4'.");
-                    });
-                } else {
-                    this.showModal("Biblioteca PDF não carregada. Recarregue a página e tente novamente.");
-                    spanTexto.textContent = originalText;
-                    btnElement.disabled = false;
-                }
-            },
-
-            confirmarLimpeza() {
-                const folha = document.getElementById('folha-a4');
-                if(folha.children.length === 0) return; 
-                
-                this.showModal("Tem certeza que deseja apagar todas as plaquinhas da folha?", true, () => {
-                    folha.innerHTML = '';
-                });
             }
         };
 
-        // Inicializar ao carregar a página
+        // Retrocompatibilidade para chamadas de `main.js` (como customPlaquesApp.carregarProdutosCache())
+        window.customPlaquesApp = window.placasApp;
+
+        // Inicializar após carregamento do DOM
         document.addEventListener('DOMContentLoaded', () => {
-            // Dropzone para tab manual
-            const dropzone = document.getElementById('dropzone-item');
-            const fileInput = document.getElementById('img-item');
+            window.placasApp.init();
 
-            if (dropzone && fileInput) {
-                dropzone.addEventListener('click', (e) => {
-                    if(e.target.tagName !== 'BUTTON') fileInput.click();
-                });
-
-                fileInput.addEventListener('change', async function() {
-                    await window.customPlaquesApp.processarArquivos(this.files);
-                });
-
-                document.addEventListener('paste', async function(e) {
-                    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-                    const filesToProcess = [];
-                    for (let index in items) {
-                        const item = items[index];
-                        if (item.kind === 'file' && item.type.startsWith('image/')) {
-                            filesToProcess.push(item.getAsFile());
-                        }
-                    }
-                    if(filesToProcess.length > 0) await window.customPlaquesApp.processarArquivos(filesToProcess);
-                });
-
-                dropzone.addEventListener('dragover', (e) => {
-                    e.preventDefault();
-                    dropzone.classList.add('border-blue-500', 'bg-blue-100');
-                });
-                dropzone.addEventListener('dragleave', (e) => {
-                    e.preventDefault();
-                    dropzone.classList.remove('border-blue-500', 'bg-blue-100');
-                });
-                dropzone.addEventListener('drop', async (e) => {
-                    e.preventDefault();
-                    dropzone.classList.remove('border-blue-500', 'bg-blue-100');
-                    if (e.dataTransfer.files) await window.customPlaquesApp.processarArquivos(e.dataTransfer.files);
-                });
-            }
-
-            // Busca rápida: preencher formulário
-            const quickSearch = document.getElementById('quick-search');
-            const quickResults = document.getElementById('quick-search-results');
-
-            if (quickSearch && quickResults) {
-                quickSearch.addEventListener('input', (e) => {
-                    const termo = e.target.value.trim();
-                    if (!termo) { quickResults.classList.add('hidden'); return; }
-
-                    const resultados = window.customPlaquesApp.productsCache.filter(p =>
-                        p.name.toLowerCase().includes(termo.toLowerCase())
-                    ).slice(0, 10);
-
-                    if (resultados.length === 0) {
-                        quickResults.innerHTML = '<p class="p-3 text-sm text-slate-400">Nenhum produto encontrado</p>';
-                        quickResults.classList.remove('hidden');
-                        return;
-                    }
-
-                    quickResults.innerHTML = resultados.map(p => `
-                        <button type="button" data-product-id="${p.id}" class="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-slate-100 last:border-b-0 flex items-center gap-2 cursor-pointer">
-                            ${p.image ? `<img src="${p.image}" class="w-8 h-8 object-cover rounded" onerror="this.style.display='none'">` : '<div class="w-8 h-8 bg-slate-100 rounded flex items-center justify-center text-xs text-slate-400 shrink-0">?</div>'}
-                            <span class="font-medium">${p.name}</span>
-                        </button>
-                    `).join('');
-                    quickResults.classList.remove('hidden');
-
-                    quickResults.querySelectorAll('button').forEach(btn => {
-                        btn.addEventListener('click', () => {
-                            window.customPlaquesApp.selecionarProdutoForm(btn.dataset.productId);
-                            quickSearch.value = '';
-                            quickResults.classList.add('hidden');
-                        });
-                    });
-                });
-
-                document.addEventListener('click', (e) => {
-                    if (!e.target.closest('#quick-search') && !e.target.closest('#quick-search-results')) {
-                        quickResults.classList.add('hidden');
-                    }
-                });
-
-                quickSearch.addEventListener('keydown', (e) => {
-                    if (e.key === 'Escape') quickResults.classList.add('hidden');
-                });
-            }
-
-            // Seleção múltipla
-            const multiSearch = document.getElementById('multi-search');
-            const multiSelectAll = document.getElementById('multi-select-all');
-            const multiClearAll = document.getElementById('multi-clear-all');
-            const multiAddBtn = document.getElementById('multi-add-btn');
-
-            if (multiSearch) {
-                multiSearch.addEventListener('input', (e) => {
-                    window.customPlaquesApp.renderizarListaMulti(e.target.value);
-                });
-            }
-
-            if (multiSelectAll) {
-                multiSelectAll.addEventListener('click', () => {
-                    const termo = document.getElementById('multi-search')?.value || '';
-                    const produtos = termo.trim()
-                        ? window.customPlaquesApp.productsCache.filter(p => p.name.toLowerCase().includes(termo.toLowerCase()))
-                        : window.customPlaquesApp.productsCache;
-                    produtos.forEach(p => window.customPlaquesApp.selectedMultipleIds.add(p.id));
-                    window.customPlaquesApp.renderizarListaMulti(termo);
-                    window.customPlaquesApp.atualizarContadorMulti();
-                });
-            }
-
-            if (multiClearAll) {
-                multiClearAll.addEventListener('click', () => {
-                    window.customPlaquesApp.selectedMultipleIds.clear();
-                    window.customPlaquesApp.renderizarListaMulti(document.getElementById('multi-search')?.value || '');
-                    window.customPlaquesApp.atualizarContadorMulti();
-                });
-            }
-
-            if (multiAddBtn) {
-                multiAddBtn.addEventListener('click', () => {
-                    window.customPlaquesApp.adicionarSelecionadosFolha();
-                });
-            }
-
-            // Carregar cache de produtos (com polling aguardando main.js)
-            (function waitForProducts() {
-                if (typeof products !== 'undefined' && Array.isArray(products)) {
-                    window.customPlaquesApp.carregarProdutosCache();
-                } else {
-                    setTimeout(waitForProducts, 200);
+            // Aguardar disponibilidade do array `products` global vindo do Firebase
+            let tentativas = 0;
+            const esperarProdutos = setInterval(() => {
+                tentativas++;
+                if ((window.products && window.products.length > 0) || tentativas > 25) {
+                    window.placasApp.carregarProdutosCache();
+                    clearInterval(esperarProdutos);
                 }
-            })();
+            }, 300);
         });
     </script>
 
