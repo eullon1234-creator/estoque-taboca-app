@@ -1021,7 +1021,10 @@
             coreUnsubscribers.push(onSnapshot(productsCollectionRef, (snapshot) => {
                 products = snapshot.docs.map(doc => sanitizeProductData({ id: doc.id, ...doc.data() }));
                 // Atualiza também a referência global para que outras views acessem os produtos
-                try { window.products = products; } catch (e) { /* ambiente restrito */ }
+                try { 
+                    window.products = products; 
+                    window.placasApp?.carregarProdutosCache?.(); 
+                } catch (e) { /* ambiente restrito */ }
 
                 if (!hasAutoFilledMissingGroups) {
                     autoFillMissingProductGroups();

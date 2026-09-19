@@ -3243,11 +3243,18 @@
                 }
             },
 
+            // Extrair URL da foto do produto com compatibilidade total (imageUrl do Firestore, image, etc.)
+            obterFotoProduto(p) {
+                if (!p) return '';
+                const url = p.imageUrl || p.image || p.photoUrl || p.photoURL || p.foto || p.img || p.thumbnail || '';
+                return String(url ?? '').trim();
+            },
+
             // Carregar cache de produtos do estoque global
             carregarProdutosCache() {
-                if (typeof products !== 'undefined' && Array.isArray(products)) {
+                if (typeof products !== 'undefined' && Array.isArray(products) && products.length > 0) {
                     this.productsCache = [...products];
-                } else if (typeof window.products !== 'undefined' && Array.isArray(window.products)) {
+                } else if (typeof window.products !== 'undefined' && Array.isArray(window.products) && window.products.length > 0) {
                     this.productsCache = [...window.products];
                 }
                 this.renderizarAtalhosProdutos();
@@ -3321,6 +3328,10 @@
                     return;
                 }
 
+                if (this.productsCache.length === 0) {
+                    this.carregarProdutosCache();
+                }
+
                 const termoLower = termo.toLowerCase();
                 const filtrados = this.productsCache.filter(p => {
                     const nome = (p.name || '').toLowerCase();
@@ -3334,26 +3345,30 @@
                     return;
                 }
 
-                box.innerHTML = filtrados.map(p => `
-                    <div onclick="window.placasApp.selecionarProdutoEstoque('${p.id}')" class="p-2.5 hover:bg-blue-50/80 cursor-pointer flex items-center justify-between gap-3 transition">
-                        <div class="flex items-center gap-2.5 min-w-0">
-                            <div class="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
-                                ${p.image ? `<img src="${p.image}" class="w-full h-full object-contain" onerror="this.src=''">` : `<span class="material-symbols-outlined text-slate-400 text-[18px]">inventory_2</span>`}
+                box.innerHTML = filtrados.map(p => {
+                    const foto = this.obterFotoProduto(p);
+                    return `
+                        <div onclick="window.placasApp.selecionarProdutoEstoque('${p.id}')" class="p-2.5 hover:bg-blue-50/80 cursor-pointer flex items-center justify-between gap-3 transition">
+                            <div class="flex items-center gap-2.5 min-w-0">
+                                <div class="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                                    ${foto ? `<img src="${foto}" class="w-full h-full object-contain" referrerpolicy="no-referrer" onerror="this.style.display='none'">` : `<span class="material-symbols-outlined text-slate-400 text-[18px]">inventory_2</span>`}
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="text-xs font-bold text-slate-800 truncate">${p.name || 'Produto Sem Nome'}</p>
+                                    <p class="text-[10px] text-slate-400">Cód: ${p.rmCode || p.code || 'S/C'} · Qtd: ${p.quantity ?? 0} ${p.unit || ''}</p>
+                                </div>
                             </div>
-                            <div class="min-w-0">
-                                <p class="text-xs font-bold text-slate-800 truncate">${p.name || 'Produto Sem Nome'}</p>
-                                <p class="text-[10px] text-slate-400">Cód: ${p.rmCode || p.code || 'S/C'} · Qtd: ${p.quantity ?? 0} ${p.unit || ''}</p>
-                            </div>
+                            <span class="material-symbols-outlined text-blue-600 text-[18px] shrink-0">arrow_forward</span>
                         </div>
-                        <span class="material-symbols-outlined text-blue-600 text-[18px] shrink-0">arrow_forward</span>
-                    </div>
-                `).join('');
+                    `;
+                }).join('');
 
                 box.classList.remove('hidden');
             },
 
             // Selecionar produto do estoque para montar a placa
             selecionarProdutoEstoque(productId) {
+                if (this.productsCache.length === 0) this.carregarProdutosCache();
                 const produto = this.productsCache.find(p => String(p.id) === String(productId));
                 if (!produto) return;
 
@@ -3364,11 +3379,12 @@
             aplicarProdutoNaPlaca(produto) {
                 const nomeCompleto = (produto.name || '').trim();
                 const partes = this.quebrarNomeInteligente(nomeCompleto);
+                const foto = this.obterFotoProduto(produto);
 
                 this.currentPlaca = {
                     linha1: partes.linha1.toUpperCase(),
                     linha2: partes.linha2.toUpperCase(),
-                    foto: produto.image || '',
+                    foto: foto,
                     tamanho: 'auto',
                     origem: 'estoque'
                 };
@@ -3378,6 +3394,21 @@
                 const inLinha2 = document.getElementById('placa-input-linha2');
                 if (inLinha1) inLinha1.value = this.currentPlaca.linha1;
                 if (inLinha2) inLinha2.value = this.currentPlaca.linha2;
+
+                // Atualiza preview no dropzone manual com a foto do estoque
+                const placeholder = document.getElementById('placa-dropzone-placeholder');
+                const previewContainer = document.getElementById('placa-dropzone-preview');
+                const previewImg = document.getElementById('placa-dropzone-img');
+                if (foto && placeholder && previewContainer && previewImg) {
+                    placeholder.classList.add('hidden');
+                    previewContainer.classList.remove('hidden');
+                    previewContainer.classList.add('flex');
+                    previewImg.src = foto;
+                } else if (!foto && placeholder && previewContainer) {
+                    placeholder.classList.remove('hidden');
+                    previewContainer.classList.add('hidden');
+                    previewContainer.classList.remove('flex');
+                }
 
                 this.atualizarPreview();
             },
@@ -3406,7 +3437,14 @@
                 const badge = document.getElementById('placas-qtd-com-foto');
                 if (!container) return;
 
-                const comFoto = this.productsCache.filter(p => p.image && p.image.length > 5);
+                if (this.productsCache.length === 0 && Array.isArray(window.products)) {
+                    this.productsCache = [...window.products];
+                }
+
+                const comFoto = this.productsCache.filter(p => {
+                    const f = this.obterFotoProduto(p);
+                    return f && f.length > 5;
+                });
                 if (badge) badge.textContent = `${comFoto.length} itens`;
 
                 if (comFoto.length === 0) {
@@ -3414,18 +3452,25 @@
                     return;
                 }
 
-                container.innerHTML = comFoto.slice(0, 12).map(p => `
-                    <button type="button" onclick="window.placasApp.selecionarProdutoEstoque('${p.id}')" class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-200 text-slate-700 hover:text-blue-700 transition text-[11px] font-bold truncate max-w-[190px] cursor-pointer" title="${p.name}">
-                        <img src="${p.image}" class="w-4 h-4 rounded-full object-contain shrink-0 bg-white" onerror="this.style.display='none'">
-                        <span class="truncate">${p.name}</span>
-                    </button>
-                `).join('');
+                container.innerHTML = comFoto.slice(0, 16).map(p => {
+                    const foto = this.obterFotoProduto(p);
+                    return `
+                        <button type="button" onclick="window.placasApp.selecionarProdutoEstoque('${p.id}')" class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-200 text-slate-700 hover:text-blue-700 transition text-[11px] font-bold truncate max-w-[190px] cursor-pointer" title="${p.name}">
+                            <img src="${foto}" class="w-4 h-4 rounded-full object-contain shrink-0 bg-white" referrerpolicy="no-referrer" onerror="this.style.display='none'">
+                            <span class="truncate">${p.name}</span>
+                        </button>
+                    `;
+                }).join('');
             },
 
             // MODO LOTE: Lista de seleção múltipla
             renderizarListaLote(filtro = '') {
                 const container = document.getElementById('placa-lote-lista');
                 if (!container) return;
+
+                if (this.productsCache.length === 0 && Array.isArray(window.products)) {
+                    this.productsCache = [...window.products];
+                }
 
                 let lista = this.productsCache;
                 if (filtro.trim()) {
@@ -3438,18 +3483,21 @@
                     return;
                 }
 
-                container.innerHTML = lista.map(p => `
-                    <label class="flex items-center gap-3 p-2 hover:bg-white rounded-lg cursor-pointer transition">
-                        <input type="checkbox" data-lote-id="${p.id}" ${this.selectedLoteIds.has(String(p.id)) ? 'checked' : ''} onchange="window.placasApp.toggleItemLote('${p.id}', this.checked)" class="w-4 h-4 accent-blue-700 rounded cursor-pointer">
-                        <div class="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
-                            ${p.image ? `<img src="${p.image}" class="w-full h-full object-contain" onerror="this.src=''">` : `<span class="material-symbols-outlined text-slate-400 text-[16px]">inventory_2</span>`}
-                        </div>
-                        <div class="min-w-0 flex-1">
-                            <p class="text-xs font-bold text-slate-800 truncate">${p.name || 'Produto'}</p>
-                            <p class="text-[10px] text-slate-400">Estoque: ${p.quantity ?? 0} ${p.unit || ''}</p>
-                        </div>
-                    </label>
-                `).join('');
+                container.innerHTML = lista.map(p => {
+                    const foto = this.obterFotoProduto(p);
+                    return `
+                        <label class="flex items-center gap-3 p-2 hover:bg-white rounded-lg cursor-pointer transition">
+                            <input type="checkbox" data-lote-id="${p.id}" ${this.selectedLoteIds.has(String(p.id)) ? 'checked' : ''} onchange="window.placasApp.toggleItemLote('${p.id}', this.checked)" class="w-4 h-4 accent-blue-700 rounded cursor-pointer">
+                            <div class="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                                ${foto ? `<img src="${foto}" class="w-full h-full object-contain" referrerpolicy="no-referrer" onerror="this.src=''">` : `<span class="material-symbols-outlined text-slate-400 text-[16px]">inventory_2</span>`}
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-xs font-bold text-slate-800 truncate">${p.name || 'Produto'}</p>
+                                <p class="text-[10px] text-slate-400">Estoque: ${p.quantity ?? 0} ${p.unit || ''}</p>
+                            </div>
+                        </label>
+                    `;
+                }).join('');
 
                 this.atualizarContadorLote();
             },
@@ -3485,11 +3533,12 @@
                 const selecionados = this.productsCache.filter(p => this.selectedLoteIds.has(String(p.id)));
                 selecionados.forEach(p => {
                     const partes = this.quebrarNomeInteligente(p.name);
+                    const foto = this.obterFotoProduto(p);
                     this.placasFolha.push({
                         id: 'placa_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
                         linha1: partes.linha1.toUpperCase(),
                         linha2: partes.linha2.toUpperCase(),
-                        foto: p.image || '',
+                        foto: foto,
                         tamanho: 'auto',
                         formato: this.formatoFolha
                     });
@@ -3546,7 +3595,7 @@
                     <div class="placa-circulo-externo">
                         <div class="placa-circulo-interno">
                             ${fotoUrl ? `
-                                <img src="${fotoUrl}" alt="${l1}" class="placa-img-prod" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext x=%2250%22 y=%2250%22 font-size=%2214%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22 fill=%22%23999%22%3EFOTO%3C/text%3E%3C/svg%3E';">
+                                <img src="${fotoUrl}" alt="${l1}" class="placa-img-prod" referrerpolicy="no-referrer" decoding="async" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext x=%2250%22 y=%2250%22 font-size=%2214%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22 fill=%22%23999%22%3EFOTO%3C/text%3E%3C/svg%3E';">
                             ` : `
                                 <div class="flex flex-col items-center justify-center text-blue-800/40 select-none">
                                     <span class="material-symbols-outlined text-[36px] sm:text-[48px]">inventory_2</span>
