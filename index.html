@@ -132,24 +132,26 @@
         }
 
         /* Bloco Direito: Texto Impactante e Seta (Sem Sobreposição) */
+        /* Bloco Direito: Texto Impactante e Seta (Conjunto Coeso e Centralizado) */
         .placa-bloco-info {
             flex: 1;
             height: 100%;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: space-between;
+            justify-content: center; /* Centralizado harmoniosamente no meio */
             text-align: center;
             min-width: 0;
             position: relative;
-            padding: clamp(2px, 0.8cqw, 8px) 0 0 0;
+            padding: clamp(2px, 0.6cqw, 6px);
             box-sizing: border-box;
             overflow: hidden;
+            gap: 0;
         }
 
         .placa-texto-container {
             width: 100%;
-            flex: 1 1 auto;
+            flex: 0 0 auto;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -158,27 +160,26 @@
             color: var(--placa-azul);
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            line-height: 0.98;
+            line-height: 0.96;
             word-break: break-word;
             min-height: 0;
             padding: 0 4px;
             box-sizing: border-box;
-            overflow: hidden;
         }
 
         .placa-texto-linha1 {
             font-weight: 900;
             max-width: 100%;
-            line-height: 0.98;
+            line-height: 0.96;
             letter-spacing: 0.5px;
             word-break: break-word;
         }
 
         .placa-texto-linha2 {
             font-weight: 900;
-            margin-top: clamp(2px, 0.6cqw, 6px);
+            margin-top: clamp(2px, 0.5cqw, 6px);
             max-width: 100%;
-            line-height: 0.98;
+            line-height: 0.96;
             letter-spacing: 0.5px;
             word-break: break-word;
         }
@@ -186,41 +187,59 @@
         /* Texto Único Gigante (ex: CIMENTO) */
         .placa-texto-single {
             font-weight: 900;
-            line-height: 0.98;
+            line-height: 0.96;
             max-width: 100%;
             letter-spacing: 0.5px;
             word-break: break-word;
         }
 
-        /* Seta Indicadora para Baixo - Fixada na base com espaçamento seguro */
+        /* Seta Indicadora para Baixo - Posicionada harmoniosamente logo abaixo do nome */
         .placa-seta-box {
             display: flex;
-            align-items: flex-end;
+            align-items: center;
             justify-content: center;
-            margin-top: auto; /* Empurra a seta para a base */
+            margin-top: 0;
             margin-bottom: 0;
-            padding-top: clamp(6px, 1.5cqw, 14px); /* Espaço seguro garantido entre texto e seta */
-            padding-bottom: clamp(1px, 0.3cqw, 4px);
             flex-shrink: 0;
             width: 100%;
+            padding-bottom: clamp(1px, 0.3cqw, 4px);
+            transition: padding-top 0.15s ease;
         }
 
+        /* Distâncias da Seta em relação ao texto */
+        .distancia-curta {
+            padding-top: clamp(4px, 1cqw, 10px);
+        }
+        .distancia-media {
+            padding-top: clamp(8px, 2.2cqw, 20px);
+        }
+        .distancia-longa {
+            padding-top: clamp(14px, 3.8cqw, 34px);
+        }
+
+        /* SVG da Seta Robusta (Padrão Industrial 5S das fotos de materiais encobertos) */
         .placa-seta-svg {
-            width: clamp(26px, 6cqw, 50px);
-            height: clamp(20px, 4.5cqw, 38px);
-            max-height: 42px;
+            width: clamp(36px, 9cqw, 75px);
+            height: clamp(27px, 6.8cqw, 56px);
+            max-height: 60px;
             fill: var(--placa-azul);
             display: block;
         }
 
-        /* Modificadores de Seta */
+        /* Modificadores de Tamanho de Seta */
         .seta-pequena .placa-seta-svg {
-            width: clamp(20px, 4.5cqw, 36px);
-            height: clamp(16px, 3.6cqw, 28px);
+            width: clamp(24px, 6cqw, 48px);
+            height: clamp(18px, 4.5cqw, 36px);
         }
         .seta-grande .placa-seta-svg {
-            width: clamp(32px, 7.5cqw, 60px);
-            height: clamp(24px, 5.5cqw, 46px);
+            width: clamp(48px, 12cqw, 96px);
+            height: clamp(36px, 9cqw, 72px);
+            max-height: 76px;
+        }
+        .seta-gigante .placa-seta-svg {
+            width: clamp(60px, 15cqw, 120px);
+            height: clamp(45px, 11.2cqw, 90px);
+            max-height: 95px;
         }
         .seta-oculta .placa-seta-box {
             display: none !important;
@@ -1522,18 +1541,19 @@
                                         <div>
                                             <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Seta Indicadora</label>
                                             <select id="placa-tamanho-seta" onchange="window.placasApp?.atualizarPreview()" class="w-full p-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg outline-none">
-                                                <option value="padrao">Padrão (Ideal)</option>
-                                                <option value="compacta">Compacta</option>
+                                                <option value="padrao">Padrão Robusto (Ideal)</option>
                                                 <option value="grande">Grande</option>
+                                                <option value="gigante">Gigante</option>
+                                                <option value="compacta">Compacta</option>
                                                 <option value="oculta">Ocultar Seta</option>
                                             </select>
                                         </div>
                                         <div class="col-span-2 sm:col-span-1">
-                                            <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Espaço da Seta</label>
+                                            <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Distância da Seta</label>
                                             <select id="placa-espaco-seta" onchange="window.placasApp?.atualizarPreview()" class="w-full p-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg outline-none">
-                                                <option value="padrao">Normal (Seguro)</option>
-                                                <option value="afastada">Mais Afastada</option>
-                                                <option value="proxima">Mais Próxima</option>
+                                                <option value="media">Média (Ideal)</option>
+                                                <option value="curta">Curta (Junto ao Texto)</option>
+                                                <option value="longa">Longa (Afastada)</option>
                                             </select>
                                         </div>
                                     </div>
@@ -1568,6 +1588,61 @@
                                         <span class="material-symbols-outlined text-[16px]">download</span>
                                         <span>Baixar PNG</span>
                                     </button>
+                                </div>
+
+                                <!-- BARRA DE EDIÇÃO RÁPIDA: Edição Imediata do Nome e da Seta -->
+                                <div class="mb-4 p-3.5 bg-gradient-to-br from-slate-50 to-blue-50/40 border border-blue-100/80 rounded-xl space-y-3 shadow-2xs">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-1.5 text-xs font-extrabold text-blue-900">
+                                            <span class="material-symbols-outlined text-[18px] text-blue-700">edit_note</span>
+                                            <span>Edição Rápida do Nome e da Seta</span>
+                                        </div>
+                                        <span class="text-[10px] font-semibold text-blue-600/80 bg-blue-100/60 px-2 py-0.5 rounded-full">Atualiza ao digitar</span>
+                                    </div>
+
+                                    <!-- Linhas 1 e 2 do Nome -->
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <div>
+                                            <label class="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-0.5">Linha 1 (Principal)</label>
+                                            <input type="text" id="placa-quick-linha1" placeholder="Ex: SIKA" class="w-full px-3 py-1.5 text-xs sm:text-sm font-black uppercase tracking-wide bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600 transition shadow-xs text-slate-800">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-0.5">Linha 2 (Secundária)</label>
+                                            <input type="text" id="placa-quick-linha2" placeholder="Ex: GROUT" class="w-full px-3 py-1.5 text-xs sm:text-sm font-black uppercase tracking-wide bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600 transition shadow-xs text-slate-800">
+                                        </div>
+                                    </div>
+
+                                    <!-- Ajustes de Texto, Seta e Distância -->
+                                    <div class="grid grid-cols-3 gap-2 pt-1 border-t border-slate-200/60">
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Texto</label>
+                                            <select id="placa-quick-tamanho" class="w-full px-2 py-1 text-xs font-bold bg-white border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-600">
+                                                <option value="auto">Auto (Ideal)</option>
+                                                <option value="gigante">Gigante</option>
+                                                <option value="grande">Grande</option>
+                                                <option value="medio">Médio</option>
+                                                <option value="pequeno">Pequeno</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Seta</label>
+                                            <select id="placa-quick-seta" class="w-full px-2 py-1 text-xs font-bold bg-white border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-600">
+                                                <option value="padrao">Padrão Robusto</option>
+                                                <option value="grande">Grande</option>
+                                                <option value="gigante">Gigante</option>
+                                                <option value="compacta">Compacta</option>
+                                                <option value="oculta">Ocultar Seta</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Distância Seta</label>
+                                            <select id="placa-quick-distancia" class="w-full px-2 py-1 text-xs font-bold bg-white border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-600">
+                                                <option value="media">Média (Ideal)</option>
+                                                <option value="curta">Curta (Junto)</option>
+                                                <option value="longa">Longa (Afastada)</option>
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <!-- Moldura da Placa Renderizada em Tempo Real -->
@@ -3275,44 +3350,87 @@
                     }
                 });
 
-                // Inputs manuais de texto
+                // Inputs de texto sincronizados (Manual, Estoque e Barra de Edição Rápida)
                 const inLinha1 = document.getElementById('placa-input-linha1');
                 const inLinha2 = document.getElementById('placa-input-linha2');
-
-                if (inLinha1) {
-                    inLinha1.addEventListener('input', (e) => {
-                        this.currentPlaca.linha1 = e.target.value.toUpperCase();
-                        const inEstoqueL1 = document.getElementById('placa-estoque-input-linha1');
-                        if (inEstoqueL1) inEstoqueL1.value = this.currentPlaca.linha1;
-                        this.atualizarPreview();
-                    });
-                }
-
-                if (inLinha2) {
-                    inLinha2.addEventListener('input', (e) => {
-                        this.currentPlaca.linha2 = e.target.value.toUpperCase();
-                        const inEstoqueL2 = document.getElementById('placa-estoque-input-linha2');
-                        if (inEstoqueL2) inEstoqueL2.value = this.currentPlaca.linha2;
-                        this.atualizarPreview();
-                    });
-                }
-
-                // Inputs de texto no card do Estoque
                 const inEstoqueL1 = document.getElementById('placa-estoque-input-linha1');
                 const inEstoqueL2 = document.getElementById('placa-estoque-input-linha2');
+                const inQuickL1 = document.getElementById('placa-quick-linha1');
+                const inQuickL2 = document.getElementById('placa-quick-linha2');
 
-                if (inEstoqueL1) {
-                    inEstoqueL1.addEventListener('input', (e) => {
-                        this.currentPlaca.linha1 = e.target.value.toUpperCase();
-                        if (inLinha1) inLinha1.value = this.currentPlaca.linha1;
+                const selTamFonte = document.getElementById('placa-tamanho-fonte');
+                const selTamSeta = document.getElementById('placa-tamanho-seta');
+                const selEspacoSeta = document.getElementById('placa-espaco-seta');
+                const selQuickTam = document.getElementById('placa-quick-tamanho');
+                const selQuickSeta = document.getElementById('placa-quick-seta');
+                const selQuickDist = document.getElementById('placa-quick-distancia');
+
+                const syncLinha1 = (val) => {
+                    this.currentPlaca.linha1 = (val || '').toUpperCase();
+                    if (inLinha1 && inLinha1.value !== this.currentPlaca.linha1) inLinha1.value = this.currentPlaca.linha1;
+                    if (inEstoqueL1 && inEstoqueL1.value !== this.currentPlaca.linha1) inEstoqueL1.value = this.currentPlaca.linha1;
+                    if (inQuickL1 && inQuickL1.value !== this.currentPlaca.linha1) inQuickL1.value = this.currentPlaca.linha1;
+                    this.atualizarPreview();
+                };
+
+                const syncLinha2 = (val) => {
+                    this.currentPlaca.linha2 = (val || '').toUpperCase();
+                    if (inLinha2 && inLinha2.value !== this.currentPlaca.linha2) inLinha2.value = this.currentPlaca.linha2;
+                    if (inEstoqueL2 && inEstoqueL2.value !== this.currentPlaca.linha2) inEstoqueL2.value = this.currentPlaca.linha2;
+                    if (inQuickL2 && inQuickL2.value !== this.currentPlaca.linha2) inQuickL2.value = this.currentPlaca.linha2;
+                    this.atualizarPreview();
+                };
+
+                if (inLinha1) inLinha1.addEventListener('input', (e) => syncLinha1(e.target.value));
+                if (inEstoqueL1) inEstoqueL1.addEventListener('input', (e) => syncLinha1(e.target.value));
+                if (inQuickL1) inQuickL1.addEventListener('input', (e) => syncLinha1(e.target.value));
+
+                if (inLinha2) inLinha2.addEventListener('input', (e) => syncLinha2(e.target.value));
+                if (inEstoqueL2) inEstoqueL2.addEventListener('input', (e) => syncLinha2(e.target.value));
+                if (inQuickL2) inQuickL2.addEventListener('input', (e) => syncLinha2(e.target.value));
+
+                // Sincronização dos seletores de estilo (Barra Rápida <-> Painel Lateral)
+                if (selQuickTam) {
+                    selQuickTam.addEventListener('change', (e) => {
+                        this.currentPlaca.tamanho = e.target.value;
+                        if (selTamFonte) selTamFonte.value = e.target.value;
+                        this.atualizarPreview();
+                    });
+                }
+                if (selTamFonte) {
+                    selTamFonte.addEventListener('change', (e) => {
+                        this.currentPlaca.tamanho = e.target.value;
+                        if (selQuickTam) selQuickTam.value = e.target.value;
                         this.atualizarPreview();
                     });
                 }
 
-                if (inEstoqueL2) {
-                    inEstoqueL2.addEventListener('input', (e) => {
-                        this.currentPlaca.linha2 = e.target.value.toUpperCase();
-                        if (inLinha2) inLinha2.value = this.currentPlaca.linha2;
+                if (selQuickSeta) {
+                    selQuickSeta.addEventListener('change', (e) => {
+                        this.currentPlaca.tamanhoSeta = e.target.value;
+                        if (selTamSeta) selTamSeta.value = e.target.value;
+                        this.atualizarPreview();
+                    });
+                }
+                if (selTamSeta) {
+                    selTamSeta.addEventListener('change', (e) => {
+                        this.currentPlaca.tamanhoSeta = e.target.value;
+                        if (selQuickSeta) selQuickSeta.value = e.target.value;
+                        this.atualizarPreview();
+                    });
+                }
+
+                if (selQuickDist) {
+                    selQuickDist.addEventListener('change', (e) => {
+                        this.currentPlaca.espacoSeta = e.target.value;
+                        if (selEspacoSeta) selEspacoSeta.value = e.target.value;
+                        this.atualizarPreview();
+                    });
+                }
+                if (selEspacoSeta) {
+                    selEspacoSeta.addEventListener('change', (e) => {
+                        this.currentPlaca.espacoSeta = e.target.value;
+                        if (selQuickDist) selQuickDist.value = e.target.value;
                         this.atualizarPreview();
                     });
                 }
@@ -3647,14 +3765,34 @@
                                 clonedImg.style.display = 'block';
                             }
 
-                            // Seta
+                            // Bloco Direito: Alinhamento Centralizado Coeso
+                            const clonedBloco = clonedCard.querySelector('.placa-bloco-info');
+                            if (clonedBloco) {
+                                clonedBloco.style.display = 'flex';
+                                clonedBloco.style.flexDirection = 'column';
+                                clonedBloco.style.alignItems = 'center';
+                                clonedBloco.style.justifyContent = 'center';
+                            }
+
+                            // Seta Indicadora
                             const liveSeta = liveCard.querySelector('.placa-seta-box');
                             const clonedSeta = clonedCard.querySelector('.placa-seta-box');
                             if (liveSeta && clonedSeta) {
+                                clonedSeta.style.marginTop = '0';
+                                clonedSeta.style.display = 'flex';
+                                clonedSeta.style.alignItems = 'center';
+                                clonedSeta.style.justifyContent = 'center';
                                 const rectSeta = liveSeta.getBoundingClientRect();
                                 if (rectSeta.width) {
                                     clonedSeta.style.width = Math.round(rectSeta.width) + 'px';
                                 }
+                            }
+                            const liveSvg = liveCard.querySelector('.placa-seta-svg');
+                            const clonedSvg = clonedCard.querySelector('.placa-seta-svg');
+                            if (liveSvg && clonedSvg) {
+                                const rectSvg = liveSvg.getBoundingClientRect();
+                                if (rectSvg.width) clonedSvg.style.width = Math.round(rectSvg.width) + 'px';
+                                if (rectSvg.height) clonedSvg.style.height = Math.round(rectSvg.height) + 'px';
                             }
 
                             // Tipografia calculada copiada da tela real
@@ -3827,11 +3965,23 @@
                 // Renderiza a caixa de foto do produto selecionado
                 this.renderizarFotoBoxEstoque(foto);
 
-                // Atualiza também os campos do modo manual
+                // Atualiza os campos do modo manual
                 const inLinha1 = document.getElementById('placa-input-linha1');
                 const inLinha2 = document.getElementById('placa-input-linha2');
                 if (inLinha1) inLinha1.value = this.currentPlaca.linha1;
                 if (inLinha2) inLinha2.value = this.currentPlaca.linha2;
+
+                // Atualiza a Barra de Edição Rápida acima da pré-visualização
+                const inQuickL1 = document.getElementById('placa-quick-linha1');
+                const inQuickL2 = document.getElementById('placa-quick-linha2');
+                const selQuickTam = document.getElementById('placa-quick-tamanho');
+                const selQuickSeta = document.getElementById('placa-quick-seta');
+                const selQuickDist = document.getElementById('placa-quick-distancia');
+                if (inQuickL1) inQuickL1.value = this.currentPlaca.linha1;
+                if (inQuickL2) inQuickL2.value = this.currentPlaca.linha2;
+                if (selQuickTam) selQuickTam.value = this.currentPlaca.tamanho || 'auto';
+                if (selQuickSeta) selQuickSeta.value = this.currentPlaca.tamanhoSeta || 'padrao';
+                if (selQuickDist) selQuickDist.value = this.currentPlaca.espacoSeta || 'media';
 
                 // Atualiza o preview no dropzone manual
                 this.atualizarDropzonePreview(foto);
@@ -4021,9 +4171,9 @@
                         linha1: partes.linha1.toUpperCase(),
                         linha2: partes.linha2.toUpperCase(),
                         foto: foto,
-                        tamanho: document.getElementById('placa-tamanho-fonte')?.value || 'auto',
-                        tamanhoSeta: document.getElementById('placa-tamanho-seta')?.value || 'padrao',
-                        espacoSeta: document.getElementById('placa-espaco-seta')?.value || 'padrao',
+                        tamanho: document.getElementById('placa-quick-tamanho')?.value || document.getElementById('placa-tamanho-fonte')?.value || 'auto',
+                        tamanhoSeta: document.getElementById('placa-quick-seta')?.value || document.getElementById('placa-tamanho-seta')?.value || 'padrao',
+                        espacoSeta: document.getElementById('placa-quick-distancia')?.value || document.getElementById('placa-espaco-seta')?.value || 'media',
                         formato: this.formatoFolha
                     });
                 });
@@ -4062,9 +4212,9 @@
                 const l2 = (placa.linha2 || '').trim();
                 const hasBoth = Boolean(l1 && l2);
                 const fotoUrl = placa.foto || '';
-                const tamanho = document.getElementById('placa-tamanho-fonte')?.value || placa.tamanho || 'auto';
-                const tamanhoSeta = document.getElementById('placa-tamanho-seta')?.value || placa.tamanhoSeta || 'padrao';
-                const espacoSeta = document.getElementById('placa-espaco-seta')?.value || placa.espacoSeta || 'padrao';
+                const tamanho = document.getElementById('placa-quick-tamanho')?.value || document.getElementById('placa-tamanho-fonte')?.value || placa.tamanho || 'auto';
+                const tamanhoSeta = document.getElementById('placa-quick-seta')?.value || document.getElementById('placa-tamanho-seta')?.value || placa.tamanhoSeta || 'padrao';
+                const espacoSeta = document.getElementById('placa-quick-distancia')?.value || document.getElementById('placa-espaco-seta')?.value || placa.espacoSeta || 'media';
 
                 // Cálculo tipográfico inteligente por cqw com base na extensão do texto
                 const len1 = l1.length;
@@ -4072,49 +4222,53 @@
                 let cqwLinha1, cqwLinha2, cqwSingle;
 
                 if (!hasBoth) {
-                    if (len1 <= 7) cqwSingle = 8.4;
-                    else if (len1 <= 12) cqwSingle = 7.0;
-                    else if (len1 <= 18) cqwSingle = 5.6;
-                    else cqwSingle = 4.6;
+                    if (len1 <= 6) cqwSingle = 9.8;
+                    else if (len1 <= 10) cqwSingle = 8.2;
+                    else if (len1 <= 15) cqwSingle = 6.8;
+                    else if (len1 <= 20) cqwSingle = 5.6;
+                    else cqwSingle = 4.8;
                 } else {
-                    if (len1 <= 6) cqwLinha1 = 5.8;
-                    else if (len1 <= 11) cqwLinha1 = 5.0;
-                    else if (len1 <= 16) cqwLinha1 = 4.2;
-                    else cqwLinha1 = 3.5;
+                    if (len1 <= 5) cqwLinha1 = 7.4;
+                    else if (len1 <= 8) cqwLinha1 = 6.4;
+                    else if (len1 <= 12) cqwLinha1 = 5.4;
+                    else if (len1 <= 16) cqwLinha1 = 4.6;
+                    else cqwLinha1 = 3.8;
 
-                    if (len2 <= 6) cqwLinha2 = 5.4;
-                    else if (len2 <= 11) cqwLinha2 = 4.6;
-                    else if (len2 <= 16) cqwLinha2 = 3.8;
-                    else cqwLinha2 = 3.2;
+                    if (len2 <= 5) cqwLinha2 = 6.8;
+                    else if (len2 <= 8) cqwLinha2 = 5.8;
+                    else if (len2 <= 12) cqwLinha2 = 4.8;
+                    else if (len2 <= 16) cqwLinha2 = 4.2;
+                    else cqwLinha2 = 3.5;
                 }
 
                 // Modificadores de tamanho manual
                 let mult = 1.0;
-                if (tamanho === 'gigante') mult = 1.18;
-                else if (tamanho === 'grande') mult = 1.08;
+                if (tamanho === 'gigante') mult = 1.20;
+                else if (tamanho === 'grande') mult = 1.10;
                 else if (tamanho === 'medio') mult = 0.88;
                 else if (tamanho === 'pequeno') mult = 0.76;
 
-                const fontStyleLinha1 = hasBoth ? `font-size: clamp(14px, ${(cqwLinha1 * mult).toFixed(2)}cqw, ${Math.round(cqwLinha1 * mult * 8.5)}px);` : '';
-                const fontStyleLinha2 = hasBoth ? `font-size: clamp(12px, ${(cqwLinha2 * mult).toFixed(2)}cqw, ${Math.round(cqwLinha2 * mult * 8.5)}px);` : '';
-                const fontStyleSingle = !hasBoth ? `font-size: clamp(20px, ${(cqwSingle * mult).toFixed(2)}cqw, ${Math.round(cqwSingle * mult * 8.5)}px);` : '';
+                const fontStyleLinha1 = hasBoth ? `font-size: clamp(15px, ${(cqwLinha1 * mult).toFixed(2)}cqw, ${Math.round(cqwLinha1 * mult * 9)}px);` : '';
+                const fontStyleLinha2 = hasBoth ? `font-size: clamp(13px, ${(cqwLinha2 * mult).toFixed(2)}cqw, ${Math.round(cqwLinha2 * mult * 9)}px);` : '';
+                const fontStyleSingle = !hasBoth ? `font-size: clamp(22px, ${(cqwSingle * mult).toFixed(2)}cqw, ${Math.round(cqwSingle * mult * 9)}px);` : '';
 
-                // Espaçamento seguro entre texto e seta
-                let paddingTopSeta = 'clamp(6px, 1.6cqw, 14px)';
-                if (espacoSeta === 'afastada') paddingTopSeta = 'clamp(10px, 2.5cqw, 22px)';
-                else if (espacoSeta === 'proxima') paddingTopSeta = 'clamp(4px, 1cqw, 8px)';
+                // Distância da seta em relação ao texto
+                let distanciaClass = 'distancia-media';
+                if (espacoSeta === 'curta' || espacoSeta === 'proxima') distanciaClass = 'distancia-curta';
+                else if (espacoSeta === 'longa' || espacoSeta === 'afastada') distanciaClass = 'distancia-longa';
 
                 let setaClass = '';
                 if (tamanhoSeta === 'compacta') setaClass = 'seta-pequena';
                 else if (tamanhoSeta === 'grande') setaClass = 'seta-grande';
+                else if (tamanhoSeta === 'gigante') setaClass = 'seta-gigante';
                 else if (tamanhoSeta === 'oculta') setaClass = 'seta-oculta';
 
-                // Seta indicadora para baixo com proporção fixa e sem sobreposição
+                // Seta indicadora para baixo com proporção fixa, robusta e coesa com o texto
                 const setaHtml = tamanhoSeta === 'oculta' ? '' : `
-                    <div class="placa-seta-box ${setaClass}" style="padding-top: ${paddingTopSeta};">
+                    <div class="placa-seta-box ${setaClass} ${distanciaClass}">
                         <svg viewBox="0 0 100 80" class="placa-seta-svg" xmlns="http://www.w3.org/2000/svg">
                             <rect x="36" y="0" width="28" height="38" />
-                            <polygon points="10,36 50,78 90,36" />
+                            <polygon points="8,36 50,78 92,36" />
                         </svg>
                     </div>
                 `;
@@ -4177,8 +4331,20 @@
             atualizarPreview() {
                 const inLinha1 = document.getElementById('placa-input-linha1');
                 const inLinha2 = document.getElementById('placa-input-linha2');
-                if (inLinha1 && inLinha1.value.trim()) this.currentPlaca.linha1 = inLinha1.value.toUpperCase();
-                if (inLinha2) this.currentPlaca.linha2 = inLinha2.value.toUpperCase();
+                const inQuickL1 = document.getElementById('placa-quick-linha1');
+                const inQuickL2 = document.getElementById('placa-quick-linha2');
+
+                if (inQuickL1 && inQuickL1.value !== undefined) {
+                    this.currentPlaca.linha1 = inQuickL1.value.toUpperCase();
+                } else if (inLinha1 && inLinha1.value !== undefined) {
+                    this.currentPlaca.linha1 = inLinha1.value.toUpperCase();
+                }
+
+                if (inQuickL2 && inQuickL2.value !== undefined) {
+                    this.currentPlaca.linha2 = inQuickL2.value.toUpperCase();
+                } else if (inLinha2 && inLinha2.value !== undefined) {
+                    this.currentPlaca.linha2 = inLinha2.value.toUpperCase();
+                }
 
                 this.renderizarPreview();
             },
@@ -4199,14 +4365,18 @@
                     return;
                 }
 
+                const tam = document.getElementById('placa-quick-tamanho')?.value || document.getElementById('placa-tamanho-fonte')?.value || this.currentPlaca.tamanho || 'auto';
+                const seta = document.getElementById('placa-quick-seta')?.value || document.getElementById('placa-tamanho-seta')?.value || this.currentPlaca.tamanhoSeta || 'padrao';
+                const dist = document.getElementById('placa-quick-distancia')?.value || document.getElementById('placa-espaco-seta')?.value || this.currentPlaca.espacoSeta || 'media';
+
                 const novaPlaca = {
                     id: 'placa_' + Date.now(),
                     linha1: l1 || 'IDENTIFICAÇÃO',
                     linha2: l2,
                     foto: this.currentPlaca.foto || '',
-                    tamanho: document.getElementById('placa-tamanho-fonte')?.value || this.currentPlaca.tamanho || 'auto',
-                    tamanhoSeta: document.getElementById('placa-tamanho-seta')?.value || this.currentPlaca.tamanhoSeta || 'padrao',
-                    espacoSeta: document.getElementById('placa-espaco-seta')?.value || this.currentPlaca.espacoSeta || 'padrao',
+                    tamanho: tam,
+                    tamanhoSeta: seta,
+                    espacoSeta: dist,
                     formato: this.formatoFolha
                 };
 
