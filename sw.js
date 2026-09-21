@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eullon-app-v1';
+const CACHE_NAME = 'eullon-app-v2.2';
 
 // Assets to pre-cache on install for immediate offline fallback
 const PRECACHE_ASSETS = [
@@ -30,9 +30,15 @@ self.addEventListener('activate', event => {
     );
 });
 
-function isCriticalAsset(url) {
-    return url.mode === 'navigate' ||
-        /\.(html?|js|css|json)$/i.test(url.pathname);
+function isCriticalAsset(req) {
+    if (!req) return false;
+    if (req.mode === 'navigate') return true;
+    try {
+        const u = new URL(req.url);
+        return /\.(html?|js|css|json)$/i.test(u.pathname) || u.pathname === '/' || u.pathname.endsWith('/');
+    } catch(e) {
+        return false;
+    }
 }
 
 function isStaticAsset(url) {
