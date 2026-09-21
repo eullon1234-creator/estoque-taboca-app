@@ -8,6 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.1.0/dist/fuse.min.js"></script>
@@ -1348,17 +1349,17 @@
                             </div>
                             <!-- Ações Rápidas de Impressão e Download -->
                             <div class="flex flex-wrap items-center gap-2">
-                                <button type="button" onclick="window.placasApp?.imprimirA4?.()" class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs sm:text-sm transition shadow-sm cursor-pointer" title="Imprimir direto em folha A4">
+                                <button type="button" onclick="window.placasApp?.imprimirA4?.()" class="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs sm:text-sm transition shadow-sm cursor-pointer" title="Imprimir direto em folha A4">
                                     <span class="material-symbols-outlined text-[18px]">print</span>
                                     <span>Imprimir A4</span>
                                 </button>
-                                <button type="button" id="btn-baixar-pdf-placas" onclick="window.placasApp?.baixarPDF?.(this)" class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 active:scale-95 text-white font-bold text-xs sm:text-sm transition shadow-sm cursor-pointer" title="Baixar folha completa em PDF">
+                                <button type="button" id="btn-baixar-pdf-placas" onclick="window.placasApp?.baixarPDF?.(this)" class="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 active:scale-95 text-white font-bold text-xs sm:text-sm transition shadow-sm cursor-pointer" title="Baixar folha completa em PDF">
                                     <span class="material-symbols-outlined text-[18px]">picture_as_pdf</span>
                                     <span id="txt-btn-pdf">Baixar PDF</span>
                                 </button>
-                                <button type="button" onclick="window.placasApp?.baixarPNGPreview?.()" class="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-bold text-xs sm:text-sm transition border border-slate-200 cursor-pointer" title="Baixar imagem PNG da placa em alta definição">
-                                    <span class="material-symbols-outlined text-[18px]">image</span>
-                                    <span>Baixar Imagem PNG</span>
+                                <button type="button" onclick="window.placasApp?.baixarZIPFolha?.()" class="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-bold text-xs sm:text-sm transition shadow-sm cursor-pointer" title="Baixar todas as placas da folha em um arquivo ZIP com imagens PNG em alta definição">
+                                    <span class="material-symbols-outlined text-[18px]">folder_zip</span>
+                                    <span>Baixar Imagens (ZIP)</span>
                                 </button>
                                 <button type="button" onclick="window.placasApp?.confirmarLimpeza?.()" class="p-2.5 rounded-xl text-red-600 hover:bg-red-50 active:scale-95 transition border border-red-100 cursor-pointer" title="Limpar folha inteira">
                                     <span class="material-symbols-outlined text-[20px]">delete_sweep</span>
@@ -1375,6 +1376,21 @@
                             </div>
                             <p id="placas-modal-message" class="text-slate-800 text-sm sm:text-base font-semibold mb-6"></p>
                             <div id="placas-modal-buttons" class="flex justify-center gap-2.5"></div>
+                        </div>
+                    </div>
+
+                    <!-- Modal de Progresso em Tempo Real (Batch ZIP / PDF) -->
+                    <div id="placas-progress-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 transition-opacity print:hidden">
+                        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-sm w-full mx-4 text-center border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
+                            <div class="w-12 h-12 rounded-full bg-blue-50 text-blue-700 flex items-center justify-center mx-auto mb-3">
+                                <span class="material-symbols-outlined text-[26px] animate-spin">sync</span>
+                            </div>
+                            <h4 id="placas-progress-title" class="text-base font-extrabold text-slate-800 mb-1">Processando Placas...</h4>
+                            <p id="placas-progress-message" class="text-xs text-slate-500 mb-4 truncate px-2">Aguarde, preparando arquivos...</p>
+                            <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden mb-2">
+                                <div id="placas-progress-bar" class="bg-blue-700 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                            </div>
+                            <p id="placas-progress-count" class="text-[11px] font-bold text-slate-400">0 de 0 (0%)</p>
                         </div>
                     </div>
 
@@ -1519,10 +1535,22 @@
                                     <div id="placa-lote-lista" class="max-h-60 overflow-y-auto space-y-1 p-2 bg-slate-50 border border-slate-200 rounded-xl divide-y divide-slate-100">
                                         <!-- Inserido dinamicamente via JS -->
                                     </div>
-                                    <button type="button" id="btn-adicionar-lote" onclick="window.placasApp?.adicionarLoteAFolha()" disabled class="w-full py-2.5 px-4 rounded-xl bg-blue-700 text-white font-bold text-sm hover:bg-blue-800 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 cursor-pointer">
+                                    <button type="button" id="btn-adicionar-lote" onclick="window.placasApp?.adicionarLoteAFolha()" disabled class="w-full py-2.5 px-4 rounded-xl bg-blue-700 text-white font-bold text-sm hover:bg-blue-800 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 cursor-pointer shadow-xs">
                                         <span class="material-symbols-outlined text-[18px]">playlist_add</span>
                                         <span>Adicionar Selecionados à Folha</span>
                                     </button>
+
+                                    <!-- Ações Diretas de Baixar em Lote -->
+                                    <div class="grid grid-cols-2 gap-2 pt-1">
+                                        <button type="button" id="btn-baixar-zip-lote" onclick="window.placasApp?.baixarLoteSelecionado('zip')" disabled class="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs" title="Baixar todos os itens selecionados em um arquivo ZIP com imagens PNG">
+                                            <span class="material-symbols-outlined text-[16px]">folder_zip</span>
+                                            <span>Baixar em ZIP</span>
+                                        </button>
+                                        <button type="button" id="btn-baixar-pdf-lote" onclick="window.placasApp?.baixarLoteSelecionado('pdf')" disabled class="py-2.5 px-3 rounded-xl bg-indigo-700 hover:bg-indigo-800 active:scale-95 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs" title="Baixar todos os itens selecionados em um único PDF paisagem">
+                                            <span class="material-symbols-outlined text-[16px]">picture_as_pdf</span>
+                                            <span>Baixar em PDF</span>
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <!-- CONTROLES COMPARTILHADOS: Ajustes e Formato -->
@@ -1655,14 +1683,24 @@
 
                             <!-- CARD DA FOLHA DE IMPRESSÃO / LISTA DE PLACAS -->
                             <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
-                                <div class="flex items-center justify-between mb-4">
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
                                     <div>
                                         <h3 class="text-sm font-extrabold text-slate-800">Folha de Impressão / Fila de Placas</h3>
-                                        <p class="text-xs text-slate-400">Placas adicionadas que serão impressas juntas ou baixadas no PDF.</p>
+                                        <p class="text-xs text-slate-400">Placas adicionadas prontas para exportar ou imprimir.</p>
                                     </div>
-                                    <span id="placas-folha-badge" class="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-extrabold">
-                                        0 placa(s) na folha
-                                    </span>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <button type="button" onclick="window.placasApp?.baixarZIPFolha()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-bold text-xs transition shadow-2xs cursor-pointer" title="Baixar todas as placas da folha em arquivo ZIP (PNG)">
+                                            <span class="material-symbols-outlined text-[15px]">folder_zip</span>
+                                            <span>Baixar Todas (ZIP)</span>
+                                        </button>
+                                        <button type="button" onclick="window.placasApp?.baixarPDF()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 active:scale-95 text-white font-bold text-xs transition shadow-2xs cursor-pointer" title="Baixar todas as placas da folha em PDF A4 Paisagem">
+                                            <span class="material-symbols-outlined text-[15px]">picture_as_pdf</span>
+                                            <span>Baixar PDF</span>
+                                        </button>
+                                        <span id="placas-folha-badge" class="px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-extrabold">
+                                            0 placa(s)
+                                        </span>
+                                    </div>
                                 </div>
 
                                 <!-- Lista de Placas Adicionadas na Folha -->
@@ -3492,12 +3530,13 @@
                 let url = String(raw).trim();
                 if (!url) return '';
 
-                // Google Drive: view ou open link -> imagem direta
+                // Google Drive: view ou open link -> imagem direta via CDN oficial (lh3)
                 const gdMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/) ||
                                 url.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/) ||
-                                url.match(/drive\.google\.com\/uc\?id=([a-zA-Z0-9_-]+)/);
+                                url.match(/drive\.google\.com\/uc\?id=([a-zA-Z0-9_-]+)/) ||
+                                url.match(/googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
                 if (gdMatch && gdMatch[1]) {
-                    return `https://drive.google.com/uc?export=view&id=${gdMatch[1]}`;
+                    return `https://lh3.googleusercontent.com/d/${gdMatch[1]}`;
                 }
 
                 // Dropbox: dl=0 -> raw=1
@@ -3695,7 +3734,7 @@
                 return await html2canvas(elemento, {
                     scale: scale,
                     useCORS: true,
-                    allowTaint: true,
+                    allowTaint: false,
                     backgroundColor: '#FFFFFF',
                     logging: false,
                     onclone: (clonedDoc) => {
@@ -4153,10 +4192,43 @@
 
             atualizarContadorLote() {
                 const contador = document.getElementById('placa-lote-contador');
-                const btn = document.getElementById('btn-adicionar-lote');
+                const btnAdd = document.getElementById('btn-adicionar-lote');
+                const btnZip = document.getElementById('btn-baixar-zip-lote');
+                const btnPdf = document.getElementById('btn-baixar-pdf-lote');
                 const total = this.selectedLoteIds.size;
                 if (contador) contador.textContent = total;
-                if (btn) btn.disabled = total === 0;
+                if (btnAdd) btnAdd.disabled = total === 0;
+                if (btnZip) btnZip.disabled = total === 0;
+                if (btnPdf) btnPdf.disabled = total === 0;
+            },
+
+            // Baixar diretamente os itens selecionados no modo Lote
+            async baixarLoteSelecionado(formato = 'zip') {
+                if (this.selectedLoteIds.size === 0) {
+                    this.showModal('Selecione ao menos um produto da lista acima para baixar.');
+                    return;
+                }
+
+                const selecionados = this.productsCache.filter(p => this.selectedLoteIds.has(String(p.id)));
+                const placas = selecionados.map(p => {
+                    const partes = this.quebrarNomeInteligente(p.name);
+                    return {
+                        id: 'placa_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                        linha1: partes.linha1.toUpperCase(),
+                        linha2: partes.linha2.toUpperCase(),
+                        foto: this.obterFotoProduto(p),
+                        tamanho: document.getElementById('placa-quick-tamanho')?.value || document.getElementById('placa-tamanho-fonte')?.value || 'auto',
+                        tamanhoSeta: document.getElementById('placa-quick-seta')?.value || document.getElementById('placa-tamanho-seta')?.value || 'padrao',
+                        espacoSeta: document.getElementById('placa-quick-distancia')?.value || document.getElementById('placa-espaco-seta')?.value || 'media',
+                        formato: this.formatoFolha
+                    };
+                });
+
+                if (formato === 'zip') {
+                    await this.exportarPlacasEmZIP(placas, `Placas_Selecionadas_Lote_${Date.now()}.zip`);
+                } else {
+                    await this.exportarPlacasEmPDF(placas, `Placas_Selecionadas_Lote_${Date.now()}.pdf`);
+                }
             },
 
             adicionarLoteAFolha() {
@@ -4484,110 +4556,349 @@
                 }, 150);
             },
 
-            // Baixar PDF da folha completa em modo Paisagem
-            async baixarPDF(btnElement) {
-                // Se a folha estiver vazia, adiciona a placa atual
-                if (this.placasFolha.length === 0) {
-                    this.placasFolha.push({ 
-                        ...this.currentPlaca, 
-                        tamanho: document.getElementById('placa-tamanho-fonte')?.value || this.currentPlaca.tamanho || 'auto',
-                        tamanhoSeta: document.getElementById('placa-tamanho-seta')?.value || this.currentPlaca.tamanhoSeta || 'padrao',
-                        espacoSeta: document.getElementById('placa-espaco-seta')?.value || this.currentPlaca.espacoSeta || 'padrao',
-                        formato: this.formatoFolha,
-                        id: 'placa_temp_' + Date.now() 
-                    });
-                    this.renderizarFolha();
+            // Atualizar modal de progresso em tempo real
+            atualizarProgresso(atual, total, texto, titulo = 'Processando Placas...') {
+                const modal = document.getElementById('placas-progress-modal');
+                const titEl = document.getElementById('placas-progress-title');
+                const msgEl = document.getElementById('placas-progress-message');
+                const barEl = document.getElementById('placas-progress-bar');
+                const countEl = document.getElementById('placas-progress-count');
+                if (!modal) return;
+
+                if (atual === null) {
+                    modal.classList.add('hidden');
+                    return;
                 }
 
-                const txtSpan = document.getElementById('txt-btn-pdf') || btnElement;
-                const textoOriginal = txtSpan ? txtSpan.textContent : '';
-                if (txtSpan) txtSpan.textContent = 'Gerando PDF...';
-                if (btnElement) btnElement.disabled = true;
+                modal.classList.remove('hidden');
+                if (titEl) titEl.textContent = titulo;
+                if (msgEl) msgEl.textContent = texto || 'Aguarde...';
+                const pct = total > 0 ? Math.min(100, Math.round((atual / total) * 100)) : 0;
+                if (barEl) barEl.style.width = pct + '%';
+                if (countEl) countEl.textContent = `${atual} de ${total} (${pct}%)`;
+            },
+
+            // Renderiza e captura canvas de alta definição de QUALQUER placa de forma isolada e à prova de falhas
+            async gerarCanvasDaPlaca(placa, scale = 2.5) {
+                let staging = document.getElementById('placa-export-staging');
+                if (!staging) {
+                    staging = document.createElement('div');
+                    staging.id = 'placa-export-staging';
+                    staging.style.cssText = 'position:fixed;top:0;left:0;width:900px;height:600px;z-index:-9999;opacity:0.01;pointer-events:none;overflow:hidden;background:#ffffff;';
+                    document.body.appendChild(staging);
+                }
+
+                // Garante que a foto esteja em base64 com timeout e fallback seguro para NÃO manchar o canvas (CORS)
+                let safeFoto = placa.foto || '';
+                if (safeFoto && !safeFoto.startsWith('data:image/')) {
+                    try {
+                        const b64 = await Promise.race([
+                            this.urlParaBase64(safeFoto),
+                            new Promise(resolve => setTimeout(() => resolve(null), 3500))
+                        ]);
+                        if (b64 && b64.startsWith('data:image/')) {
+                            safeFoto = b64;
+                            placa.foto = b64;
+                        } else {
+                            safeFoto = '';
+                        }
+                    } catch (e) {
+                        safeFoto = '';
+                    }
+                }
+
+                const placaTemp = { ...placa, foto: safeFoto };
+                staging.innerHTML = this.gerarHtmlPlaca(placaTemp, { layout: 'single' });
+
+                // Aguarda o navegador aplicar estilos
+                await new Promise(r => setTimeout(r, 60));
+
+                const img = staging.querySelector('.placa-img-prod');
+                if (img && img.src && img.src.startsWith('data:image/')) {
+                    if (!img.complete) {
+                        await new Promise(resolve => {
+                            img.onload = resolve;
+                            img.onerror = resolve;
+                            setTimeout(resolve, 1500);
+                        });
+                    }
+                    if (img.decode) {
+                        try { await img.decode(); } catch (e) {}
+                    }
+                }
+
+                const card = staging.querySelector('.placa-card-render') || staging;
+
+                const canvas = await html2canvas(card, {
+                    scale: scale,
+                    useCORS: true,
+                    allowTaint: false,
+                    backgroundColor: '#FFFFFF',
+                    logging: false,
+                    width: 900,
+                    height: 600,
+                    windowWidth: 900,
+                    windowHeight: 600,
+                    scrollX: 0,
+                    scrollY: 0,
+                    onclone: (clonedDoc) => {
+                        const clonedCard = clonedDoc.querySelector('.placa-card-render');
+                        if (clonedCard) {
+                            clonedCard.style.width = '900px';
+                            clonedCard.style.height = '600px';
+                            clonedCard.style.aspectRatio = 'auto';
+
+                            const clonedCirculoExt = clonedCard.querySelector('.placa-circulo-externo');
+                            if (clonedCirculoExt) {
+                                const size = 432;
+                                clonedCirculoExt.style.width = size + 'px';
+                                clonedCirculoExt.style.height = size + 'px';
+                                clonedCirculoExt.style.minWidth = size + 'px';
+                                clonedCirculoExt.style.minHeight = size + 'px';
+                                clonedCirculoExt.style.maxWidth = size + 'px';
+                                clonedCirculoExt.style.maxHeight = size + 'px';
+                                clonedCirculoExt.style.flex = `0 0 ${size}px`;
+                                clonedCirculoExt.style.aspectRatio = 'auto';
+                            }
+
+                            const clonedImg = clonedCard.querySelector('.placa-img-prod');
+                            if (clonedImg) {
+                                const imgSize = 370;
+                                clonedImg.style.width = imgSize + 'px';
+                                clonedImg.style.height = imgSize + 'px';
+                                clonedImg.style.maxWidth = imgSize + 'px';
+                                clonedImg.style.maxHeight = imgSize + 'px';
+                                clonedImg.style.objectFit = 'contain';
+                                clonedImg.style.display = 'block';
+                            }
+
+                            const clonedBloco = clonedCard.querySelector('.placa-bloco-info');
+                            if (clonedBloco) {
+                                clonedBloco.style.display = 'flex';
+                                clonedBloco.style.flexDirection = 'column';
+                                clonedBloco.style.alignItems = 'center';
+                                clonedBloco.style.justifyContent = 'center';
+                            }
+
+                            const liveL1 = card.querySelector('.placa-texto-linha1, .placa-texto-single');
+                            const clonedL1 = clonedCard.querySelector('.placa-texto-linha1, .placa-texto-single');
+                            if (liveL1 && clonedL1) {
+                                const fs = window.getComputedStyle(liveL1).fontSize;
+                                if (fs) clonedL1.style.fontSize = fs;
+                            }
+                            const liveL2 = card.querySelector('.placa-texto-linha2');
+                            const clonedL2 = clonedCard.querySelector('.placa-texto-linha2');
+                            if (liveL2 && clonedL2) {
+                                const fs = window.getComputedStyle(liveL2).fontSize;
+                                if (fs) clonedL2.style.fontSize = fs;
+                            }
+                        }
+                    }
+                });
+
+                staging.innerHTML = '';
+                return canvas;
+            },
+
+            // Exporta lista de placas como arquivo ZIP compactado com PNGs
+            async exportarPlacasEmZIP(listaPlacas, nomeZip = 'Placas_Identificacao.zip') {
+                if (!listaPlacas || listaPlacas.length === 0) {
+                    this.showModal('Nenhuma placa para baixar.');
+                    return;
+                }
+
+                const total = listaPlacas.length;
+                this.atualizarProgresso(0, total, 'Iniciando preparação do arquivo ZIP...', 'Gerando Arquivo ZIP');
 
                 try {
-                    const { jsPDF } = window.jspdf || {};
-                    if (!jsPDF) {
-                        throw new Error('Biblioteca jsPDF não disponível.');
+                    const JSZipClass = window.JSZip;
+                    if (!JSZipClass) {
+                        // Fallback caso CDN do JSZip não carregue: baixa PNGs individualmente
+                        for (let i = 0; i < total; i++) {
+                            const placa = listaPlacas[i];
+                            const nome = `${placa.linha1}_${placa.linha2 || ''}`.replace(/[^a-zA-Z0-9]/g, '_');
+                            this.atualizarProgresso(i + 1, total, `Baixando placa ${i + 1} de ${total}: ${placa.linha1}...`, 'Baixando Imagens');
+                            const canvas = await this.gerarCanvasDaPlaca(placa, 2.5);
+                            const link = document.createElement('a');
+                            link.download = `Placa_${String(i + 1).padStart(2, '0')}_${nome}.png`;
+                            link.href = canvas.toDataURL('image/png');
+                            link.click();
+                            await new Promise(r => setTimeout(r, 400));
+                        }
+                        this.atualizarProgresso(null);
+                        this.showModal(`${total} placa(s) baixada(s) em PNG com sucesso!`);
+                        return;
                     }
 
+                    const zip = new JSZipClass();
+                    const folder = zip.folder('Placas_Identificacao') || zip;
+
+                    for (let i = 0; i < total; i++) {
+                        const placa = listaPlacas[i];
+                        const nomeCurto = `${placa.linha1} ${placa.linha2 || ''}`.trim();
+                        this.atualizarProgresso(i + 1, total, `Processando placa ${i + 1} de ${total}: ${nomeCurto}...`, 'Gerando Arquivo ZIP');
+
+                        const canvas = await this.gerarCanvasDaPlaca(placa, 2.5);
+                        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                        if (blob) {
+                            const safeName = nomeCurto.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 30);
+                            folder.file(`Placa_${String(i + 1).padStart(2, '0')}_${safeName || 'identificacao'}.png`, blob);
+                        }
+
+                        // Yield para a interface
+                        await new Promise(r => setTimeout(r, 30));
+                    }
+
+                    this.atualizarProgresso(total, total, 'Compactando arquivo ZIP final...', 'Finalizando');
+                    const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(zipBlob);
+                    link.download = nomeZip;
+                    link.click();
+                    setTimeout(() => URL.revokeObjectURL(link.href), 20000);
+
+                    this.atualizarProgresso(null);
+                    this.showModal(`${total} placa(s) exportada(s) no arquivo ZIP com sucesso!`);
+                } catch (err) {
+                    console.error('Erro ao gerar ZIP de placas:', err);
+                    this.atualizarProgresso(null);
+                    this.showModal('Ocorreu um erro ao gerar o arquivo ZIP. Tente novamente ou use a opção de baixar em PDF.');
+                }
+            },
+
+            // Exporta lista de placas como documento PDF A4 em Paisagem
+            async exportarPlacasEmPDF(listaPlacas, nomePDF = 'Placas_Identificacao.pdf') {
+                if (!listaPlacas || listaPlacas.length === 0) {
+                    this.showModal('Nenhuma placa selecionada para gerar PDF.');
+                    return;
+                }
+
+                const { jsPDF } = window.jspdf || {};
+                if (!jsPDF) {
+                    this.showModal('Biblioteca jsPDF não disponível no momento. Tente usar a opção "Imprimir A4".');
+                    return;
+                }
+
+                const total = listaPlacas.length;
+                this.atualizarProgresso(0, total, 'Iniciando geração do documento PDF...', 'Gerando Arquivo PDF');
+
+                try {
                     const doc = new jsPDF({
                         orientation: 'landscape',
                         unit: 'mm',
                         format: 'a4'
                     });
 
-                    for (let i = 0; i < this.placasFolha.length; i++) {
+                    for (let i = 0; i < total; i++) {
                         if (i > 0) doc.addPage('a4', 'landscape');
 
-                        const elemento = document.getElementById(`card-placa-folha-${i}`) || document.getElementById('preview-render-target');
-                        if (!elemento) continue;
+                        const placa = listaPlacas[i];
+                        const nomeCurto = `${placa.linha1} ${placa.linha2 || ''}`.trim();
+                        this.atualizarProgresso(i + 1, total, `Gerando placa ${i + 1} de ${total}: ${nomeCurto}...`, 'Gerando Arquivo PDF');
 
-                        const canvas = await this.capturarCanvasPlaca(elemento, 2.5);
-                        const imgData = canvas.toDataURL('image/jpeg', 0.98);
-                        // Dimensões A4 Paisagem: 297mm x 210mm com margens de 8mm
-                        doc.addImage(imgData, 'JPEG', 8, 8, 281, 194);
+                        const canvas = await this.gerarCanvasDaPlaca(placa, 2);
+                        let imgData;
+                        try {
+                            imgData = canvas.toDataURL('image/jpeg', 0.95);
+                        } catch (secErr) {
+                            console.warn('Canvas SecurityError, tentando sem foto:', secErr);
+                            const canvasSemFoto = await this.gerarCanvasDaPlaca({ ...placa, foto: '' }, 2);
+                            imgData = canvasSemFoto.toDataURL('image/jpeg', 0.95);
+                        }
+
+                        // Dimensões A4 Paisagem: 297mm x 210mm com margens de 8mm e proporção 3:2 perfeita (281mm x 187.3mm)
+                        doc.addImage(imgData, 'JPEG', 8, 11, 281, 187.3);
+
+                        // Yield para a interface
+                        await new Promise(r => setTimeout(r, 30));
                     }
 
-                    doc.save(`Placas_Identificacao_Almoxarifado_${Date.now()}.pdf`);
+                    this.atualizarProgresso(total, total, 'Finalizando arquivo PDF...', 'Finalizando');
+                    doc.save(nomePDF);
+
+                    this.atualizarProgresso(null);
+                    this.showModal(`PDF com ${total} placa(s) gerado e baixado com sucesso!`);
                 } catch (err) {
-                    console.error('Erro ao gerar PDF:', err);
-                    this.showModal('Não foi possível gerar o PDF diretamente. Você pode usar o botão "Imprimir A4" e salvar como PDF pelo navegador.');
-                } finally {
-                    if (txtSpan) txtSpan.textContent = textoOriginal;
-                    if (btnElement) btnElement.disabled = false;
+                    console.error('Erro ao exportar PDF de placas:', err);
+                    this.atualizarProgresso(null);
+                    this.showModal('Não foi possível gerar o PDF diretamente. Você pode usar a opção "Imprimir A4" e salvar como PDF pelo navegador.');
                 }
+            },
+
+            // Baixar todas as placas da folha em formato ZIP (PNGs)
+            async baixarZIPFolha() {
+                let lista = this.placasFolha;
+                if (!lista || lista.length === 0) {
+                    lista = [{
+                        ...this.currentPlaca,
+                        tamanho: document.getElementById('placa-quick-tamanho')?.value || document.getElementById('placa-tamanho-fonte')?.value || this.currentPlaca.tamanho || 'auto',
+                        tamanhoSeta: document.getElementById('placa-quick-seta')?.value || document.getElementById('placa-tamanho-seta')?.value || 'padrao',
+                        espacoSeta: document.getElementById('placa-quick-distancia')?.value || document.getElementById('placa-espaco-seta')?.value || 'media',
+                        formato: this.formatoFolha,
+                        id: 'placa_temp_' + Date.now()
+                    }];
+                }
+                await this.exportarPlacasEmZIP(lista, `Placas_Identificacao_${Date.now()}.zip`);
+            },
+
+            // Baixar PDF da folha completa em modo Paisagem
+            async baixarPDF(btnElement) {
+                let lista = this.placasFolha;
+                if (!lista || lista.length === 0) {
+                    lista = [{
+                        ...this.currentPlaca,
+                        tamanho: document.getElementById('placa-quick-tamanho')?.value || document.getElementById('placa-tamanho-fonte')?.value || this.currentPlaca.tamanho || 'auto',
+                        tamanhoSeta: document.getElementById('placa-quick-seta')?.value || document.getElementById('placa-tamanho-seta')?.value || 'padrao',
+                        espacoSeta: document.getElementById('placa-quick-distancia')?.value || document.getElementById('placa-espaco-seta')?.value || 'media',
+                        formato: this.formatoFolha,
+                        id: 'placa_temp_' + Date.now()
+                    }];
+                }
+                await this.exportarPlacasEmPDF(lista, `Placas_Identificacao_Almoxarifado_${Date.now()}.pdf`);
             },
 
             // Baixar imagem PNG de alta resolução da placa atual
             async baixarPNGPreview() {
-                const elemento = document.getElementById('preview-render-target');
-                if (!elemento) return;
-
                 const l1 = (this.currentPlaca.linha1 || 'Placa').replace(/[^a-zA-Z0-9]/g, '_');
                 const l2 = (this.currentPlaca.linha2 || '').replace(/[^a-zA-Z0-9]/g, '_');
                 const nomeArquivo = `Placa_${l1}${l2 ? '_' + l2 : ''}.png`;
 
-                const btns = document.querySelectorAll('button[onclick*="baixarPNGPreview"]');
-                const originalContents = Array.from(btns).map(b => b.innerHTML);
-                btns.forEach(b => {
-                    b.innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">progress_activity</span><span>Gerando PNG...</span>';
-                    b.disabled = true;
-                });
-
+                this.atualizarProgresso(0, 1, 'Gerando imagem em alta resolução...', 'Baixar Imagem PNG');
                 try {
-                    const canvas = await this.capturarCanvasPlaca(elemento, 3);
+                    const canvas = await this.gerarCanvasDaPlaca(this.currentPlaca, 3);
                     const link = document.createElement('a');
                     link.download = nomeArquivo;
                     link.href = canvas.toDataURL('image/png');
                     link.click();
+                    this.atualizarProgresso(null);
                 } catch (e) {
                     console.error('Erro ao baixar PNG:', e);
+                    this.atualizarProgresso(null);
                     this.showModal('Erro ao gerar imagem PNG da placa. Tente novamente.');
-                } finally {
-                    btns.forEach((b, i) => {
-                        b.innerHTML = originalContents[i] || 'Baixar PNG';
-                        b.disabled = false;
-                    });
                 }
             },
 
             // Baixar imagem PNG de uma placa específica da folha
             async baixarPNGPlaca(index) {
-                const elemento = document.getElementById(`card-placa-folha-${index}`);
-                if (!elemento) return;
+                const placa = this.placasFolha[index];
+                if (!placa) return;
 
-                const placa = this.placasFolha[index] || {};
                 const l1 = (placa.linha1 || 'Placa').replace(/[^a-zA-Z0-9]/g, '_');
                 const l2 = (placa.linha2 || '').replace(/[^a-zA-Z0-9]/g, '_');
+                const nomeArquivo = `Placa_${l1}${l2 ? '_' + l2 : ''}.png`;
 
+                this.atualizarProgresso(0, 1, `Gerando placa ${placa.linha1}...`, 'Baixar Placa PNG');
                 try {
-                    const canvas = await this.capturarCanvasPlaca(elemento, 3);
+                    const canvas = await this.gerarCanvasDaPlaca(placa, 3);
                     const link = document.createElement('a');
-                    link.download = `Placa_${l1}${l2 ? '_' + l2 : ''}.png`;
+                    link.download = nomeArquivo;
                     link.href = canvas.toDataURL('image/png');
                     link.click();
+                    this.atualizarProgresso(null);
                 } catch (e) {
                     console.error('Erro ao exportar PNG da placa:', e);
+                    this.atualizarProgresso(null);
                     this.showModal('Erro ao exportar imagem PNG desta placa.');
                 }
             },
