@@ -9517,6 +9517,7 @@
         };
 
         document.getElementById('open-add-custom-dead-stock-btn')?.addEventListener('click', () => openCustomDeadStockModal());
+        document.getElementById('open-add-custom-dead-stock-btn-2')?.addEventListener('click', () => openCustomDeadStockModal());
 
         document.getElementById('custom-dead-stock-form')?.addEventListener('submit', async (e) => {
             e.preventDefault();

@@ -576,9 +576,9 @@
                             <p class="text-xs sm:text-sm text-slate-500 mt-1">Itens segregados no almoxarifado destinados para envio a outra obra, desmobilização ou venda.</p>
                         </div>
                         <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                            <button id="open-add-custom-dead-stock-btn" class="flex-1 md:flex-none bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2.5 rounded-xl transition duration-150 flex items-center justify-center gap-2 shadow-sm hover:shadow active:scale-[0.98]" title="Cadastrar mobília, EPIs, ferramentas elétricas e outros itens que não estão no estoque">
-                                <span class="material-symbols-outlined text-xl">post_add</span>
-                                <span>+ Cadastrar Item para Venda</span>
+                            <button id="open-add-custom-dead-stock-btn" class="flex-1 md:flex-none btn-amber-sale text-white font-bold px-4 py-2.5 rounded-xl transition duration-150 flex items-center justify-center gap-2 shadow hover:shadow-md active:scale-[0.98] cursor-pointer" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important; color: #ffffff !important; border: 1px solid #b45309 !important;" title="Cadastrar mobília, EPIs, ferramentas elétricas e outros itens que não estão no estoque">
+                                <span class="material-symbols-outlined text-xl" style="color: #ffffff !important;">add_circle</span>
+                                <span style="color: #ffffff !important; font-weight: 700 !important;">+ Cadastrar Item para Venda</span>
                             </button>
                             <button id="open-dead-stock-manifest-btn" class="flex-1 md:flex-none bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2.5 rounded-xl transition duration-150 flex items-center justify-center gap-2 shadow-sm hover:shadow active:scale-[0.98]">
                                 <span class="material-symbols-outlined text-xl">description</span>
@@ -743,8 +743,14 @@
                                 <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xl pointer-events-none">search</span>
                                 <input type="text" id="dead-stock-search-input" placeholder="Buscar por produto, código RM ou observação..." class="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition shadow-xs">
                             </div>
-                            <div class="text-xs text-slate-500 font-medium self-end sm:self-center" id="dead-stock-count-indicator">
-                                Exibindo itens disponíveis
+                            <div class="flex items-center gap-3 self-end sm:self-center">
+                                <div class="text-xs text-slate-500 font-medium" id="dead-stock-count-indicator">
+                                    Exibindo itens disponíveis
+                                </div>
+                                <button id="open-add-custom-dead-stock-btn-2" class="btn-amber-sale font-bold px-3.5 py-2 rounded-xl text-xs sm:text-sm flex items-center gap-1.5 shadow transition active:scale-95 cursor-pointer" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important; color: #ffffff !important; border: 1px solid #b45309 !important;">
+                                    <span class="material-symbols-outlined text-lg" style="color: #ffffff !important;">add_circle</span>
+                                    <span style="color: #ffffff !important; font-weight: 700 !important;">+ Cadastrar Item (EPI, Mobília, Ferramentas)</span>
+                                </button>
                             </div>
                         </div>
 
@@ -2932,9 +2938,9 @@
 
             <div class="flex justify-end gap-2.5 pt-2 border-t border-slate-100">
                 <button type="button" onclick="closeModal('custom-dead-stock-modal')" data-close-modal="custom-dead-stock-modal" class="close-modal-btn px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition cursor-pointer">Cancelar</button>
-                <button type="submit" id="custom-ds-submit-btn" class="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-semibold transition shadow-sm hover:shadow flex items-center gap-2">
-                    <span class="material-symbols-outlined text-lg">save</span>
-                    <span id="custom-ds-submit-label">Salvar Item para Venda</span>
+                <button type="submit" id="custom-ds-submit-btn" class="px-5 py-2.5 btn-amber-sale text-white rounded-xl text-sm font-bold transition shadow hover:shadow-md flex items-center gap-2 cursor-pointer" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important; color: #ffffff !important; border: 1px solid #b45309 !important;">
+                    <span class="material-symbols-outlined text-lg" style="color: #ffffff !important;">save</span>
+                    <span id="custom-ds-submit-label" style="color: #ffffff !important; font-weight: 700 !important;">Salvar Item para Venda</span>
                 </button>
             </div>
         </form>
