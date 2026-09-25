@@ -9366,6 +9366,59 @@
         
         let deadStockSearchQuery = '';
         let activeDeadStockSubtab = 'active'; // 'active' ou 'sold'
+        let deadStockSalePercent = parseFloat(localStorage.getItem('dead_stock_sale_percent')) || 50;
+        if (isNaN(deadStockSalePercent) || deadStockSalePercent <= 0) deadStockSalePercent = 50;
+
+        const setDeadStockSalePercent = (newPct, shouldUpdateInput = true) => {
+            let pct = parseFloat(newPct);
+            if (isNaN(pct) || pct <= 0) pct = 50;
+            if (pct > 200) pct = 200;
+            deadStockSalePercent = Math.round(pct);
+            try {
+                localStorage.setItem('dead_stock_sale_percent', deadStockSalePercent);
+            } catch (e) {}
+
+            if (shouldUpdateInput) {
+                const input = document.getElementById('dead-stock-sale-percent-input');
+                if (input && document.activeElement !== input) input.value = deadStockSalePercent;
+            }
+
+            // Atualiza botões de atalho
+            document.querySelectorAll('.ds-pct-preset-btn').forEach(btn => {
+                const val = parseInt(btn.dataset.pct, 10);
+                if (val === deadStockSalePercent) {
+                    btn.className = 'ds-pct-preset-btn px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white shadow-xs transition';
+                } else {
+                    btn.className = 'ds-pct-preset-btn px-2.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition';
+                }
+            });
+
+            renderDeadStock();
+        };
+
+        // Eventos para o seletor de porcentagem de venda
+        document.addEventListener('click', (e) => {
+            const presetBtn = e.target.closest('.ds-pct-preset-btn');
+            if (presetBtn && presetBtn.dataset.pct) {
+                setDeadStockSalePercent(presetBtn.dataset.pct, true);
+            }
+        });
+
+        const percentInputEl = document.getElementById('dead-stock-sale-percent-input');
+        if (percentInputEl) {
+            percentInputEl.value = deadStockSalePercent;
+            percentInputEl.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val) && val > 0) {
+                    setDeadStockSalePercent(val, false);
+                }
+            });
+            percentInputEl.addEventListener('change', (e) => {
+                let val = parseFloat(e.target.value);
+                if (isNaN(val) || val <= 0) val = 50;
+                setDeadStockSalePercent(val, true);
+            });
+        }
 
         // Alternância de Sub-abas
         const switchDeadStockSubtab = (tab) => {
@@ -9415,6 +9468,9 @@
                 return acc + (p * q);
             }, 0);
 
+            const totalSaleProjected = totalValue * (deadStockSalePercent / 100);
+            const totalDiscount = Math.max(0, totalValue - totalSaleProjected);
+
             const totalSoldValue = deadStockSales.reduce((acc, sale) => {
                 const p = parseFloat(sale.price) || 0;
                 const q = parseInt(sale.quantity, 10) || 0;
@@ -9426,6 +9482,10 @@
             const totalItemsEl = document.getElementById('dead-stock-total-items');
             const totalUnitsEl = document.getElementById('dead-stock-total-units');
             const totalValueEl = document.getElementById('dead-stock-total-value');
+            const saleProjectedEl = document.getElementById('dead-stock-sale-projected-value');
+            const discountValueEl = document.getElementById('dead-stock-discount-value');
+            const kpiPercentBadgeEl = document.getElementById('dead-stock-kpi-percent-badge');
+            const tablePctHeaderEl = document.getElementById('dead-stock-table-pct-header');
             const totalSoldValueEl = document.getElementById('dead-stock-total-sold-value');
             const totalSalesCountEl = document.getElementById('dead-stock-total-sales-count');
             const activeBadgeEl = document.getElementById('ds-active-badge-count');
@@ -9434,6 +9494,10 @@
             if (totalItemsEl) totalItemsEl.textContent = totalSKUs;
             if (totalUnitsEl) totalUnitsEl.textContent = `(${totalUnits} un.)`;
             if (totalValueEl) totalValueEl.textContent = totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            if (saleProjectedEl) saleProjectedEl.textContent = totalSaleProjected.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            if (discountValueEl) discountValueEl.textContent = totalDiscount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            if (kpiPercentBadgeEl) kpiPercentBadgeEl.textContent = `${deadStockSalePercent}%`;
+            if (tablePctHeaderEl) tablePctHeaderEl.textContent = `${deadStockSalePercent}%`;
             if (totalSoldValueEl) totalSoldValueEl.textContent = totalSoldValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
             if (totalSalesCountEl) totalSalesCountEl.textContent = `${totalSalesCount} baixa(s)`;
             if (activeBadgeEl) activeBadgeEl.textContent = totalSKUs;
@@ -9487,10 +9551,14 @@
                     const price = parseFloat(item.price) || 0;
                     const qty = parseInt(item.quantity, 10) || 0;
                     const unit = item.productUnit || 'UN';
-                    const total = price * qty;
+                    const totalRM = price * qty;
+                    const salePrice = price * (deadStockSalePercent / 100);
+                    const totalSale = salePrice * qty;
 
                     const priceStr = price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-                    const totalStr = total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                    const salePriceStr = salePrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                    const totalRMStr = totalRM.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                    const totalSaleStr = totalSale.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
                     const dateStr = item.createdAt?.seconds ? new Date(item.createdAt.seconds * 1000).toLocaleDateString('pt-BR') : 'Recente';
 
                     tr.className = `hover:bg-slate-50/80 transition-colors duration-150`;
@@ -9510,12 +9578,16 @@
                             <span class="inline-block px-2 py-0.5 bg-slate-100 text-slate-700 font-semibold text-xs rounded-md border border-slate-200/80 uppercase">${escHtmlText(unit)}</span>
                         </td>
                         <td class="p-3.5 sm:p-4 text-right align-top">
-                            <span class="text-xs text-slate-400 block font-medium">Preço RM</span>
-                            <span class="font-semibold text-slate-700 text-sm">${priceStr}</span>
+                            <span class="text-[10px] text-slate-400 block font-medium">Ref. RM</span>
+                            <span class="font-medium text-slate-600 text-sm">${priceStr}</span>
                         </td>
-                        <td class="p-3.5 sm:p-4 text-right align-top">
-                            <span class="text-xs text-slate-400 block font-medium">Total Geral</span>
-                            <span class="font-bold text-emerald-600 text-base">${totalStr}</span>
+                        <td class="p-3.5 sm:p-4 text-right align-top bg-indigo-50/20">
+                            <span class="text-[10px] text-indigo-600 block font-bold">${deadStockSalePercent}% do RM</span>
+                            <span class="font-bold text-slate-800 text-sm">${salePriceStr}</span>
+                        </td>
+                        <td class="p-3.5 sm:p-4 text-right align-top bg-emerald-50/20">
+                            <span class="font-bold text-emerald-700 text-base">${totalSaleStr}</span>
+                            <span class="text-[10px] text-slate-400 block line-through" title="Valor contábil original 100% RM">RM: ${totalRMStr}</span>
                         </td>
                         <td class="p-3.5 sm:p-4 align-top">
                             <div class="inline-block bg-amber-50/80 border border-amber-200/70 text-amber-900 text-xs px-2.5 py-1 rounded-lg max-w-xs break-words" title="${escHtmlText(item.observation || 'Sem observação')}">
@@ -9784,13 +9856,22 @@
             if (!item) return;
 
             const unit = item.productUnit || 'UN';
+            const priceRM = parseFloat(item.price) || 0;
+            const suggestedSalePrice = priceRM > 0 ? (priceRM * (deadStockSalePercent / 100)).toFixed(2) : '';
+
             document.getElementById('sell-ds-item-id').value = item.id;
             document.getElementById('sell-ds-product-name').value = `${item.productName || 'Produto'} (${unit})`;
             const qtdInput = document.getElementById('sell-ds-quantity');
             qtdInput.value = item.quantity || 1;
             qtdInput.max = item.quantity || 1;
             document.getElementById('sell-ds-max-qtd').textContent = `Saldo Disponível: ${item.quantity} ${unit}`;
-            document.getElementById('sell-ds-price').value = item.price || '';
+            document.getElementById('sell-ds-price').value = suggestedSalePrice || item.price || '';
+            
+            const hintEl = document.getElementById('sell-ds-price-hint');
+            if (hintEl) {
+                hintEl.innerHTML = `Sugerido: <strong class="text-emerald-700">${deadStockSalePercent}%</strong> do valor RM (${priceRM.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}). Você pode ajustar manualmente se desejar.`;
+            }
+
             document.getElementById('sell-ds-destination').value = item.observation || '';
             document.getElementById('sell-ds-nf').value = '';
             document.getElementById('sell-ds-obs').value = '';
@@ -9899,11 +9980,13 @@
                 }
             });
 
+            const totalValSale = totalVal * (deadStockSalePercent / 100);
+
             const countEl = document.getElementById('manifest-ds-selected-count');
             const summaryEl = document.getElementById('manifest-ds-totals-summary');
             if (countEl) countEl.textContent = selectedCount;
             if (summaryEl) {
-                summaryEl.textContent = `Total: ${selectedCount} itens | ${totalQty} un. | ${totalVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`;
+                summaryEl.textContent = `Total: ${selectedCount} itens | ${totalQty} un. | Venda (${deadStockSalePercent}%): ${totalValSale.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (RM: ${totalVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})`;
             }
         };
 
@@ -9950,8 +10033,9 @@
                         </div>
                         <div class="flex items-center gap-2 shrink-0">
                             <div class="text-right">
-                                <span class="text-[10px] text-slate-400 block">Preço Unt.</span>
-                                <span class="font-semibold text-slate-700">${price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                <span class="text-[10px] text-slate-400 block">Venda (${deadStockSalePercent}%)</span>
+                                <span class="font-bold text-emerald-700">${(price * (deadStockSalePercent / 100)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                <span class="text-[9px] text-slate-400 block line-through">RM: ${price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                             </div>
                             <div class="w-24">
                                 <span class="text-[10px] text-slate-400 block text-center">Qtd. (${escHtmlText(unit)})</span>
@@ -10027,27 +10111,32 @@
             const numRomaneio = `ROM-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}${String(new Date().getDate()).padStart(2,'0')}-${Math.floor(1000 + Math.random() * 9000)}`;
 
             let totalQty = 0;
-            let totalVal = 0;
+            let totalValRM = 0;
+            let totalValSale = 0;
 
             const tableRowsHtml = selectedItems.map((item, idx) => {
                 const qty = item.sendQty || parseInt(item.quantity, 10) || 0;
                 const unit = item.productUnit || 'UN';
-                const price = parseFloat(item.price) || 0;
-                const total = qty * price;
+                const priceRM = parseFloat(item.price) || 0;
+                const priceSale = priceRM * (deadStockSalePercent / 100);
+                const totalRM = qty * priceRM;
+                const totalSale = qty * priceSale;
                 totalQty += qty;
-                totalVal += total;
+                totalValRM += totalRM;
+                totalValSale += totalSale;
 
                 return `
                     <tr style="border-bottom:1px solid #e2e8f0; font-size:10px; ${idx % 2 === 1 ? 'background:#f8fafc;' : ''}">
-                        <td style="padding:6px 6px; text-align:center; color:#64748b;">${idx + 1}</td>
-                        <td style="padding:6px 6px; font-weight:bold; font-family:monospace; color:#1e40af;">${escHtmlText(item.productCodeRM || '-')}</td>
-                        <td style="padding:6px 6px; font-family:monospace; color:#475569;">${escHtmlText(item.productCode || '-')}</td>
-                        <td style="padding:6px 6px; font-weight:600; color:#0f172a;">${escHtmlText(item.productName)}</td>
-                        <td style="padding:6px 6px; text-align:center; font-weight:bold; color:#0f172a; font-size:11px;">${qty}</td>
-                        <td style="padding:6px 6px; text-align:center; font-weight:bold; color:#475569;">${escHtmlText(unit)}</td>
-                        <td style="padding:6px 6px; text-align:right; color:#334155;">${price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                        <td style="padding:6px 6px; text-align:right; font-weight:bold; color:#047857;">${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                        <td style="padding:6px 6px; color:#64748b; font-size:9px;">${escHtmlText(item.observation || '-')}</td>
+                        <td style="padding:6px 5px; text-align:center; color:#64748b;">${idx + 1}</td>
+                        <td style="padding:6px 5px; font-weight:bold; font-family:monospace; color:#1e40af;">${escHtmlText(item.productCodeRM || '-')}</td>
+                        <td style="padding:6px 5px; font-family:monospace; color:#475569;">${escHtmlText(item.productCode || '-')}</td>
+                        <td style="padding:6px 5px; font-weight:600; color:#0f172a;">${escHtmlText(item.productName)}</td>
+                        <td style="padding:6px 5px; text-align:center; font-weight:bold; color:#0f172a; font-size:11px;">${qty}</td>
+                        <td style="padding:6px 5px; text-align:center; font-weight:bold; color:#475569;">${escHtmlText(unit)}</td>
+                        <td style="padding:6px 5px; text-align:right; color:#64748b;">${priceRM.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                        <td style="padding:6px 5px; text-align:right; font-weight:bold; color:#1e40af;">${priceSale.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                        <td style="padding:6px 5px; text-align:right; font-weight:bold; color:#047857;">${totalSale.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                        <td style="padding:6px 5px; color:#64748b; font-size:9px;">${escHtmlText(item.observation || '-')}</td>
                     </tr>
                 `;
             }).join('');
@@ -10110,22 +10199,23 @@
 
                     <!-- Aviso Oficial RM & Fotos Nuvem -->
                     <div style="background:#eff6ff; border-left:3.5px solid #2563eb; padding:6px 12px; font-size:10px; color:#1e40af; margin-bottom:12px; border-radius:0 4px 4px 0;">
-                        <strong>ℹ️ Conformidade Contábil & Acervo Digital:</strong> Valores unitários referenciados na base oficial TOTVS RM. Todas as fotos em alta resolução e laudos de inspeção do estado físico dos itens estão arquivados na pasta em nuvem compartilhada.
+                        <strong>ℹ️ Conformidade Contábil & Acervo Digital:</strong> Valores de referência extraídos da base oficial TOTVS RM. Preço de negociação aplicado: <strong>${deadStockSalePercent}% do RM</strong>. Todas as fotos em alta resolução e laudos de inspeção do estado físico dos itens estão arquivados na pasta em nuvem compartilhada.
                     </div>
 
                     <!-- Tabela de Materiais Selecionados -->
                     <table style="width:100%; border-collapse:collapse; margin-bottom:14px; border:1px solid #cbd5e1;">
                         <thead>
-                            <tr style="background:#0f172a; color:#fff; font-size:10px; text-transform:uppercase;">
-                                <th style="padding:7px 6px; text-align:center; width:25px;">#</th>
-                                <th style="padding:7px 6px; text-align:left; width:75px;">Cód. RM</th>
-                                <th style="padding:7px 6px; text-align:left; width:75px;">SKU</th>
-                                <th style="padding:7px 6px; text-align:left;">Descrição do Material</th>
-                                <th style="padding:7px 6px; text-align:center; width:45px;">Qtd.</th>
-                                <th style="padding:7px 6px; text-align:center; width:40px;">Un.</th>
-                                <th style="padding:7px 6px; text-align:right; width:85px;">Preço RM</th>
-                                <th style="padding:7px 6px; text-align:right; width:90px;">Valor Total</th>
-                                <th style="padding:7px 6px; text-align:left; width:100px;">Observação</th>
+                            <tr style="background:#0f172a; color:#fff; font-size:9.5px; text-transform:uppercase;">
+                                <th style="padding:7px 5px; text-align:center; width:22px;">#</th>
+                                <th style="padding:7px 5px; text-align:left; width:65px;">Cód. RM</th>
+                                <th style="padding:7px 5px; text-align:left; width:65px;">SKU</th>
+                                <th style="padding:7px 5px; text-align:left;">Descrição do Material</th>
+                                <th style="padding:7px 5px; text-align:center; width:38px;">Qtd.</th>
+                                <th style="padding:7px 5px; text-align:center; width:32px;">Un.</th>
+                                <th style="padding:7px 5px; text-align:right; width:70px;">Preço RM</th>
+                                <th style="padding:7px 5px; text-align:right; width:75px;">Venda (${deadStockSalePercent}%)</th>
+                                <th style="padding:7px 5px; text-align:right; width:80px;">Total Venda</th>
+                                <th style="padding:7px 5px; text-align:left; width:95px;">Observação</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -10133,11 +10223,12 @@
                         </tbody>
                         <tfoot>
                             <tr style="background:#f1f5f9; font-weight:bold; font-size:11px; border-top:2px solid #0f172a;">
-                                <td colspan="4" style="padding:8px 10px; text-align:right; color:#0f172a;">TOTAL GERAL DA CARGA:</td>
-                                <td style="padding:8px 6px; text-align:center; font-size:12px; color:#0f172a;">${totalQty}</td>
+                                <td colspan="4" style="padding:8px 8px; text-align:right; color:#0f172a;">TOTAL GERAL DA CARGA:</td>
+                                <td style="padding:8px 5px; text-align:center; font-size:12px; color:#0f172a;">${totalQty}</td>
                                 <td></td>
-                                <td></td>
-                                <td style="padding:8px 6px; text-align:right; font-size:12px; color:#047857;">${totalVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                                <td style="padding:8px 5px; text-align:right; font-size:10px; color:#64748b;" title="Total RM 100%">${totalValRM.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                                <td style="padding:8px 5px; text-align:right; font-size:10px; color:#1e40af;">(${deadStockSalePercent}%)</td>
+                                <td style="padding:8px 5px; text-align:right; font-size:12px; color:#047857;">${totalValSale.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                                 <td></td>
                             </tr>
                         </tfoot>
@@ -10285,20 +10376,23 @@
 
                 const wb = XLS.utils.book_new();
 
-                // ── ABA 1: ITENS DISPONÍVEIS (11 COLUNAS A..K) ──
+                // ── ABA 1: ITENS DISPONÍVEIS (14 COLUNAS A..N COM DESÁGIO / VENDA CONFIGURADO) ──
                 const ws1 = XLS.utils.aoa_to_sheet([]);
                 ws1['!cols'] = [
                     { wch: 6 },  // A: #
                     { wch: 15 }, // B: CÓDIGO RM
                     { wch: 15 }, // C: CÓDIGO SKU
-                    { wch: 40 }, // D: DESCRIÇÃO DO PRODUTO
+                    { wch: 42 }, // D: DESCRIÇÃO DO PRODUTO
                     { wch: 10 }, // E: UNIDADE (UN, PÇ, KG)
                     { wch: 10 }, // F: QTD.
-                    { wch: 20 }, // G: PREÇO UNIT. RM
-                    { wch: 20 }, // H: VALOR TOTAL
-                    { wch: 32 }, // I: OBSERVAÇÃO / DESTINO
-                    { wch: 16 }, // J: DATA TRANSFERÊNCIA
-                    { wch: 22 }  // K: RESPONSÁVEL
+                    { wch: 18 }, // G: PREÇO UNIT. RM (R$)
+                    { wch: 20 }, // H: VALOR TOTAL RM (R$)
+                    { wch: 12 }, // I: % VENDA
+                    { wch: 22 }, // J: PREÇO UNIT. VENDA (R$)
+                    { wch: 22 }, // K: VALOR TOTAL VENDA (R$)
+                    { wch: 32 }, // L: OBSERVAÇÃO / DESTINO
+                    { wch: 16 }, // M: DATA TRANSFERÊNCIA
+                    { wch: 22 }  // N: RESPONSÁVEL
                 ];
                 ws1['!merges'] = [];
                 ws1['!rows'] = [];
@@ -10315,25 +10409,40 @@
                 const merge1 = (r_s, c_s, r_e, c_e) => ws1['!merges'].push({ s: { r: r_s, c: c_s }, e: { r: r_e, c: c_e } });
 
                 // Topo Aba 1
-                for (let c = 0; c < 11; c++) sc1(r1, c, '', sTitle);
+                for (let c = 0; c < 14; c++) sc1(r1, c, '', sTitle);
                 sc1(r1, 0, 'RELATÓRIO DE ESTOQUE MORTO — ITENS DISPONÍVEIS PARA VENDA / TRANSFERÊNCIA', sTitle);
-                merge1(r1, 0, r1, 10);
+                merge1(r1, 0, r1, 13);
                 ws1['!rows'][r1] = { hpt: 32 }; r1++;
 
-                for (let c = 0; c < 11; c++) sc1(r1, c, '', sSub);
-                sc1(r1, 0, `Obra: ${obraNome}  |  Emitido em: ${dataHoraFormatada}  |  Responsável: ${usuarioExport}  |  Itens Disponíveis: ${deadStock.length}`, sSub);
-                merge1(r1, 0, r1, 10);
+                for (let c = 0; c < 14; c++) sc1(r1, c, '', sSub);
+                sc1(r1, 0, `Obra: ${obraNome}  |  Emitido em: ${dataHoraFormatada}  |  Responsável: ${usuarioExport}  |  Percentual Aplicado para Venda: ${deadStockSalePercent}% do RM  |  Itens: ${deadStock.length}`, sSub);
+                merge1(r1, 0, r1, 13);
                 ws1['!rows'][r1] = { hpt: 20 }; r1++;
 
-                for (let c = 0; c < 11; c++) sc1(r1, c, '', sRMBanner);
-                sc1(r1, 0, '⚠️ AVISO: Valores unitários extraídos do Sistema RM (TOTVS). Registro fotográfico arquivado na nuvem.', sRMBanner);
-                merge1(r1, 0, r1, 10);
+                for (let c = 0; c < 14; c++) sc1(r1, c, '', sRMBanner);
+                sc1(r1, 0, `⚠️ AVISO: Valores unitários base extraídos do Sistema RM (TOTVS). Aplicado deságio de negociação de ${deadStockSalePercent}% sobre o preço de referência RM.`, sRMBanner);
+                merge1(r1, 0, r1, 13);
                 ws1['!rows'][r1] = { hpt: 22 }; r1++;
 
-                for (let c = 0; c < 11; c++) sc1(r1, c, '', { fill: { fgColor: { rgb: 'FFFFFF' } } });
+                for (let c = 0; c < 14; c++) sc1(r1, c, '', { fill: { fgColor: { rgb: 'FFFFFF' } } });
                 ws1['!rows'][r1] = { hpt: 8 }; r1++;
 
-                const headers1 = ['#', 'CÓDIGO RM', 'CÓDIGO SKU', 'DESCRIÇÃO DO PRODUTO', 'UNIDADE', 'QTD.', 'PREÇO UNIT. RM (R$)', 'VALOR TOTAL (R$)', 'OBSERVAÇÃO / DESTINO', 'DATA TRANSFERÊNCIA', 'RESPONSÁVEL'];
+                const headers1 = [
+                    '#', 
+                    'CÓDIGO RM', 
+                    'CÓDIGO SKU', 
+                    'DESCRIÇÃO DO PRODUTO', 
+                    'UNIDADE', 
+                    'QTD.', 
+                    'PREÇO UNIT. RM (R$)', 
+                    'VALOR TOTAL RM (R$)', 
+                    '% VENDA', 
+                    'PREÇO UNIT. VENDA (R$)', 
+                    'VALOR TOTAL VENDA (R$)', 
+                    'OBSERVAÇÃO / DESTINO', 
+                    'DATA TRANSFERÊNCIA', 
+                    'RESPONSÁVEL'
+                ];
                 headers1.forEach((h, c) => sc1(r1, c, h, sHeader));
                 ws1['!rows'][r1] = { hpt: 24 }; r1++;
 
@@ -10345,6 +10454,7 @@
                     const qty = parseInt(item.quantity, 10) || 0;
                     const unit = item.productUnit || 'UN';
                     const price = parseFloat(item.price) || 0;
+                    const pctVal = deadStockSalePercent / 100;
                     const dateStr = item.createdAt?.seconds ? new Date(item.createdAt.seconds * 1000).toLocaleDateString('pt-BR') : '';
 
                     sc1(rowIdx, 0, index + 1, sCell(even, 'center'), 'n');
@@ -10354,11 +10464,17 @@
                     sc1(rowIdx, 4, unit, sCell(even, 'center', '0F172A', true));
                     sc1(rowIdx, 5, qty, sCell(even, 'center', '0F172A', true), 'n', '#,##0');
                     sc1(rowIdx, 6, price, sCell(even, 'right'), 'n', '"R$" #,##0.00');
-                    // 🚀 FÓRMULA REAL: Multiplica Quantidade (Col F) pelo Preço Unitário (Col G)
-                    scF1(rowIdx, 7, `F${rowExcel}*G${rowExcel}`, sCell(even, 'right', '047857', true), '"R$" #,##0.00');
-                    sc1(rowIdx, 8, item.observation || '', sCell(even, 'left'));
-                    sc1(rowIdx, 9, dateStr, sCell(even, 'center'));
-                    sc1(rowIdx, 10, item.createdBy || '', sCell(even, 'left'));
+                    // 🚀 FÓRMULA REAL: Total RM = Quantidade (F) * Preço Unitário RM (G)
+                    scF1(rowIdx, 7, `F${rowExcel}*G${rowExcel}`, sCell(even, 'right', '1E40AF', true), '"R$" #,##0.00');
+                    // % Venda: Col I
+                    sc1(rowIdx, 8, pctVal, sCell(even, 'center', '4338CA', true), 'n', '0%');
+                    // 🚀 FÓRMULA REAL: Preço Unit. Venda = Preço RM (G) * % Venda (I)
+                    scF1(rowIdx, 9, `ROUND(G${rowExcel}*I${rowExcel}, 2)`, sCell(even, 'right', '4338CA', true), '"R$" #,##0.00');
+                    // 🚀 FÓRMULA REAL: Total Venda = Quantidade (F) * Preço Unit. Venda (J)
+                    scF1(rowIdx, 10, `ROUND(F${rowExcel}*J${rowExcel}, 2)`, sCell(even, 'right', '047857', true), '"R$" #,##0.00');
+                    sc1(rowIdx, 11, item.observation || '', sCell(even, 'left'));
+                    sc1(rowIdx, 12, dateStr, sCell(even, 'center'));
+                    sc1(rowIdx, 13, item.createdBy || '', sCell(even, 'left'));
 
                     ws1['!rows'][rowIdx] = { hpt: 22 };
                     r1++;
@@ -10366,16 +10482,22 @@
 
                 const endRow1 = r1;
                 if (deadStock.length > 0) {
-                    for (let c = 0; c < 11; c++) sc1(r1, c, '', sTotalHdr);
+                    for (let c = 0; c < 14; c++) sc1(r1, c, '', sTotalHdr);
                     sc1(r1, 0, 'TOTAL GERAL CONSOLIDADO', sTotalHdr);
                     merge1(r1, 0, r1, 4);
                     scF1(r1, 5, `SUM(F${startRow1}:F${endRow1})`, sTotalVal('center'), '#,##0');
                     sc1(r1, 6, '-', sTotalVal('center'));
-                    scF1(r1, 7, `SUM(H${startRow1}:H${endRow1})`, sTotalValEmerald, '"R$" #,##0.00');
+                    scF1(r1, 7, `SUM(H${startRow1}:H${endRow1})`, sTotalVal('right'), '"R$" #,##0.00');
+                    sc1(r1, 8, `${deadStockSalePercent}%`, sTotalVal('center'));
+                    sc1(r1, 9, '-', sTotalVal('center'));
+                    scF1(r1, 10, `SUM(K${startRow1}:K${endRow1})`, sTotalValEmerald, '"R$" #,##0.00');
+                    sc1(r1, 11, '-', sTotalVal('center'));
+                    sc1(r1, 12, '-', sTotalVal('center'));
+                    sc1(r1, 13, '-', sTotalVal('center'));
                     ws1['!rows'][r1] = { hpt: 26 }; r1++;
                 }
 
-                ws1['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r1, c: 10 } });
+                ws1['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r1, c: 13 } });
                 XLS.utils.book_append_sheet(wb, ws1, "Itens Disponíveis");
 
                 // ── ABA 2: VENDAS E SAÍDAS CONCLUÍDAS (11 COLUNAS A..K) ──
@@ -10461,7 +10583,7 @@
                     XLS.utils.book_append_sheet(wb, ws2, "Vendas Concluídas");
                 }
 
-                const filename = `Relatorio_Estoque_Morto_${(obraNome || 'Taboca').replace(/[^a-z0-9]/gi, '_')}_RM_${new Date().toISOString().split('T')[0]}.xlsx`;
+                const filename = `Relatorio_Estoque_Morto_Venda_${deadStockSalePercent}pct_${(obraNome || 'Taboca').replace(/[^a-z0-9]/gi, '_')}_RM_${new Date().toISOString().split('T')[0]}.xlsx`;
                 XLS.writeFile(wb, filename);
 
                 showToast("Planilha executiva exportada com sucesso!");
