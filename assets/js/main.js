@@ -9420,6 +9420,181 @@
             });
         }
 
+        // Helper para renderizar badge da categoria
+        const getCategoryBadge = (category) => {
+            switch (category) {
+                case 'EPIs / Segurança':
+                    return `<span class="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-200" title="EPIs / Segurança do Trabalho">🦺 EPIs</span>`;
+                case 'Mobília / Escritório':
+                    return `<span class="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-50 text-amber-800 px-2 py-0.5 rounded border border-amber-200" title="Mobília / Escritório / Alojamento">🪑 Mobília</span>`;
+                case 'Ferramentas Elétricas':
+                    return `<span class="inline-flex items-center gap-1 text-[10px] font-bold bg-purple-50 text-purple-700 px-2 py-0.5 rounded border border-purple-200" title="Ferramentas Elétricas / Manuais">⚡ Ferramentas</span>`;
+                case 'Equipamentos / Máquinas':
+                    return `<span class="inline-flex items-center gap-1 text-[10px] font-bold bg-cyan-50 text-cyan-800 px-2 py-0.5 rounded border border-cyan-200" title="Equipamentos / Máquinas">⚙️ Máquinas</span>`;
+                case 'Eletrodomésticos':
+                    return `<span class="inline-flex items-center gap-1 text-[10px] font-bold bg-teal-50 text-teal-800 px-2 py-0.5 rounded border border-teal-200" title="Eletrodomésticos / Refeitório">🧊 Eletro</span>`;
+                case 'TI / Informática':
+                    return `<span class="inline-flex items-center gap-1 text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-200" title="TI / Informática">💻 TI</span>`;
+                case 'Materiais de Obra':
+                    return `<span class="inline-flex items-center gap-1 text-[10px] font-bold bg-stone-100 text-stone-700 px-2 py-0.5 rounded border border-stone-300" title="Materiais de Obra / Sobras">🧱 Obra</span>`;
+                case 'Outros / Diversos':
+                    return `<span class="inline-flex items-center gap-1 text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-300" title="Outros / Diversos">📦 Outros</span>`;
+                default:
+                    return `<span class="inline-flex items-center gap-1 text-[10px] font-semibold bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100" title="Insumo do Almoxarifado RM">📦 Almoxarifado</span>`;
+            }
+        };
+
+        // Simulação inline do preço de venda no modal de cadastro
+        const updateCustomItemCalc = () => {
+            const qty = parseInt(document.getElementById('custom-ds-quantity')?.value, 10) || 1;
+            const price = parseFloat(document.getElementById('custom-ds-price')?.value) || 0;
+            const salePrice = price * (deadStockSalePercent / 100);
+            const saleTotal = salePrice * qty;
+
+            const badgeEl = document.getElementById('custom-ds-calc-pct-badge');
+            const priceEl = document.getElementById('custom-ds-calc-sale-price');
+            const totalEl = document.getElementById('custom-ds-calc-sale-total');
+
+            if (badgeEl) badgeEl.textContent = `${deadStockSalePercent}%`;
+            if (priceEl) priceEl.textContent = `${salePrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} / un.`;
+            if (totalEl) totalEl.textContent = saleTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        };
+
+        document.getElementById('custom-ds-price')?.addEventListener('input', updateCustomItemCalc);
+        document.getElementById('custom-ds-quantity')?.addEventListener('input', updateCustomItemCalc);
+
+        // Abertura do modal de cadastro / edição de item avulso para venda
+        const openCustomDeadStockModal = (editId = null) => {
+            const titleEl = document.getElementById('custom-ds-modal-title');
+            const submitLabelEl = document.getElementById('custom-ds-submit-label');
+            const editIdInput = document.getElementById('custom-ds-edit-id');
+            const form = document.getElementById('custom-dead-stock-form');
+            if (!form) return;
+
+            if (editId) {
+                const item = deadStock.find(d => d.id === editId);
+                if (!item) return;
+
+                if (titleEl) titleEl.textContent = "Editar Item para Venda";
+                if (submitLabelEl) submitLabelEl.textContent = "Salvar Alterações";
+                if (editIdInput) editIdInput.value = item.id;
+
+                const catEl = document.getElementById('custom-ds-category');
+                if (catEl) catEl.value = item.category || 'Outros / Diversos';
+                const condEl = document.getElementById('custom-ds-condition');
+                if (condEl) condEl.value = item.condition || 'Bom';
+                const nameEl = document.getElementById('custom-ds-name');
+                if (nameEl) nameEl.value = item.productName || '';
+                const rmEl = document.getElementById('custom-ds-coderm');
+                if (rmEl) rmEl.value = item.productCodeRM || '';
+                const skuEl = document.getElementById('custom-ds-sku');
+                if (skuEl) skuEl.value = item.productCode || '';
+                const qtyEl = document.getElementById('custom-ds-quantity');
+                if (qtyEl) qtyEl.value = item.quantity || 1;
+                const unitEl = document.getElementById('custom-ds-unit');
+                if (unitEl) unitEl.value = item.productUnit || 'UN';
+                const priceEl = document.getElementById('custom-ds-price');
+                if (priceEl) priceEl.value = item.price !== undefined && item.price !== null ? item.price : '';
+                const locEl = document.getElementById('custom-ds-location');
+                if (locEl) locEl.value = item.location || '';
+                const obsEl = document.getElementById('custom-ds-observation');
+                if (obsEl) obsEl.value = item.observation || '';
+            } else {
+                if (titleEl) titleEl.textContent = "Cadastrar Item para Venda";
+                if (submitLabelEl) submitLabelEl.textContent = "Salvar Item para Venda";
+                if (editIdInput) editIdInput.value = "";
+                form.reset();
+                const qtyEl = document.getElementById('custom-ds-quantity');
+                if (qtyEl) qtyEl.value = 1;
+                const unitEl = document.getElementById('custom-ds-unit');
+                if (unitEl) unitEl.value = 'UN';
+                const condEl = document.getElementById('custom-ds-condition');
+                if (condEl) condEl.value = 'Bom';
+            }
+
+            updateCustomItemCalc();
+            openModal('custom-dead-stock-modal');
+        };
+
+        document.getElementById('open-add-custom-dead-stock-btn')?.addEventListener('click', () => openCustomDeadStockModal());
+
+        document.getElementById('custom-dead-stock-form')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = document.getElementById('custom-ds-submit-btn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<div class="spinner-small"></div>';
+
+            try {
+                const editId = document.getElementById('custom-ds-edit-id')?.value;
+                const category = document.getElementById('custom-ds-category')?.value || 'Outros / Diversos';
+                const condition = document.getElementById('custom-ds-condition')?.value || 'Bom';
+                const name = document.getElementById('custom-ds-name')?.value.trim();
+                const codeRM = document.getElementById('custom-ds-coderm')?.value.trim();
+                const sku = document.getElementById('custom-ds-sku')?.value.trim();
+                const quantity = parseInt(document.getElementById('custom-ds-quantity')?.value, 10) || 1;
+                const unit = document.getElementById('custom-ds-unit')?.value || 'UN';
+                const price = parseFloat(document.getElementById('custom-ds-price')?.value) || 0;
+                const location = document.getElementById('custom-ds-location')?.value.trim();
+                const observation = document.getElementById('custom-ds-observation')?.value.trim();
+
+                if (!name) throw new Error("A descrição do material é obrigatória.");
+
+                const itemData = {
+                    isCustomItem: true,
+                    category: category,
+                    condition: condition,
+                    productName: name,
+                    productCodeRM: codeRM,
+                    productCode: sku,
+                    quantity: quantity,
+                    productUnit: unit,
+                    price: price,
+                    location: location,
+                    observation: observation,
+                    updatedAt: serverTimestamp(),
+                    updatedBy: currentUser?.displayName || currentUser?.email || 'Sistema'
+                };
+
+                if (editId) {
+                    const dsRef = doc(deadStockCollectionRef, editId);
+                    await updateDoc(dsRef, itemData);
+                    showToast("Item atualizado com sucesso!");
+                } else {
+                    itemData.createdAt = serverTimestamp();
+                    itemData.createdBy = currentUser?.displayName || currentUser?.email || 'Sistema';
+                    itemData.originalProductId = null;
+
+                    await addDoc(deadStockCollectionRef, itemData);
+
+                    // Registro no histórico de auditoria
+                    if (historyCollectionRef) {
+                        try {
+                            await addDoc(historyCollectionRef, {
+                                productName: name,
+                                type: 'Cadastro Item Venda',
+                                quantity: quantity,
+                                observation: `Cadastrado diretamente para venda (${category}): ${name} - ${quantity} ${unit} a R$ ${price.toFixed(2)} cada`,
+                                user: currentUser?.displayName || currentUser?.email || 'Sistema',
+                                date: serverTimestamp()
+                            });
+                        } catch (histErr) {
+                            console.warn("Erro ao gravar histórico:", histErr);
+                        }
+                    }
+
+                    showToast("Item cadastrado com sucesso para venda!");
+                }
+
+                closeModal('custom-dead-stock-modal');
+            } catch (err) {
+                console.error("Erro ao salvar item para venda:", err);
+                showToast(err.message || "Erro ao salvar item.", true);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<span class="material-symbols-outlined text-lg">save</span><span id="custom-ds-submit-label">Salvar Item para Venda</span>';
+            }
+        });
+
         // Alternância de Sub-abas
         const switchDeadStockSubtab = (tab) => {
             activeDeadStockSubtab = tab;
@@ -9515,7 +9690,10 @@
                     const codeRM = (item.productCodeRM || '').toLowerCase();
                     const obs = (item.observation || '').toLowerCase();
                     const unit = (item.productUnit || '').toLowerCase();
-                    return name.includes(query) || code.includes(query) || codeRM.includes(query) || obs.includes(query) || unit.includes(query);
+                    const cat = (item.category || '').toLowerCase();
+                    const loc = (item.location || '').toLowerCase();
+                    const cond = (item.condition || '').toLowerCase();
+                    return name.includes(query) || code.includes(query) || codeRM.includes(query) || obs.includes(query) || unit.includes(query) || cat.includes(query) || loc.includes(query) || cond.includes(query);
                 });
             }
 
@@ -9540,8 +9718,8 @@
                         <div class="w-16 h-16 bg-slate-100 text-slate-400 rounded-2xl flex items-center justify-center mx-auto mb-3">
                             <span class="material-symbols-outlined text-3xl">inventory_2</span>
                         </div>
-                        <p class="font-semibold text-slate-700">Nenhum item no Estoque Morto</p>
-                        <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">Para transferir produtos para cá, acesse a aba "Saldo do Estoque" e clique no botão de transferência laranja ao lado do item.</p>
+                        <p class="font-semibold text-slate-700">Nenhum item no Estoque Morto / Venda</p>
+                        <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">Cadastre materiais avulsos (EPIs, mobília, ferramentas) no botão acima ou transfira itens da aba "Saldo do Estoque".</p>
                     `;
                 }
             } else {
@@ -9566,10 +9744,13 @@
                         <td class="p-3.5 sm:p-4 align-top">
                             <div class="font-bold text-slate-800 text-sm leading-snug">${escHtmlText(item.productName)}</div>
                             <div class="flex flex-wrap items-center gap-1.5 mt-1">
-                                ${item.productCodeRM ? `<span class="inline-flex items-center text-[10px] font-semibold bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100/60" title="Código no Sistema RM">RM: ${escHtmlText(item.productCodeRM)}</span>` : ''}
-                                ${item.productCode ? `<span class="inline-flex items-center text-[10px] font-medium bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded" title="Código SKU">SKU: ${escHtmlText(item.productCode)}</span>` : ''}
+                                ${item.productCodeRM ? `<span class="inline-flex items-center text-[10px] font-semibold bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100/60" title="Código RM ou Patrimônio">${item.isCustomItem ? 'PAT/RM: ' : 'RM: '}${escHtmlText(item.productCodeRM)}</span>` : ''}
+                                ${item.productCode ? `<span class="inline-flex items-center text-[10px] font-medium bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded" title="SKU / Nº Série">SKU: ${escHtmlText(item.productCode)}</span>` : ''}
                                 <span class="inline-flex items-center text-[10px] text-slate-400">📅 ${dateStr}</span>
                             </div>
+                        </td>
+                        <td class="p-3.5 sm:p-4 align-top">
+                            ${getCategoryBadge(item.category)}
                         </td>
                         <td class="p-3.5 sm:p-4 text-center align-top font-bold text-slate-800 text-base">
                             <span class="inline-block px-2.5 py-1 bg-slate-100 text-slate-800 rounded-lg">${qty}</span>
@@ -9590,19 +9771,27 @@
                             <span class="text-[10px] text-slate-400 block line-through" title="Valor contábil original 100% RM">RM: ${totalRMStr}</span>
                         </td>
                         <td class="p-3.5 sm:p-4 align-top">
+                            ${item.condition ? `<div class="mb-1"><span class="inline-block text-[10px] font-semibold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">${escHtmlText(item.condition)}</span></div>` : ''}
                             <div class="inline-block bg-amber-50/80 border border-amber-200/70 text-amber-900 text-xs px-2.5 py-1 rounded-lg max-w-xs break-words" title="${escHtmlText(item.observation || 'Sem observação')}">
                                 ${escHtmlText(item.observation || 'Sem observação')}
                             </div>
-                            ${item.createdBy ? `<p class="text-[10px] text-slate-400 mt-1">Por: ${escHtmlText(item.createdBy)}</p>` : ''}
+                            ${item.location ? `<p class="text-[10px] text-slate-500 font-medium mt-1">📍 ${escHtmlText(item.location)}</p>` : ''}
+                            ${item.createdBy ? `<p class="text-[10px] text-slate-400 mt-0.5">Por: ${escHtmlText(item.createdBy)}</p>` : ''}
                         </td>
                         <td class="p-3.5 sm:p-4 text-center align-top">
                             <div class="flex items-center justify-center gap-1">
                                 <button data-id="${item.id}" class="sell-ds-btn p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition" title="Registrar Venda / Saída Concluída">
                                     <span class="material-symbols-outlined text-lg">point_of_sale</span>
                                 </button>
-                                <button data-id="${item.id}" class="return-ds-btn p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 transition" title="Devolver ao Estoque Principal (Estorno)">
-                                    <span class="material-symbols-outlined text-lg">assignment_return</span>
-                                </button>
+                                ${item.isCustomItem ? `
+                                    <button data-id="${item.id}" class="edit-custom-ds-btn p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 transition" title="Editar Informações do Item">
+                                        <span class="material-symbols-outlined text-lg">edit</span>
+                                    </button>
+                                ` : `
+                                    <button data-id="${item.id}" class="return-ds-btn p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 transition" title="Devolver ao Estoque Principal (Estorno)">
+                                        <span class="material-symbols-outlined text-lg">assignment_return</span>
+                                    </button>
+                                `}
                                 <button data-id="${item.id}" class="delete-ds-btn p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 transition" title="Excluir Permanentemente">
                                     <span class="material-symbols-outlined text-lg">delete</span>
                                 </button>
@@ -9919,9 +10108,12 @@
                         deadStockId: itemId,
                         originalProductId: dsData.originalProductId || '',
                         productName: dsData.productName,
-                        productCode: dsData.productCode || '',
-                        productCodeRM: dsData.productCodeRM || '',
+                        productCode: dsData.productCode || dsData.sku || '',
+                        productCodeRM: dsData.productCodeRM || dsData.assetCode || '',
                         productUnit: dsData.productUnit || 'UN',
+                        category: dsData.category || (dsData.isCustomItem ? 'Outros / Bens' : 'Estoque de Obra'),
+                        isCustomItem: !!dsData.isCustomItem,
+                        condition: dsData.condition || 'Sem avarias',
                         quantity: sellQty,
                         price: finalPrice,
                         total: sellQty * finalPrice,
@@ -10022,10 +10214,13 @@
                         <div class="flex items-center gap-2.5 min-w-0 flex-1">
                             <input type="checkbox" class="manifest-item-checkbox h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0" checked data-id="${item.id}">
                             <div class="min-w-0 flex-1">
-                                <p class="font-bold text-slate-800 truncate">${escHtmlText(item.productName)}</p>
+                                <p class="font-bold text-slate-800 truncate">
+                                    ${item.category ? `<span class="bg-indigo-50 text-indigo-700 text-[10px] font-semibold px-1.5 py-0.5 rounded mr-1">${escHtmlText(item.category)}</span>` : ''}
+                                    ${escHtmlText(item.productName)}
+                                </p>
                                 <div class="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
-                                    ${item.productCodeRM ? `<span class="bg-blue-50 text-blue-700 px-1.5 py-0.2 rounded font-semibold">RM: ${escHtmlText(item.productCodeRM)}</span>` : ''}
-                                    ${item.productCode ? `<span>SKU: ${escHtmlText(item.productCode)}</span>` : ''}
+                                    ${(item.productCodeRM || item.assetCode) ? `<span class="bg-blue-50 text-blue-700 px-1.5 py-0.2 rounded font-semibold">RM/Patr: ${escHtmlText(item.productCodeRM || item.assetCode)}</span>` : ''}
+                                    ${(item.productCode || item.sku) ? `<span>SKU/Série: ${escHtmlText(item.productCode || item.sku)}</span>` : ''}
                                     <span class="bg-slate-200 text-slate-700 font-bold px-1.5 py-0.2 rounded">${escHtmlText(unit)}</span>
                                     <span>Saldo Disp: <strong class="text-slate-700">${maxQty} ${escHtmlText(unit)}</strong></span>
                                 </div>
@@ -10128,15 +10323,19 @@
                 return `
                     <tr style="border-bottom:1px solid #e2e8f0; font-size:10px; ${idx % 2 === 1 ? 'background:#f8fafc;' : ''}">
                         <td style="padding:6px 5px; text-align:center; color:#64748b;">${idx + 1}</td>
-                        <td style="padding:6px 5px; font-weight:bold; font-family:monospace; color:#1e40af;">${escHtmlText(item.productCodeRM || '-')}</td>
-                        <td style="padding:6px 5px; font-family:monospace; color:#475569;">${escHtmlText(item.productCode || '-')}</td>
-                        <td style="padding:6px 5px; font-weight:600; color:#0f172a;">${escHtmlText(item.productName)}</td>
+                        <td style="padding:6px 5px; font-weight:bold; font-family:monospace; color:#1e40af;">${escHtmlText(item.productCodeRM || item.assetCode || '-')}</td>
+                        <td style="padding:6px 5px; font-family:monospace; color:#475569;">${escHtmlText(item.productCode || item.sku || '-')}</td>
+                        <td style="padding:6px 5px; font-weight:600; color:#0f172a;">
+                            ${item.category ? `<span style="display:inline-block; font-size:8px; font-weight:bold; padding:1px 4px; border-radius:3px; background:#e0e7ff; color:#3730a3; margin-right:4px;">${escHtmlText(item.category)}</span>` : ''}
+                            ${escHtmlText(item.productName)}
+                            ${item.condition && item.condition !== 'Sem avarias' ? `<span style="display:inline-block; font-size:8px; color:#b45309; margin-left:4px;">(${escHtmlText(item.condition)})</span>` : ''}
+                        </td>
                         <td style="padding:6px 5px; text-align:center; font-weight:bold; color:#0f172a; font-size:11px;">${qty}</td>
                         <td style="padding:6px 5px; text-align:center; font-weight:bold; color:#475569;">${escHtmlText(unit)}</td>
                         <td style="padding:6px 5px; text-align:right; color:#64748b;">${priceRM.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                         <td style="padding:6px 5px; text-align:right; font-weight:bold; color:#1e40af;">${priceSale.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                         <td style="padding:6px 5px; text-align:right; font-weight:bold; color:#047857;">${totalSale.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                        <td style="padding:6px 5px; color:#64748b; font-size:9px;">${escHtmlText(item.observation || '-')}</td>
+                        <td style="padding:6px 5px; color:#64748b; font-size:9px;">${escHtmlText(item.observation || item.location || '-')}</td>
                     </tr>
                 `;
             }).join('');
@@ -10376,23 +10575,25 @@
 
                 const wb = XLS.utils.book_new();
 
-                // ── ABA 1: ITENS DISPONÍVEIS (14 COLUNAS A..N COM DESÁGIO / VENDA CONFIGURADO) ──
+                // ── ABA 1: ITENS DISPONÍVEIS (16 COLUNAS A..P COM GRUPO, CONDIÇÃO E % DE VENDA) ──
                 const ws1 = XLS.utils.aoa_to_sheet([]);
                 ws1['!cols'] = [
                     { wch: 6 },  // A: #
-                    { wch: 15 }, // B: CÓDIGO RM
-                    { wch: 15 }, // C: CÓDIGO SKU
-                    { wch: 42 }, // D: DESCRIÇÃO DO PRODUTO
-                    { wch: 10 }, // E: UNIDADE (UN, PÇ, KG)
-                    { wch: 10 }, // F: QTD.
-                    { wch: 18 }, // G: PREÇO UNIT. RM (R$)
-                    { wch: 20 }, // H: VALOR TOTAL RM (R$)
-                    { wch: 12 }, // I: % VENDA
-                    { wch: 22 }, // J: PREÇO UNIT. VENDA (R$)
-                    { wch: 22 }, // K: VALOR TOTAL VENDA (R$)
-                    { wch: 32 }, // L: OBSERVAÇÃO / DESTINO
-                    { wch: 16 }, // M: DATA TRANSFERÊNCIA
-                    { wch: 22 }  // N: RESPONSÁVEL
+                    { wch: 24 }, // B: GRUPO / CATEGORIA
+                    { wch: 18 }, // C: CÓDIGO RM / PATRIMÔNIO
+                    { wch: 18 }, // D: CÓDIGO SKU / SÉRIE
+                    { wch: 44 }, // E: DESCRIÇÃO DO PRODUTO
+                    { wch: 18 }, // F: ESTADO / CONDIÇÃO
+                    { wch: 10 }, // G: UNIDADE (UN, PÇ, KG)
+                    { wch: 10 }, // H: QTD.
+                    { wch: 22 }, // I: PREÇO UNIT. BASE (R$)
+                    { wch: 22 }, // J: VALOR TOTAL BASE (R$)
+                    { wch: 12 }, // K: % VENDA
+                    { wch: 22 }, // L: PREÇO UNIT. VENDA (R$)
+                    { wch: 22 }, // M: VALOR TOTAL VENDA (R$)
+                    { wch: 32 }, // N: LOCALIZAÇÃO / OBSERVAÇÃO
+                    { wch: 16 }, // O: DATA CADASTRO
+                    { wch: 22 }  // P: RESPONSÁVEL
                 ];
                 ws1['!merges'] = [];
                 ws1['!rows'] = [];
@@ -10409,38 +10610,40 @@
                 const merge1 = (r_s, c_s, r_e, c_e) => ws1['!merges'].push({ s: { r: r_s, c: c_s }, e: { r: r_e, c: c_e } });
 
                 // Topo Aba 1
-                for (let c = 0; c < 14; c++) sc1(r1, c, '', sTitle);
-                sc1(r1, 0, 'RELATÓRIO DE ESTOQUE MORTO — ITENS DISPONÍVEIS PARA VENDA / TRANSFERÊNCIA', sTitle);
-                merge1(r1, 0, r1, 13);
+                for (let c = 0; c < 16; c++) sc1(r1, c, '', sTitle);
+                sc1(r1, 0, 'RELATÓRIO DE ESTOQUE MORTO & BENS — ITENS DISPONÍVEIS PARA VENDA / TRANSFERÊNCIA', sTitle);
+                merge1(r1, 0, r1, 15);
                 ws1['!rows'][r1] = { hpt: 32 }; r1++;
 
-                for (let c = 0; c < 14; c++) sc1(r1, c, '', sSub);
-                sc1(r1, 0, `Obra: ${obraNome}  |  Emitido em: ${dataHoraFormatada}  |  Responsável: ${usuarioExport}  |  Percentual Aplicado para Venda: ${deadStockSalePercent}% do RM  |  Itens: ${deadStock.length}`, sSub);
-                merge1(r1, 0, r1, 13);
+                for (let c = 0; c < 16; c++) sc1(r1, c, '', sSub);
+                sc1(r1, 0, `Obra: ${obraNome}  |  Emitido em: ${dataHoraFormatada}  |  Responsável: ${usuarioExport}  |  Percentual Aplicado para Venda: ${deadStockSalePercent}%  |  Itens: ${deadStock.length}`, sSub);
+                merge1(r1, 0, r1, 15);
                 ws1['!rows'][r1] = { hpt: 20 }; r1++;
 
-                for (let c = 0; c < 14; c++) sc1(r1, c, '', sRMBanner);
-                sc1(r1, 0, `⚠️ AVISO: Valores unitários base extraídos do Sistema RM (TOTVS). Aplicado deságio de negociação de ${deadStockSalePercent}% sobre o preço de referência RM.`, sRMBanner);
-                merge1(r1, 0, r1, 13);
+                for (let c = 0; c < 16; c++) sc1(r1, c, '', sRMBanner);
+                sc1(r1, 0, `⚠️ AVISO: Valores unitários base extraídos do Sistema RM (TOTVS) ou apuração patrimonial. Aplicado percentual de ${deadStockSalePercent}% sobre o preço de referência.`, sRMBanner);
+                merge1(r1, 0, r1, 15);
                 ws1['!rows'][r1] = { hpt: 22 }; r1++;
 
-                for (let c = 0; c < 14; c++) sc1(r1, c, '', { fill: { fgColor: { rgb: 'FFFFFF' } } });
+                for (let c = 0; c < 16; c++) sc1(r1, c, '', { fill: { fgColor: { rgb: 'FFFFFF' } } });
                 ws1['!rows'][r1] = { hpt: 8 }; r1++;
 
                 const headers1 = [
                     '#', 
-                    'CÓDIGO RM', 
-                    'CÓDIGO SKU', 
+                    'GRUPO / CATEGORIA',
+                    'CÓDIGO RM / PATRIMÔNIO', 
+                    'CÓDIGO SKU / SÉRIE', 
                     'DESCRIÇÃO DO PRODUTO', 
+                    'ESTADO / CONDIÇÃO',
                     'UNIDADE', 
                     'QTD.', 
-                    'PREÇO UNIT. RM (R$)', 
-                    'VALOR TOTAL RM (R$)', 
+                    'PREÇO UNIT. BASE (R$)', 
+                    'VALOR TOTAL BASE (R$)', 
                     '% VENDA', 
                     'PREÇO UNIT. VENDA (R$)', 
                     'VALOR TOTAL VENDA (R$)', 
-                    'OBSERVAÇÃO / DESTINO', 
-                    'DATA TRANSFERÊNCIA', 
+                    'LOCALIZAÇÃO / OBSERVAÇÃO', 
+                    'DATA CADASTRO', 
                     'RESPONSÁVEL'
                 ];
                 headers1.forEach((h, c) => sc1(r1, c, h, sHeader));
@@ -10456,25 +10659,30 @@
                     const price = parseFloat(item.price) || 0;
                     const pctVal = deadStockSalePercent / 100;
                     const dateStr = item.createdAt?.seconds ? new Date(item.createdAt.seconds * 1000).toLocaleDateString('pt-BR') : '';
+                    const groupCat = item.category || (item.isCustomItem ? 'Outros / Bens' : 'Estoque de Obra');
+                    const condition = item.condition || 'Sem avarias';
+                    const locObs = [item.location ? `Loc: ${item.location}` : '', item.observation].filter(Boolean).join(' | ');
 
                     sc1(rowIdx, 0, index + 1, sCell(even, 'center'), 'n');
-                    sc1(rowIdx, 1, item.productCodeRM || '-', sCell(even, 'center'));
-                    sc1(rowIdx, 2, item.productCode || '-', sCell(even, 'center'));
-                    sc1(rowIdx, 3, item.productName || 'Não especificado', sCell(even, 'left', '0F172A', true));
-                    sc1(rowIdx, 4, unit, sCell(even, 'center', '0F172A', true));
-                    sc1(rowIdx, 5, qty, sCell(even, 'center', '0F172A', true), 'n', '#,##0');
-                    sc1(rowIdx, 6, price, sCell(even, 'right'), 'n', '"R$" #,##0.00');
-                    // 🚀 FÓRMULA REAL: Total RM = Quantidade (F) * Preço Unitário RM (G)
-                    scF1(rowIdx, 7, `F${rowExcel}*G${rowExcel}`, sCell(even, 'right', '1E40AF', true), '"R$" #,##0.00');
-                    // % Venda: Col I
-                    sc1(rowIdx, 8, pctVal, sCell(even, 'center', '4338CA', true), 'n', '0%');
-                    // 🚀 FÓRMULA REAL: Preço Unit. Venda = Preço RM (G) * % Venda (I)
-                    scF1(rowIdx, 9, `ROUND(G${rowExcel}*I${rowExcel}, 2)`, sCell(even, 'right', '4338CA', true), '"R$" #,##0.00');
-                    // 🚀 FÓRMULA REAL: Total Venda = Quantidade (F) * Preço Unit. Venda (J)
-                    scF1(rowIdx, 10, `ROUND(F${rowExcel}*J${rowExcel}, 2)`, sCell(even, 'right', '047857', true), '"R$" #,##0.00');
-                    sc1(rowIdx, 11, item.observation || '', sCell(even, 'left'));
-                    sc1(rowIdx, 12, dateStr, sCell(even, 'center'));
-                    sc1(rowIdx, 13, item.createdBy || '', sCell(even, 'left'));
+                    sc1(rowIdx, 1, groupCat, sCell(even, 'center', '1E40AF', true));
+                    sc1(rowIdx, 2, item.productCodeRM || item.assetCode || '-', sCell(even, 'center'));
+                    sc1(rowIdx, 3, item.productCode || item.sku || '-', sCell(even, 'center'));
+                    sc1(rowIdx, 4, item.productName || item.description || 'Não especificado', sCell(even, 'left', '0F172A', true));
+                    sc1(rowIdx, 5, condition, sCell(even, 'center'));
+                    sc1(rowIdx, 6, unit, sCell(even, 'center', '0F172A', true));
+                    sc1(rowIdx, 7, qty, sCell(even, 'center', '0F172A', true), 'n', '#,##0');
+                    sc1(rowIdx, 8, price, sCell(even, 'right'), 'n', '"R$" #,##0.00');
+                    // 🚀 FÓRMULA REAL: Total Base = Quantidade (H) * Preço Unitário Base (I)
+                    scF1(rowIdx, 9, `H${rowExcel}*I${rowExcel}`, sCell(even, 'right', '1E40AF', true), '"R$" #,##0.00');
+                    // % Venda: Col K
+                    sc1(rowIdx, 10, pctVal, sCell(even, 'center', '4338CA', true), 'n', '0%');
+                    // 🚀 FÓRMULA REAL: Preço Unit. Venda = Preço Base (I) * % Venda (K)
+                    scF1(rowIdx, 11, `ROUND(I${rowExcel}*K${rowExcel}, 2)`, sCell(even, 'right', '4338CA', true), '"R$" #,##0.00');
+                    // 🚀 FÓRMULA REAL: Total Venda = Quantidade (H) * Preço Unit. Venda (L)
+                    scF1(rowIdx, 12, `ROUND(H${rowExcel}*L${rowExcel}, 2)`, sCell(even, 'right', '047857', true), '"R$" #,##0.00');
+                    sc1(rowIdx, 13, locObs, sCell(even, 'left'));
+                    sc1(rowIdx, 14, dateStr, sCell(even, 'center'));
+                    sc1(rowIdx, 15, item.createdBy || '', sCell(even, 'left'));
 
                     ws1['!rows'][rowIdx] = { hpt: 22 };
                     r1++;
@@ -10482,39 +10690,40 @@
 
                 const endRow1 = r1;
                 if (deadStock.length > 0) {
-                    for (let c = 0; c < 14; c++) sc1(r1, c, '', sTotalHdr);
+                    for (let c = 0; c < 16; c++) sc1(r1, c, '', sTotalHdr);
                     sc1(r1, 0, 'TOTAL GERAL CONSOLIDADO', sTotalHdr);
-                    merge1(r1, 0, r1, 4);
-                    scF1(r1, 5, `SUM(F${startRow1}:F${endRow1})`, sTotalVal('center'), '#,##0');
-                    sc1(r1, 6, '-', sTotalVal('center'));
-                    scF1(r1, 7, `SUM(H${startRow1}:H${endRow1})`, sTotalVal('right'), '"R$" #,##0.00');
-                    sc1(r1, 8, `${deadStockSalePercent}%`, sTotalVal('center'));
-                    sc1(r1, 9, '-', sTotalVal('center'));
-                    scF1(r1, 10, `SUM(K${startRow1}:K${endRow1})`, sTotalValEmerald, '"R$" #,##0.00');
+                    merge1(r1, 0, r1, 6);
+                    scF1(r1, 7, `SUM(H${startRow1}:H${endRow1})`, sTotalVal('center'), '#,##0');
+                    sc1(r1, 8, '-', sTotalVal('center'));
+                    scF1(r1, 9, `SUM(J${startRow1}:J${endRow1})`, sTotalVal('right'), '"R$" #,##0.00');
+                    sc1(r1, 10, `${deadStockSalePercent}%`, sTotalVal('center'));
                     sc1(r1, 11, '-', sTotalVal('center'));
-                    sc1(r1, 12, '-', sTotalVal('center'));
+                    scF1(r1, 12, `SUM(M${startRow1}:M${endRow1})`, sTotalValEmerald, '"R$" #,##0.00');
                     sc1(r1, 13, '-', sTotalVal('center'));
+                    sc1(r1, 14, '-', sTotalVal('center'));
+                    sc1(r1, 15, '-', sTotalVal('center'));
                     ws1['!rows'][r1] = { hpt: 26 }; r1++;
                 }
 
-                ws1['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r1, c: 13 } });
+                ws1['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r1, c: 15 } });
                 XLS.utils.book_append_sheet(wb, ws1, "Itens Disponíveis");
 
-                // ── ABA 2: VENDAS E SAÍDAS CONCLUÍDAS (11 COLUNAS A..K) ──
+                // ── ABA 2: VENDAS E SAÍDAS CONCLUÍDAS (12 COLUNAS A..L) ──
                 if (deadStockSales.length > 0) {
                     const ws2 = XLS.utils.aoa_to_sheet([]);
                     ws2['!cols'] = [
                         { wch: 6 },  // A: #
-                        { wch: 15 }, // B: CÓDIGO RM
-                        { wch: 15 }, // C: CÓDIGO SKU
-                        { wch: 40 }, // D: DESCRIÇÃO DO PRODUTO
-                        { wch: 10 }, // E: UNIDADE
-                        { wch: 10 }, // F: QTD.
-                        { wch: 20 }, // G: VALOR NEGOCIADO
-                        { wch: 20 }, // H: TOTAL REALIZADO
-                        { wch: 30 }, // I: DESTINO / COMPRADOR
-                        { wch: 18 }, // J: Nº NF / RECIBO
-                        { wch: 22 }  // K: DATA & RESPONSÁVEL
+                        { wch: 24 }, // B: GRUPO / CATEGORIA
+                        { wch: 18 }, // C: CÓDIGO RM / PATRIMÔNIO
+                        { wch: 18 }, // D: CÓDIGO SKU / SÉRIE
+                        { wch: 40 }, // E: DESCRIÇÃO DO PRODUTO
+                        { wch: 10 }, // F: UNIDADE
+                        { wch: 10 }, // G: QTD.
+                        { wch: 20 }, // H: VALOR NEGOCIADO (R$)
+                        { wch: 20 }, // I: TOTAL REALIZADO (R$)
+                        { wch: 30 }, // J: DESTINO / COMPRADOR
+                        { wch: 18 }, // K: Nº NF / RECIBO
+                        { wch: 22 }  // L: DATA & RESPONSÁVEL
                     ];
                     ws2['!merges'] = [];
                     ws2['!rows'] = [];
@@ -10530,17 +10739,17 @@
                     };
                     const merge2 = (r_s, c_s, r_e, c_e) => ws2['!merges'].push({ s: { r: r_s, c: c_s }, e: { r: r_e, c: c_e } });
 
-                    for (let c = 0; c < 11; c++) sc2(r2, c, '', sTitle);
+                    for (let c = 0; c < 12; c++) sc2(r2, c, '', sTitle);
                     sc2(r2, 0, 'HISTÓRICO DE VENDAS & TRANSFERÊNCIAS CONCLUÍDAS', sTitle);
-                    merge2(r2, 0, r2, 10);
+                    merge2(r2, 0, r2, 11);
                     ws2['!rows'][r2] = { hpt: 32 }; r2++;
 
-                    for (let c = 0; c < 11; c++) sc2(r2, c, '', sSub);
+                    for (let c = 0; c < 12; c++) sc2(r2, c, '', sSub);
                     sc2(r2, 0, `Obra: ${obraNome}  |  Total de Baixas Concluídas: ${deadStockSales.length}`, sSub);
-                    merge2(r2, 0, r2, 10);
+                    merge2(r2, 0, r2, 11);
                     ws2['!rows'][r2] = { hpt: 20 }; r2++;
 
-                    const headers2 = ['#', 'CÓDIGO RM', 'CÓDIGO SKU', 'DESCRIÇÃO DO PRODUTO', 'UNIDADE', 'QTD.', 'VALOR NEGOCIADO (R$)', 'TOTAL REALIZADO (R$)', 'DESTINO / COMPRADOR', 'Nº NF / RECIBO', 'DATA & RESPONSÁVEL'];
+                    const headers2 = ['#', 'GRUPO / CATEGORIA', 'CÓDIGO RM / PATRIMÔNIO', 'CÓDIGO SKU / SÉRIE', 'DESCRIÇÃO DO PRODUTO', 'UNIDADE', 'QTD.', 'VALOR NEGOCIADO (R$)', 'TOTAL REALIZADO (R$)', 'DESTINO / COMPRADOR', 'Nº NF / RECIBO', 'DATA & RESPONSÁVEL'];
                     headers2.forEach((h, c) => sc2(r2, c, h, sHeader));
                     ws2['!rows'][r2] = { hpt: 24 }; r2++;
 
@@ -10553,33 +10762,39 @@
                         const unit = sale.productUnit || 'UN';
                         const price = parseFloat(sale.price) || 0;
                         const dateStr = sale.soldAt?.seconds ? new Date(sale.soldAt.seconds * 1000).toLocaleDateString('pt-BR') : '';
+                        const groupCat = sale.category || (sale.isCustomItem ? 'Outros / Bens' : 'Estoque de Obra');
 
                         sc2(rowIdx, 0, index + 1, sCell(even, 'center'), 'n');
-                        sc2(rowIdx, 1, sale.productCodeRM || '-', sCell(even, 'center'));
-                        sc2(rowIdx, 2, sale.productCode || '-', sCell(even, 'center'));
-                        sc2(rowIdx, 3, sale.productName || 'Não especificado', sCell(even, 'left', '0F172A', true));
-                        sc2(rowIdx, 4, unit, sCell(even, 'center', '0F172A', true));
-                        sc2(rowIdx, 5, qty, sCell(even, 'center', '0F172A', true), 'n', '#,##0');
-                        sc2(rowIdx, 6, price, sCell(even, 'right'), 'n', '"R$" #,##0.00');
-                        scF2(rowIdx, 7, `F${rowExcel}*G${rowExcel}`, sCell(even, 'right', '047857', true), '"R$" #,##0.00');
-                        sc2(rowIdx, 8, sale.destination || '', sCell(even, 'left'));
-                        sc2(rowIdx, 9, sale.nfNumber || '-', sCell(even, 'center'));
-                        sc2(rowIdx, 10, `${dateStr} (${sale.soldBy || ''})`, sCell(even, 'left'));
+                        sc2(rowIdx, 1, groupCat, sCell(even, 'center', '1E40AF', true));
+                        sc2(rowIdx, 2, sale.productCodeRM || sale.assetCode || '-', sCell(even, 'center'));
+                        sc2(rowIdx, 3, sale.productCode || sale.sku || '-', sCell(even, 'center'));
+                        sc2(rowIdx, 4, sale.productName || sale.description || 'Não especificado', sCell(even, 'left', '0F172A', true));
+                        sc2(rowIdx, 5, unit, sCell(even, 'center', '0F172A', true));
+                        sc2(rowIdx, 6, qty, sCell(even, 'center', '0F172A', true), 'n', '#,##0');
+                        sc2(rowIdx, 7, price, sCell(even, 'right'), 'n', '"R$" #,##0.00');
+                        // FÓRMULA REAL: Total = Quantidade (G) * Preço Unitário (H)
+                        scF2(rowIdx, 8, `G${rowExcel}*H${rowExcel}`, sCell(even, 'right', '047857', true), '"R$" #,##0.00');
+                        sc2(rowIdx, 9, sale.destination || '', sCell(even, 'left'));
+                        sc2(rowIdx, 10, sale.nfNumber || '-', sCell(even, 'center'));
+                        sc2(rowIdx, 11, `${dateStr} (${sale.soldBy || ''})`, sCell(even, 'left'));
 
                         ws2['!rows'][rowIdx] = { hpt: 22 };
                         r2++;
                     });
 
                     const endRow2 = r2;
-                    for (let c = 0; c < 11; c++) sc2(r2, c, '', sTotalHdr);
+                    for (let c = 0; c < 12; c++) sc2(r2, c, '', sTotalHdr);
                     sc2(r2, 0, 'TOTAL ARRECADADO / BAIXAS', sTotalHdr);
-                    merge2(r2, 0, r2, 4);
-                    scF2(r2, 5, `SUM(F${startRow2}:F${endRow2})`, sTotalVal('center'), '#,##0');
-                    sc2(r2, 6, '-', sTotalVal('center'));
-                    scF2(r2, 7, `SUM(H${startRow2}:H${endRow2})`, sTotalValEmerald, '"R$" #,##0.00');
+                    merge2(r2, 0, r2, 5);
+                    scF2(r2, 6, `SUM(G${startRow2}:G${endRow2})`, sTotalVal('center'), '#,##0');
+                    sc2(r2, 7, '-', sTotalVal('center'));
+                    scF2(r2, 8, `SUM(I${startRow2}:I${endRow2})`, sTotalValEmerald, '"R$" #,##0.00');
+                    sc2(r2, 9, '-', sTotalVal('center'));
+                    sc2(r2, 10, '-', sTotalVal('center'));
+                    sc2(r2, 11, '-', sTotalVal('center'));
                     ws2['!rows'][r2] = { hpt: 26 }; r2++;
 
-                    ws2['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r2, c: 10 } });
+                    ws2['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r2, c: 11 } });
                     XLS.utils.book_append_sheet(wb, ws2, "Vendas Concluídas");
                 }
 
@@ -10595,6 +10810,18 @@
 
         // 6. DELEGAÇÃO DE EVENTOS DE CLIQUE NA TABELA
         document.addEventListener('click', async (e) => {
+            // Ação 0: Editar item customizado (EPI, Mobília, Ferramentas, Bens, etc.)
+            const editCustomBtn = e.target.closest('.edit-custom-ds-btn');
+            if (editCustomBtn) {
+                if (!hasPermission('update')) {
+                    showToast("Você não tem permissão para editar itens.", true);
+                    return;
+                }
+                const itemId = editCustomBtn.dataset.id;
+                openCustomDeadStockModal(itemId);
+                return;
+            }
+
             // Ação 1: Transferir do estoque normal para o estoque morto
             const transferBtn = e.target.closest('.transfer-ds-btn');
             if (transferBtn) {
