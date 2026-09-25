@@ -10493,7 +10493,246 @@
             }
         });
 
-        // 5. EXPORTAÇÃO EXECUTIVA DA PLANILHA EXCEL (.XLSX) COM 2 ABAS, UNIDADE DE MEDIDA E FÓRMULAS
+        // 5. FUNÇÃO REUTILIZÁVEL PARA GERAR ABA DE ESTOQUE MORTO NO EXCEL
+        const buildDeadStockWorksheet = (XLS, items, obraNome, salePercent, dataHoraFormatada, usuarioExport) => {
+            const bdr = (color = 'CBD5E1') => ({
+                top:    { style: 'thin', color: { rgb: color } },
+                bottom: { style: 'thin', color: { rgb: color } },
+                left:   { style: 'thin', color: { rgb: color } },
+                right:  { style: 'thin', color: { rgb: color } }
+            });
+
+            const sTitle = {
+                font:      { bold: true, sz: 13, color: { rgb: 'FFFFFF' } },
+                fill:      { fgColor: { rgb: '0F172A' } },
+                alignment: { horizontal: 'center', vertical: 'center' },
+                border:    { bottom: { style: 'medium', color: { rgb: '059669' } } }
+            };
+
+            const sSub = {
+                font:      { italic: true, sz: 9, color: { rgb: '94A3B8' } },
+                fill:      { fgColor: { rgb: '1E293B' } },
+                alignment: { horizontal: 'center', vertical: 'center' }
+            };
+
+            const sRMBanner = {
+                font:      { bold: true, sz: 9, color: { rgb: '1E40AF' } },
+                fill:      { fgColor: { rgb: 'DBEAFE' } },
+                alignment: { horizontal: 'center', vertical: 'center' },
+                border:    { top: { style: 'thin', color: { rgb: '93C5FD' } }, bottom: { style: 'thin', color: { rgb: '93C5FD' } } }
+            };
+
+            const sHeader = {
+                font:      { bold: true, sz: 10, color: { rgb: 'FFFFFF' } },
+                fill:      { fgColor: { rgb: '1E3A8A' } },
+                alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+                border:    bdr('1E3A8A')
+            };
+
+            const sCell = (even, align = 'left', fgColor = '1E293B', bold = false) => ({
+                font:      { bold, sz: 10, color: { rgb: fgColor } },
+                fill:      { fgColor: { rgb: even ? 'F8FAFC' : 'FFFFFF' } },
+                alignment: { horizontal: align, vertical: 'center' },
+                border:    bdr('E2E8F0')
+            });
+
+            const sTotalHdr = {
+                font:      { bold: true, sz: 11, color: { rgb: '0F172A' } },
+                fill:      { fgColor: { rgb: 'E2E8F0' } },
+                alignment: { horizontal: 'right', vertical: 'center' },
+                border:    { top: { style: 'medium', color: { rgb: '059669' } }, bottom: { style: 'medium', color: { rgb: '059669' } } }
+            };
+
+            const sTotalVal = (align = 'center') => ({
+                font:      { bold: true, sz: 11, color: { rgb: '0F172A' } },
+                fill:      { fgColor: { rgb: 'E2E8F0' } },
+                alignment: { horizontal: align, vertical: 'center' },
+                border:    { top: { style: 'medium', color: { rgb: '059669' } }, bottom: { style: 'medium', color: { rgb: '059669' } } }
+            });
+
+            const sTotalValEmerald = {
+                font:      { bold: true, sz: 11, color: { rgb: '047857' } },
+                fill:      { fgColor: { rgb: 'D1FAE5' } },
+                alignment: { horizontal: 'right', vertical: 'center' },
+                border:    { top: { style: 'medium', color: { rgb: '059669' } }, bottom: { style: 'medium', color: { rgb: '059669' } } }
+            };
+
+            const ws = XLS.utils.aoa_to_sheet([]);
+            ws['!cols'] = [
+                { wch: 6 },  // A: #
+                { wch: 24 }, // B: GRUPO / CATEGORIA
+                { wch: 18 }, // C: CÓDIGO RM / PATRIMÔNIO
+                { wch: 18 }, // D: CÓDIGO SKU / SÉRIE
+                { wch: 44 }, // E: DESCRIÇÃO DO PRODUTO
+                { wch: 18 }, // F: ESTADO / CONDIÇÃO
+                { wch: 10 }, // G: UNIDADE (UN, PÇ, KG)
+                { wch: 10 }, // H: QTD.
+                { wch: 22 }, // I: PREÇO UNIT. BASE (R$)
+                { wch: 22 }, // J: VALOR TOTAL BASE (R$)
+                { wch: 12 }, // K: % VENDA
+                { wch: 22 }, // L: PREÇO UNIT. VENDA (R$)
+                { wch: 22 }, // M: VALOR TOTAL VENDA (R$)
+                { wch: 32 }, // N: LOCALIZAÇÃO / OBSERVAÇÃO
+                { wch: 16 }, // O: DATA CADASTRO
+                { wch: 22 }  // P: RESPONSÁVEL
+            ];
+            ws['!merges'] = [];
+            ws['!rows'] = [];
+
+            let r = 0;
+            const sc = (r, c, v, style, t = 's', z = undefined) => { 
+                const cell = { v, t, s: style };
+                if (z) cell.z = z;
+                ws[XLS.utils.encode_cell({ r, c })] = cell; 
+            };
+            const scF = (r, c, f, style, z = '"R$" #,##0.00') => { 
+                ws[XLS.utils.encode_cell({ r, c })] = { f, t: 'n', s: style, z }; 
+            };
+            const merge = (r_s, c_s, r_e, c_e) => ws['!merges'].push({ s: { r: r_s, c: c_s }, e: { r: r_e, c: c_e } });
+
+            // Linha 1: Título
+            for (let c = 0; c < 16; c++) sc(r, c, '', sTitle);
+            sc(r, 0, `RELATÓRIO DE ESTOQUE MORTO & BENS — ${obraNome.toUpperCase()}`, sTitle);
+            merge(r, 0, r, 15);
+            ws['!rows'][r] = { hpt: 32 }; r++;
+
+            // Linha 2: Metadados
+            for (let c = 0; c < 16; c++) sc(r, c, '', sSub);
+            sc(r, 0, `Obra: ${obraNome}  |  Emitido em: ${dataHoraFormatada}  |  Responsável: ${usuarioExport}  |  Percentual Aplicado para Venda: ${salePercent}%  |  Itens: ${items.length}`, sSub);
+            merge(r, 0, r, 15);
+            ws['!rows'][r] = { hpt: 20 }; r++;
+
+            // Linha 3: RM Banner
+            for (let c = 0; c < 16; c++) sc(r, c, '', sRMBanner);
+            sc(r, 0, `⚠️ AVISO: Valores unitários base extraídos do Sistema RM (TOTVS) ou apuração patrimonial. Aplicado percentual de ${salePercent}% sobre o preço de referência.`, sRMBanner);
+            merge(r, 0, r, 15);
+            ws['!rows'][r] = { hpt: 22 }; r++;
+
+            // Linha 4: Espaço real para isolar o banner
+            ws['!rows'][r] = { hpt: 10 }; r++;
+
+            // Linha 5: Cabeçalhos da Tabela
+            const headerRow = r;
+            const headers = [
+                '#', 
+                'GRUPO / CATEGORIA',
+                'CÓDIGO RM / PATRIMÔNIO', 
+                'CÓDIGO SKU / SÉRIE', 
+                'DESCRIÇÃO DO PRODUTO', 
+                'ESTADO / CONDIÇÃO',
+                'UNIDADE', 
+                'QTD.', 
+                'PREÇO UNIT. BASE (R$)', 
+                'VALOR TOTAL BASE (R$)', 
+                '% VENDA', 
+                'PREÇO UNIT. VENDA (R$)', 
+                'VALOR TOTAL VENDA (R$)', 
+                'LOCALIZAÇÃO / OBSERVAÇÃO', 
+                'DATA CADASTRO', 
+                'RESPONSÁVEL'
+            ];
+            headers.forEach((h, c) => sc(r, c, h, sHeader));
+            ws['!rows'][r] = { hpt: 24 }; r++;
+
+            const startRow = r + 1;
+            if (items.length > 0) {
+                items.forEach((item, index) => {
+                    const rowIdx = r;
+                    const rowExcel = rowIdx + 1;
+                    const even = index % 2 === 1;
+                    const qty = parseInt(item.quantity, 10) || 0;
+                    const unit = item.productUnit || 'UN';
+                    const price = parseFloat(item.price) || 0;
+                    const pctVal = salePercent / 100;
+                    const dateStr = item.createdAt?.seconds ? new Date(item.createdAt.seconds * 1000).toLocaleDateString('pt-BR') : '';
+                    const groupCat = item.category || (item.isCustomItem ? 'Outros / Bens' : 'Estoque de Obra');
+                    const condition = item.condition || 'Sem avarias';
+                    const locObs = [item.location ? `Loc: ${item.location}` : '', item.observation].filter(Boolean).join(' | ');
+
+                    sc(rowIdx, 0, index + 1, sCell(even, 'center'), 'n');
+                    sc(rowIdx, 1, groupCat, sCell(even, 'center', '1E40AF', true));
+                    sc(rowIdx, 2, item.productCodeRM || item.assetCode || '-', sCell(even, 'center'));
+                    sc(rowIdx, 3, item.productCode || item.sku || '-', sCell(even, 'center'));
+                    sc(rowIdx, 4, item.productName || item.description || 'Não especificado', sCell(even, 'left', '0F172A', true));
+                    sc(rowIdx, 5, condition, sCell(even, 'center'));
+                    sc(rowIdx, 6, unit, sCell(even, 'center', '0F172A', true));
+                    sc(rowIdx, 7, qty, sCell(even, 'center', '0F172A', true), 'n', '#,##0');
+                    sc(rowIdx, 8, price, sCell(even, 'right'), 'n', '"R$" #,##0.00');
+                    scF(rowIdx, 9, `H${rowExcel}*I${rowExcel}`, sCell(even, 'right', '1E40AF', true), '"R$" #,##0.00');
+                    sc(rowIdx, 10, pctVal, sCell(even, 'center', '4338CA', true), 'n', '0%');
+                    scF(rowIdx, 11, `ROUND(I${rowExcel}*K${rowExcel}, 2)`, sCell(even, 'right', '4338CA', true), '"R$" #,##0.00');
+                    scF(rowIdx, 12, `ROUND(H${rowExcel}*L${rowExcel}, 2)`, sCell(even, 'right', '047857', true), '"R$" #,##0.00');
+                    sc(rowIdx, 13, locObs, sCell(even, 'left'));
+                    sc(rowIdx, 14, dateStr, sCell(even, 'center'));
+                    sc(rowIdx, 15, item.createdBy || '', sCell(even, 'left'));
+
+                    ws['!rows'][rowIdx] = { hpt: 22 };
+                    r++;
+                });
+
+                const endRow = r;
+                // Linha vazia real separando dados e totais
+                ws['!rows'][r] = { hpt: 10 }; r++;
+
+                // Linha de Totais SEM MESCLAGEM
+                for (let c = 0; c < 16; c++) sc(r, c, '', sTotalHdr);
+                sc(r, 1, 'TOTAL CONSOLIDADO', sTotalHdr);
+                scF(r, 7, `SUBTOTAL(109, H${startRow}:H${endRow})`, sTotalVal('center'), '#,##0');
+                sc(r, 8, '-', sTotalVal('center'));
+                scF(r, 9, `SUBTOTAL(109, J${startRow}:J${endRow})`, sTotalVal('right'), '"R$" #,##0.00');
+                sc(r, 10, `${salePercent}%`, sTotalVal('center'));
+                sc(r, 11, '-', sTotalVal('center'));
+                scF(r, 12, `SUBTOTAL(109, M${startRow}:M${endRow})`, sTotalValEmerald, '"R$" #,##0.00');
+                sc(r, 13, '-', sTotalVal('center'));
+                sc(r, 14, '-', sTotalVal('center'));
+                sc(r, 15, '-', sTotalVal('center'));
+                ws['!rows'][r] = { hpt: 26 }; r++;
+
+                ws['!autofilter'] = {
+                    ref: XLS.utils.encode_range({
+                        s: { r: headerRow, c: 0 },
+                        e: { r: endRow - 1, c: 15 }
+                    })
+                };
+            } else {
+                sc(r, 0, '-', sCell(false, 'center'));
+                sc(r, 1, 'Sem dados', sCell(false, 'center'));
+                sc(r, 4, 'Nenhum item em Estoque Morto cadastrado nesta obra até o momento.', sCell(false, 'left'));
+                ws['!rows'][r] = { hpt: 24 }; r++;
+            }
+
+            ws['!freeze'] = { xSplit: 0, ySplit: headerRow + 1 };
+            ws['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(r - 1, headerRow), c: 15 } });
+            return ws;
+        };
+
+        // Helper para carregar o estoque morto de ambas as obras
+        const fetchBothDeadStocks = async () => {
+            let estrelaItems = [];
+            let tabocaItems = [];
+
+            try {
+                const estrelaRef = collection(db, `/artifacts/${appId}/public/data/dead_stock`);
+                const snapEstrela = await getDocs(estrelaRef);
+                estrelaItems = snapEstrela.docs.map(d => sanitizeProductData({ id: d.id, ...d.data() }));
+            } catch (err) {
+                console.warn("Aviso ao buscar dead_stock Estrela:", err);
+                if (currentObraId === 'uhe_estrela') estrelaItems = [...deadStock];
+            }
+
+            try {
+                const tabocaRef = collection(db, `/artifacts/${appId}/public/data/obras/pch_taboca/dead_stock`);
+                const snapTaboca = await getDocs(tabocaRef);
+                tabocaItems = snapTaboca.docs.map(d => sanitizeProductData({ id: d.id, ...d.data() }));
+            } catch (err) {
+                console.warn("Aviso ao buscar dead_stock Taboca:", err);
+                if (currentObraId === 'pch_taboca') tabocaItems = [...deadStock];
+            }
+
+            return { estrelaItems, tabocaItems };
+        };
+
+        // 5.1 EXPORTAÇÃO EXECUTIVA DA PLANILHA EXCEL (.XLSX) DA OBRA ATUAL
         document.getElementById('export-dead-stock-btn')?.addEventListener('click', () => {
             const XLS = typeof XLSX !== 'undefined' ? XLSX : null;
             if (!XLS) {
@@ -10512,205 +10751,62 @@
                 const dataHoraFormatada = new Date().toLocaleString('pt-BR');
                 const usuarioExport = currentUser?.displayName || currentUser?.email || 'Sistema';
 
-                const bdr = (color = 'CBD5E1') => ({
-                    top:    { style: 'thin', color: { rgb: color } },
-                    bottom: { style: 'thin', color: { rgb: color } },
-                    left:   { style: 'thin', color: { rgb: color } },
-                    right:  { style: 'thin', color: { rgb: color } }
-                });
-
-                const sTitle = {
-                    font:      { bold: true, sz: 13, color: { rgb: 'FFFFFF' } },
-                    fill:      { fgColor: { rgb: '0F172A' } },
-                    alignment: { horizontal: 'center', vertical: 'center' },
-                    border:    { bottom: { style: 'medium', color: { rgb: '059669' } } }
-                };
-
-                const sSub = {
-                    font:      { italic: true, sz: 9, color: { rgb: '94A3B8' } },
-                    fill:      { fgColor: { rgb: '1E293B' } },
-                    alignment: { horizontal: 'center', vertical: 'center' }
-                };
-
-                const sRMBanner = {
-                    font:      { bold: true, sz: 9, color: { rgb: '1E40AF' } },
-                    fill:      { fgColor: { rgb: 'DBEAFE' } },
-                    alignment: { horizontal: 'center', vertical: 'center' },
-                    border:    { top: { style: 'thin', color: { rgb: '93C5FD' } }, bottom: { style: 'thin', color: { rgb: '93C5FD' } } }
-                };
-
-                const sHeader = {
-                    font:      { bold: true, sz: 10, color: { rgb: 'FFFFFF' } },
-                    fill:      { fgColor: { rgb: '1E3A8A' } },
-                    alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-                    border:    bdr('1E3A8A')
-                };
-
-                const sCell = (even, align = 'left', fgColor = '1E293B', bold = false) => ({
-                    font:      { bold, sz: 10, color: { rgb: fgColor } },
-                    fill:      { fgColor: { rgb: even ? 'F8FAFC' : 'FFFFFF' } },
-                    alignment: { horizontal: align, vertical: 'center' },
-                    border:    bdr('E2E8F0')
-                });
-
-                const sTotalHdr = {
-                    font:      { bold: true, sz: 11, color: { rgb: '0F172A' } },
-                    fill:      { fgColor: { rgb: 'E2E8F0' } },
-                    alignment: { horizontal: 'right', vertical: 'center' },
-                    border:    { top: { style: 'medium', color: { rgb: '059669' } }, bottom: { style: 'medium', color: { rgb: '059669' } } }
-                };
-
-                const sTotalVal = (align = 'center') => ({
-                    font:      { bold: true, sz: 11, color: { rgb: '0F172A' } },
-                    fill:      { fgColor: { rgb: 'E2E8F0' } },
-                    alignment: { horizontal: align, vertical: 'center' },
-                    border:    { top: { style: 'medium', color: { rgb: '059669' } }, bottom: { style: 'medium', color: { rgb: '059669' } } }
-                });
-
-                const sTotalValEmerald = {
-                    font:      { bold: true, sz: 11, color: { rgb: '047857' } },
-                    fill:      { fgColor: { rgb: 'D1FAE5' } },
-                    alignment: { horizontal: 'right', vertical: 'center' },
-                    border:    { top: { style: 'medium', color: { rgb: '059669' } }, bottom: { style: 'medium', color: { rgb: '059669' } } }
-                };
-
                 const wb = XLS.utils.book_new();
 
-                // ── ABA 1: ITENS DISPONÍVEIS (16 COLUNAS A..P COM GRUPO, CONDIÇÃO E % DE VENDA) ──
-                const ws1 = XLS.utils.aoa_to_sheet([]);
-                ws1['!cols'] = [
-                    { wch: 6 },  // A: #
-                    { wch: 24 }, // B: GRUPO / CATEGORIA
-                    { wch: 18 }, // C: CÓDIGO RM / PATRIMÔNIO
-                    { wch: 18 }, // D: CÓDIGO SKU / SÉRIE
-                    { wch: 44 }, // E: DESCRIÇÃO DO PRODUTO
-                    { wch: 18 }, // F: ESTADO / CONDIÇÃO
-                    { wch: 10 }, // G: UNIDADE (UN, PÇ, KG)
-                    { wch: 10 }, // H: QTD.
-                    { wch: 22 }, // I: PREÇO UNIT. BASE (R$)
-                    { wch: 22 }, // J: VALOR TOTAL BASE (R$)
-                    { wch: 12 }, // K: % VENDA
-                    { wch: 22 }, // L: PREÇO UNIT. VENDA (R$)
-                    { wch: 22 }, // M: VALOR TOTAL VENDA (R$)
-                    { wch: 32 }, // N: LOCALIZAÇÃO / OBSERVAÇÃO
-                    { wch: 16 }, // O: DATA CADASTRO
-                    { wch: 22 }  // P: RESPONSÁVEL
-                ];
-                ws1['!merges'] = [];
-                ws1['!rows'] = [];
-
-                let r1 = 0;
-                const sc1 = (r, c, v, style, t = 's', z = undefined) => { 
-                    const cell = { v, t, s: style };
-                    if (z) cell.z = z;
-                    ws1[XLS.utils.encode_cell({ r, c })] = cell; 
-                };
-                const scF1 = (r, c, f, style, z = '"R$" #,##0.00') => { 
-                    ws1[XLS.utils.encode_cell({ r, c })] = { f, t: 'n', s: style, z }; 
-                };
-                const merge1 = (r_s, c_s, r_e, c_e) => ws1['!merges'].push({ s: { r: r_s, c: c_s }, e: { r: r_e, c: c_e } });
-
-                // Topo Aba 1
-                for (let c = 0; c < 16; c++) sc1(r1, c, '', sTitle);
-                sc1(r1, 0, 'RELATÓRIO DE ESTOQUE MORTO & BENS — ITENS DISPONÍVEIS PARA VENDA / TRANSFERÊNCIA', sTitle);
-                merge1(r1, 0, r1, 15);
-                ws1['!rows'][r1] = { hpt: 32 }; r1++;
-
-                for (let c = 0; c < 16; c++) sc1(r1, c, '', sSub);
-                sc1(r1, 0, `Obra: ${obraNome}  |  Emitido em: ${dataHoraFormatada}  |  Responsável: ${usuarioExport}  |  Percentual Aplicado para Venda: ${deadStockSalePercent}%  |  Itens: ${deadStock.length}`, sSub);
-                merge1(r1, 0, r1, 15);
-                ws1['!rows'][r1] = { hpt: 20 }; r1++;
-
-                for (let c = 0; c < 16; c++) sc1(r1, c, '', sRMBanner);
-                sc1(r1, 0, `⚠️ AVISO: Valores unitários base extraídos do Sistema RM (TOTVS) ou apuração patrimonial. Aplicado percentual de ${deadStockSalePercent}% sobre o preço de referência.`, sRMBanner);
-                merge1(r1, 0, r1, 15);
-                ws1['!rows'][r1] = { hpt: 22 }; r1++;
-
-                for (let c = 0; c < 16; c++) sc1(r1, c, '', { fill: { fgColor: { rgb: 'FFFFFF' } } });
-                ws1['!rows'][r1] = { hpt: 8 }; r1++;
-
-                const headers1 = [
-                    '#', 
-                    'GRUPO / CATEGORIA',
-                    'CÓDIGO RM / PATRIMÔNIO', 
-                    'CÓDIGO SKU / SÉRIE', 
-                    'DESCRIÇÃO DO PRODUTO', 
-                    'ESTADO / CONDIÇÃO',
-                    'UNIDADE', 
-                    'QTD.', 
-                    'PREÇO UNIT. BASE (R$)', 
-                    'VALOR TOTAL BASE (R$)', 
-                    '% VENDA', 
-                    'PREÇO UNIT. VENDA (R$)', 
-                    'VALOR TOTAL VENDA (R$)', 
-                    'LOCALIZAÇÃO / OBSERVAÇÃO', 
-                    'DATA CADASTRO', 
-                    'RESPONSÁVEL'
-                ];
-                headers1.forEach((h, c) => sc1(r1, c, h, sHeader));
-                ws1['!rows'][r1] = { hpt: 24 }; r1++;
-
-                const startRow1 = r1 + 1;
-                deadStock.forEach((item, index) => {
-                    const rowIdx = r1;
-                    const rowExcel = rowIdx + 1;
-                    const even = index % 2 === 1;
-                    const qty = parseInt(item.quantity, 10) || 0;
-                    const unit = item.productUnit || 'UN';
-                    const price = parseFloat(item.price) || 0;
-                    const pctVal = deadStockSalePercent / 100;
-                    const dateStr = item.createdAt?.seconds ? new Date(item.createdAt.seconds * 1000).toLocaleDateString('pt-BR') : '';
-                    const groupCat = item.category || (item.isCustomItem ? 'Outros / Bens' : 'Estoque de Obra');
-                    const condition = item.condition || 'Sem avarias';
-                    const locObs = [item.location ? `Loc: ${item.location}` : '', item.observation].filter(Boolean).join(' | ');
-
-                    sc1(rowIdx, 0, index + 1, sCell(even, 'center'), 'n');
-                    sc1(rowIdx, 1, groupCat, sCell(even, 'center', '1E40AF', true));
-                    sc1(rowIdx, 2, item.productCodeRM || item.assetCode || '-', sCell(even, 'center'));
-                    sc1(rowIdx, 3, item.productCode || item.sku || '-', sCell(even, 'center'));
-                    sc1(rowIdx, 4, item.productName || item.description || 'Não especificado', sCell(even, 'left', '0F172A', true));
-                    sc1(rowIdx, 5, condition, sCell(even, 'center'));
-                    sc1(rowIdx, 6, unit, sCell(even, 'center', '0F172A', true));
-                    sc1(rowIdx, 7, qty, sCell(even, 'center', '0F172A', true), 'n', '#,##0');
-                    sc1(rowIdx, 8, price, sCell(even, 'right'), 'n', '"R$" #,##0.00');
-                    // 🚀 FÓRMULA REAL: Total Base = Quantidade (H) * Preço Unitário Base (I)
-                    scF1(rowIdx, 9, `H${rowExcel}*I${rowExcel}`, sCell(even, 'right', '1E40AF', true), '"R$" #,##0.00');
-                    // % Venda: Col K
-                    sc1(rowIdx, 10, pctVal, sCell(even, 'center', '4338CA', true), 'n', '0%');
-                    // 🚀 FÓRMULA REAL: Preço Unit. Venda = Preço Base (I) * % Venda (K)
-                    scF1(rowIdx, 11, `ROUND(I${rowExcel}*K${rowExcel}, 2)`, sCell(even, 'right', '4338CA', true), '"R$" #,##0.00');
-                    // 🚀 FÓRMULA REAL: Total Venda = Quantidade (H) * Preço Unit. Venda (L)
-                    scF1(rowIdx, 12, `ROUND(H${rowExcel}*L${rowExcel}, 2)`, sCell(even, 'right', '047857', true), '"R$" #,##0.00');
-                    sc1(rowIdx, 13, locObs, sCell(even, 'left'));
-                    sc1(rowIdx, 14, dateStr, sCell(even, 'center'));
-                    sc1(rowIdx, 15, item.createdBy || '', sCell(even, 'left'));
-
-                    ws1['!rows'][rowIdx] = { hpt: 22 };
-                    r1++;
-                });
-
-                const endRow1 = r1;
-                if (deadStock.length > 0) {
-                    for (let c = 0; c < 16; c++) sc1(r1, c, '', sTotalHdr);
-                    sc1(r1, 0, 'TOTAL GERAL CONSOLIDADO', sTotalHdr);
-                    merge1(r1, 0, r1, 6);
-                    scF1(r1, 7, `SUM(H${startRow1}:H${endRow1})`, sTotalVal('center'), '#,##0');
-                    sc1(r1, 8, '-', sTotalVal('center'));
-                    scF1(r1, 9, `SUM(J${startRow1}:J${endRow1})`, sTotalVal('right'), '"R$" #,##0.00');
-                    sc1(r1, 10, `${deadStockSalePercent}%`, sTotalVal('center'));
-                    sc1(r1, 11, '-', sTotalVal('center'));
-                    scF1(r1, 12, `SUM(M${startRow1}:M${endRow1})`, sTotalValEmerald, '"R$" #,##0.00');
-                    sc1(r1, 13, '-', sTotalVal('center'));
-                    sc1(r1, 14, '-', sTotalVal('center'));
-                    sc1(r1, 15, '-', sTotalVal('center'));
-                    ws1['!rows'][r1] = { hpt: 26 }; r1++;
-                }
-
-                ws1['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r1, c: 15 } });
+                // Aba 1: Itens Disponíveis
+                const ws1 = buildDeadStockWorksheet(XLS, deadStock, obraNome, deadStockSalePercent, dataHoraFormatada, usuarioExport);
                 XLS.utils.book_append_sheet(wb, ws1, "Itens Disponíveis");
 
-                // ── ABA 2: VENDAS E SAÍDAS CONCLUÍDAS (12 COLUNAS A..L) ──
+                // Aba 2: Vendas e Saídas Concluídas
                 if (deadStockSales.length > 0) {
+                    const bdr = (color = 'CBD5E1') => ({
+                        top:    { style: 'thin', color: { rgb: color } },
+                        bottom: { style: 'thin', color: { rgb: color } },
+                        left:   { style: 'thin', color: { rgb: color } },
+                        right:  { style: 'thin', color: { rgb: color } }
+                    });
+                    const sTitle = {
+                        font:      { bold: true, sz: 13, color: { rgb: 'FFFFFF' } },
+                        fill:      { fgColor: { rgb: '0F172A' } },
+                        alignment: { horizontal: 'center', vertical: 'center' },
+                        border:    { bottom: { style: 'medium', color: { rgb: '059669' } } }
+                    };
+                    const sSub = {
+                        font:      { italic: true, sz: 9, color: { rgb: '94A3B8' } },
+                        fill:      { fgColor: { rgb: '1E293B' } },
+                        alignment: { horizontal: 'center', vertical: 'center' }
+                    };
+                    const sHeader = {
+                        font:      { bold: true, sz: 10, color: { rgb: 'FFFFFF' } },
+                        fill:      { fgColor: { rgb: '1E3A8A' } },
+                        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+                        border:    bdr('1E3A8A')
+                    };
+                    const sCell = (even, align = 'left', fgColor = '1E293B', bold = false) => ({
+                        font:      { bold, sz: 10, color: { rgb: fgColor } },
+                        fill:      { fgColor: { rgb: even ? 'F8FAFC' : 'FFFFFF' } },
+                        alignment: { horizontal: align, vertical: 'center' },
+                        border:    bdr('E2E8F0')
+                    });
+                    const sTotalHdr = {
+                        font:      { bold: true, sz: 11, color: { rgb: '0F172A' } },
+                        fill:      { fgColor: { rgb: 'E2E8F0' } },
+                        alignment: { horizontal: 'right', vertical: 'center' },
+                        border:    { top: { style: 'medium', color: { rgb: '059669' } }, bottom: { style: 'medium', color: { rgb: '059669' } } }
+                    };
+                    const sTotalVal = (align = 'center') => ({
+                        font:      { bold: true, sz: 11, color: { rgb: '0F172A' } },
+                        fill:      { fgColor: { rgb: 'E2E8F0' } },
+                        alignment: { horizontal: align, vertical: 'center' },
+                        border:    { top: { style: 'medium', color: { rgb: '059669' } }, bottom: { style: 'medium', color: { rgb: '059669' } } }
+                    });
+                    const sTotalValEmerald = {
+                        font:      { bold: true, sz: 11, color: { rgb: '047857' } },
+                        fill:      { fgColor: { rgb: 'D1FAE5' } },
+                        alignment: { horizontal: 'right', vertical: 'center' },
+                        border:    { top: { style: 'medium', color: { rgb: '059669' } }, bottom: { style: 'medium', color: { rgb: '059669' } } }
+                    };
+
                     const ws2 = XLS.utils.aoa_to_sheet([]);
                     ws2['!cols'] = [
                         { wch: 6 },  // A: #
@@ -10750,6 +10846,10 @@
                     merge2(r2, 0, r2, 11);
                     ws2['!rows'][r2] = { hpt: 20 }; r2++;
 
+                    // Linha vazia real
+                    ws2['!rows'][r2] = { hpt: 10 }; r2++;
+
+                    const headerRow2 = r2;
                     const headers2 = ['#', 'GRUPO / CATEGORIA', 'CÓDIGO RM / PATRIMÔNIO', 'CÓDIGO SKU / SÉRIE', 'DESCRIÇÃO DO PRODUTO', 'UNIDADE', 'QTD.', 'VALOR NEGOCIADO (R$)', 'TOTAL REALIZADO (R$)', 'DESTINO / COMPRADOR', 'Nº NF / RECIBO', 'DATA & RESPONSÁVEL'];
                     headers2.forEach((h, c) => sc2(r2, c, h, sHeader));
                     ws2['!rows'][r2] = { hpt: 24 }; r2++;
@@ -10784,18 +10884,28 @@
                     });
 
                     const endRow2 = r2;
+                    // Linha separadora vazia
+                    ws2['!rows'][r2] = { hpt: 10 }; r2++;
+
+                    // Totais SEM MESCLAGEM
                     for (let c = 0; c < 12; c++) sc2(r2, c, '', sTotalHdr);
-                    sc2(r2, 0, 'TOTAL ARRECADADO / BAIXAS', sTotalHdr);
-                    merge2(r2, 0, r2, 5);
-                    scF2(r2, 6, `SUM(G${startRow2}:G${endRow2})`, sTotalVal('center'), '#,##0');
+                    sc2(r2, 1, 'TOTAL ARRECADADO', sTotalHdr);
+                    scF2(r2, 6, `SUBTOTAL(109, G${startRow2}:G${endRow2})`, sTotalVal('center'), '#,##0');
                     sc2(r2, 7, '-', sTotalVal('center'));
-                    scF2(r2, 8, `SUM(I${startRow2}:I${endRow2})`, sTotalValEmerald, '"R$" #,##0.00');
+                    scF2(r2, 8, `SUBTOTAL(109, I${startRow2}:I${endRow2})`, sTotalValEmerald, '"R$" #,##0.00');
                     sc2(r2, 9, '-', sTotalVal('center'));
                     sc2(r2, 10, '-', sTotalVal('center'));
                     sc2(r2, 11, '-', sTotalVal('center'));
                     ws2['!rows'][r2] = { hpt: 26 }; r2++;
 
-                    ws2['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r2, c: 11 } });
+                    ws2['!autofilter'] = {
+                        ref: XLS.utils.encode_range({
+                            s: { r: headerRow2, c: 0 },
+                            e: { r: endRow2 - 1, c: 11 }
+                        })
+                    };
+                    ws2['!freeze'] = { xSplit: 0, ySplit: headerRow2 + 1 };
+                    ws2['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r2 - 1, c: 11 } });
                     XLS.utils.book_append_sheet(wb, ws2, "Vendas Concluídas");
                 }
 
@@ -10806,6 +10916,47 @@
             } catch (error) {
                 console.error("Erro ao gerar planilha XLSX:", error);
                 showToast("Falha ao exportar planilha. Verifique o console ou tente novamente.", true);
+            }
+        });
+
+        // 5.2 EXPORTAÇÃO CONSOLIDADA (DUAS ABAS: UHE ESTRELA E PCH TABOCA)
+        document.getElementById('export-dead-stock-consolidated-btn')?.addEventListener('click', async () => {
+            const XLS = typeof XLSX !== 'undefined' ? XLSX : null;
+            if (!XLS) {
+                showToast("Biblioteca de planilhas não carregou. Recarregue a página.", true);
+                return;
+            }
+
+            showToast("Buscando itens de UHE Estrela e PCH Taboca...");
+
+            try {
+                const { estrelaItems, tabocaItems } = await fetchBothDeadStocks();
+
+                if (estrelaItems.length === 0 && tabocaItems.length === 0) {
+                    showToast("Não há itens de Estoque Morto cadastrados em nenhuma das duas obras.", true);
+                    return;
+                }
+
+                const dataHoraFormatada = new Date().toLocaleString('pt-BR');
+                const usuarioExport = currentUser?.displayName || currentUser?.email || 'Sistema';
+                const wb = XLS.utils.book_new();
+
+                // Aba 1: UHE Estrela
+                const wsEstrela = buildDeadStockWorksheet(XLS, estrelaItems, 'UHE Estrela', deadStockSalePercent, dataHoraFormatada, usuarioExport);
+                XLS.utils.book_append_sheet(wb, wsEstrela, "UHE Estrela");
+
+                // Aba 2: PCH Taboca
+                const wsTaboca = buildDeadStockWorksheet(XLS, tabocaItems, 'PCH Taboca', deadStockSalePercent, dataHoraFormatada, usuarioExport);
+                XLS.utils.book_append_sheet(wb, wsTaboca, "PCH Taboca");
+
+                const dateStr = new Date().toISOString().split('T')[0];
+                const filename = `Relatorio_Estoque_Morto_CONSOLIDADO_Estrela_Taboca_${deadStockSalePercent}pct_${dateStr}.xlsx`;
+                XLS.writeFile(wb, filename);
+
+                showToast(`📊 Planilha consolidada baixada! (${estrelaItems.length} Estrela + ${tabocaItems.length} Taboca)`);
+            } catch (error) {
+                console.error("Erro ao gerar planilha consolidada XLSX:", error);
+                showToast("Falha ao exportar planilha consolidada. Verifique a conexão.", true);
             }
         });
 
@@ -11866,11 +12017,11 @@
                 merge(r, 0, r, totalCols - 1);
                 ws['!rows'][r] = { hpt: 22 }; r++;
 
-                // Linha 4: Espaço
-                for (let c = 0; c < totalCols; c++) sc(r, c, '', { fill: { fgColor: { rgb: 'FFFFFF' } } });
-                ws['!rows'][r] = { hpt: 8 }; r++;
+                // Linha 4: Espaço real para isolar o banner da tabela
+                ws['!rows'][r] = { hpt: 10 }; r++;
 
                 // Linha 5: Cabeçalhos da Tabela
+                const headerRowAudit = r;
                 const headers = [
                     '#',
                     'CÓDIGO RM',
@@ -11942,17 +12093,14 @@
 
                 const endRowExcel = r;
 
-                // Linha de Totais Finais
-                sc(r, 0, '', sTotalHdr);
-                sc(r, 1, '', sTotalHdr);
-                sc(r, 2, '', sTotalHdr);
-                sc(r, 3, '', sTotalHdr);
-                sc(r, 4, '', sTotalHdr);
-                sc(r, 5, '', sTotalHdr);
-                sc(r, 6, 'TOTAL GERAL:', sTotalHdr);
-                merge(r, 0, r, 6);
+                // Linha separadora vazia
+                ws['!rows'][r] = { hpt: 10 }; r++;
 
-                scF(r, 7, `SUM(H${startRowExcel}:H${endRowExcel})`, sTotalVal('center', '0F172A'), '#,##0');
+                // Linha de Totais Finais SEM MESCLAGEM (evita erro de células mescladas ao filtrar/ordenar no Excel)
+                for (let c = 0; c < totalCols; c++) sc(r, c, '', sTotalHdr);
+                sc(r, 4, 'TOTAL GERAL:', sTotalHdr);
+
+                scF(r, 7, `SUBTOTAL(109, H${startRowExcel}:H${endRowExcel})`, sTotalVal('center', '0F172A'), '#,##0');
                 if (countedCount > 0) {
                     sc(r, 8, `${totalPhysicalQty} (Conferido)`, sTotalVal('center', '1E3A8A'));
                     const totalDiff = totalPhysicalQty - totalSystemQty;
@@ -11968,6 +12116,14 @@
                 sc(r, 12, '', sTotalVal('center'));
                 ws['!rows'][r] = { hpt: 24 };
 
+                ws['!autofilter'] = {
+                    ref: XLS.utils.encode_range({
+                        s: { r: headerRowAudit, c: 0 },
+                        e: { r: endRowExcel - 1, c: totalCols - 1 }
+                    })
+                };
+                ws['!freeze'] = { xSplit: 0, ySplit: headerRowAudit + 1 };
+                ws['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r, c: totalCols - 1 } });
                 XLS.utils.book_append_sheet(wb, ws, "Auditoria_Inventario");
 
                 const shelfSlug = (auditSelectedShelf || 'Geral').replace(/[^a-zA-Z0-9]/g, '_');
