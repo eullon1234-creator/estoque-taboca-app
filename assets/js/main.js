@@ -9365,6 +9365,7 @@
         // ======= LOGICA AVANÇADA DE ESTOQUE MORTO, VENDAS & ROMANEIO =======
         
         let deadStockSearchQuery = '';
+        let deadStockCategoryFilter = '';
         let activeDeadStockSubtab = 'active'; // 'active' ou 'sold'
         let deadStockSalePercent = parseFloat(localStorage.getItem('dead_stock_sale_percent')) || 50;
         if (isNaN(deadStockSalePercent) || deadStockSalePercent <= 0) deadStockSalePercent = 50;
@@ -9441,6 +9442,20 @@
                     return `<span class="inline-flex items-center gap-1 text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-300" title="Outros / Diversos">📦 Outros</span>`;
                 default:
                     return `<span class="inline-flex items-center gap-1 text-[10px] font-semibold bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100" title="Insumo do Almoxarifado RM">📦 Almoxarifado</span>`;
+            }
+        };
+
+        const getCategoryIcon = (category) => {
+            switch (category) {
+                case 'EPIs / Segurança': return '🦺';
+                case 'Mobília / Escritório': return '🪑';
+                case 'Ferramentas Elétricas': return '⚡';
+                case 'Equipamentos / Máquinas': return '⚙️';
+                case 'Eletrodomésticos': return '🧊';
+                case 'TI / Informática': return '💻';
+                case 'Materiais de Obra': return '🧱';
+                case 'Outros / Diversos': return '📦';
+                default: return '📦';
             }
         };
 
@@ -9682,8 +9697,68 @@
             // 2. Renderizar Sub-aba 1: Itens Disponíveis
             listContainer.innerHTML = '';
             const query = (deadStockSearchQuery || '').trim().toLowerCase();
+
+            // Apurar categorias e contagens de estoque morto
+            const categoryCounts = {};
+            deadStock.forEach(item => {
+                const cat = item.category || (item.isCustomItem ? 'Outros / Diversos' : 'Estoque de Obra');
+                categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+            });
+            const sortedCategories = Object.keys(categoryCounts).sort((a, b) => categoryCounts[b] - categoryCounts[a]);
+
+            // Atualizar Select de Categorias
+            const categoryFilterEl = document.getElementById('dead-stock-category-filter');
+            if (categoryFilterEl) {
+                let optionsHtml = `<option value="">📂 Todas as Categorias (${deadStock.length})</option>`;
+                sortedCategories.forEach(cat => {
+                    const icon = getCategoryIcon(cat);
+                    const count = categoryCounts[cat];
+                    const selected = deadStockCategoryFilter === cat ? 'selected' : '';
+                    optionsHtml += `<option value="${escHtmlAttr(cat)}" ${selected}>${icon} ${escHtmlText(cat)} (${count})</option>`;
+                });
+                categoryFilterEl.innerHTML = optionsHtml;
+            }
+
+            // Atualizar Chips Rápidos de Categorias
+            const chipsContainer = document.getElementById('dead-stock-category-chips');
+            if (chipsContainer) {
+                let chipsHtml = `
+                    <button type="button" data-cat="" class="ds-cat-chip px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 border ${!deadStockCategoryFilter ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'}">
+                        Todos (${deadStock.length})
+                    </button>
+                `;
+                sortedCategories.forEach(cat => {
+                    const icon = getCategoryIcon(cat);
+                    const count = categoryCounts[cat];
+                    const isActive = deadStockCategoryFilter === cat;
+                    chipsHtml += `
+                        <button type="button" data-cat="${escHtmlAttr(cat)}" class="ds-cat-chip px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 border ${isActive ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'}">
+                            ${icon} ${escHtmlText(cat)} (${count})
+                        </button>
+                    `;
+                });
+                chipsContainer.innerHTML = chipsHtml;
+
+                chipsContainer.querySelectorAll('.ds-cat-chip').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        deadStockCategoryFilter = btn.dataset.cat || '';
+                        if (categoryFilterEl) categoryFilterEl.value = deadStockCategoryFilter;
+                        renderDeadStock();
+                    });
+                });
+            }
+
             let filtered = [...deadStock];
+
+            // Filtro por Categoria Selecionada
+            if (deadStockCategoryFilter) {
+                filtered = filtered.filter(item => {
+                    const cat = item.category || (item.isCustomItem ? 'Outros / Diversos' : 'Estoque de Obra');
+                    return cat === deadStockCategoryFilter;
+                });
+            }
             
+            // Filtro por Texto / Busca
             if (query) {
                 filtered = filtered.filter(item => {
                     const name = (item.productName || '').toLowerCase();
@@ -9698,21 +9773,42 @@
                 });
             }
 
+            const isFiltered = !!(query || deadStockCategoryFilter);
+            const clearSearchBtn = document.getElementById('clear-dead-stock-search-btn');
+            if (clearSearchBtn) {
+                if (query) clearSearchBtn.classList.remove('hidden');
+                else clearSearchBtn.classList.add('hidden');
+            }
+
             if (countIndicator) {
-                countIndicator.textContent = query 
-                    ? `Exibindo ${filtered.length} de ${totalSKUs} itens disponíveis` 
-                    : `Total de ${totalSKUs} itens disponíveis`;
+                if (isFiltered) {
+                    countIndicator.innerHTML = `
+                        <span class="inline-flex items-center gap-1.5 font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
+                            <span>Exibindo ${filtered.length} de ${totalSKUs}</span>
+                            <button type="button" onclick="window.clearDeadStockFilters()" class="text-rose-600 hover:text-rose-800 text-[11px] underline ml-1 cursor-pointer font-semibold" title="Remover filtros">✕ Limpar</button>
+                        </span>
+                    `;
+                } else {
+                    countIndicator.innerHTML = `Total de <strong class="text-slate-800">${totalSKUs}</strong> itens disponíveis`;
+                }
             }
 
             if (filtered.length === 0) {
                 noMessage.classList.remove('hidden');
-                if (query) {
+                if (isFiltered) {
                     noMessage.innerHTML = `
                         <div class="w-16 h-16 bg-slate-100 text-slate-400 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                            <span class="material-symbols-outlined text-3xl">search_off</span>
+                            <span class="material-symbols-outlined text-3xl">filter_alt_off</span>
                         </div>
-                        <p class="font-semibold text-slate-700">Nenhum item encontrado para "${escHtmlText(deadStockSearchQuery)}"</p>
-                        <p class="text-xs text-slate-400 mt-1">Verifique o termo digitado ou limpe a busca.</p>
+                        <p class="font-semibold text-slate-700">Nenhum item encontrado com os filtros aplicados</p>
+                        <p class="text-xs text-slate-400 mt-1 mb-3">
+                            ${query ? `Busca: "<strong>${escHtmlText(deadStockSearchQuery)}</strong>"` : ''}
+                            ${deadStockCategoryFilter ? ` | Categoria: "<strong>${escHtmlText(deadStockCategoryFilter)}</strong>"` : ''}
+                        </p>
+                        <button type="button" onclick="window.clearDeadStockFilters()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-xs transition cursor-pointer inline-flex items-center gap-1.5">
+                            <span class="material-symbols-outlined text-sm">filter_alt_off</span>
+                            <span>Limpar Filtros e Ver Todos</span>
+                        </button>
                     `;
                 } else {
                     noMessage.innerHTML = `
@@ -9871,11 +9967,35 @@
             }
         };
 
-        // Busca em tempo real na tabela de estoque morto
+        // Busca e Filtros em tempo real na tabela de estoque morto
         document.getElementById('dead-stock-search-input')?.addEventListener('input', (e) => {
             deadStockSearchQuery = e.target.value;
             renderDeadStock();
         });
+
+        document.getElementById('dead-stock-category-filter')?.addEventListener('change', (e) => {
+            deadStockCategoryFilter = e.target.value;
+            renderDeadStock();
+        });
+
+        document.getElementById('clear-dead-stock-search-btn')?.addEventListener('click', () => {
+            deadStockSearchQuery = '';
+            const searchInput = document.getElementById('dead-stock-search-input');
+            if (searchInput) searchInput.value = '';
+            document.getElementById('clear-dead-stock-search-btn')?.classList.add('hidden');
+            renderDeadStock();
+        });
+
+        window.clearDeadStockFilters = () => {
+            deadStockSearchQuery = '';
+            deadStockCategoryFilter = '';
+            const searchInput = document.getElementById('dead-stock-search-input');
+            if (searchInput) searchInput.value = '';
+            document.getElementById('clear-dead-stock-search-btn')?.classList.add('hidden');
+            const catFilter = document.getElementById('dead-stock-category-filter');
+            if (catFilter) catFilter.value = '';
+            renderDeadStock();
+        };
 
         // 1. MODAL DE TRANSFERÊNCIA (DO ESTOQUE PRINCIPAL PARA MORTO)
         const openTransferDeadStockModal = (productId) => {

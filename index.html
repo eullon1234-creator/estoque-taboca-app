@@ -741,20 +741,42 @@
 
                     <!-- CONTEÚDO SUB-ABA 1: ITENS DISPONÍVEIS -->
                     <div id="dead-stock-active-subview">
-                        <!-- Barra de Busca / Filtro em Tempo Real -->
-                        <div class="mb-4 flex flex-col sm:flex-row gap-3 items-center justify-between">
-                            <div class="relative w-full sm:max-w-md">
-                                <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xl pointer-events-none">search</span>
-                                <input type="text" id="dead-stock-search-input" placeholder="Buscar por produto, código RM ou observação..." class="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition shadow-xs">
-                            </div>
-                            <div class="flex items-center gap-3 self-end sm:self-center">
-                                <div class="text-xs text-slate-500 font-medium" id="dead-stock-count-indicator">
-                                    Exibindo itens disponíveis
+                        <!-- Barra de Busca / Filtro por Categoria em Tempo Real -->
+                        <div class="mb-4 bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+                            <div class="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+                                <div class="flex flex-1 flex-col sm:flex-row gap-2.5 items-stretch sm:items-center">
+                                    <!-- Campo de busca rápida -->
+                                    <div class="relative flex-1 min-w-[240px]">
+                                        <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xl pointer-events-none">search</span>
+                                        <input type="text" id="dead-stock-search-input" placeholder="Buscar por produto, código RM ou observação..." class="w-full pl-10 pr-9 py-2.5 text-sm bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition shadow-2xs">
+                                        <button type="button" id="clear-dead-stock-search-btn" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-0.5" title="Limpar busca">
+                                            <span class="material-symbols-outlined text-base">close</span>
+                                        </button>
+                                    </div>
+
+                                    <!-- Dropdown Selecionar Categoria -->
+                                    <div class="relative sm:w-64 shrink-0">
+                                        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600 text-lg pointer-events-none">filter_list</span>
+                                        <select id="dead-stock-category-filter" class="w-full py-2.5 pl-9 pr-8 text-sm font-semibold bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition shadow-2xs text-slate-700 cursor-pointer">
+                                            <option value="">📂 Todas as Categorias</option>
+                                        </select>
+                                    </div>
                                 </div>
-                                <button id="open-add-custom-dead-stock-btn-2" class="btn-amber-sale font-bold px-3.5 py-2 rounded-xl text-xs sm:text-sm flex items-center gap-1.5 shadow transition active:scale-95 cursor-pointer" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important; color: #ffffff !important; border: 1px solid #b45309 !important;">
-                                    <span class="material-symbols-outlined text-lg" style="color: #ffffff !important;">add_circle</span>
-                                    <span style="color: #ffffff !important; font-weight: 700 !important;">+ Cadastrar Item (EPI, Mobília, Ferramentas)</span>
-                                </button>
+
+                                <div class="flex items-center gap-3 justify-between lg:justify-end shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
+                                    <div class="text-xs text-slate-500 font-medium" id="dead-stock-count-indicator">
+                                        Total de 70 itens disponíveis
+                                    </div>
+                                    <button id="open-add-custom-dead-stock-btn-2" class="btn-amber-sale font-bold px-3.5 py-2 rounded-xl text-xs sm:text-sm flex items-center gap-1.5 shadow transition active:scale-95 cursor-pointer whitespace-nowrap" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important; color: #ffffff !important; border: 1px solid #b45309 !important;">
+                                        <span class="material-symbols-outlined text-lg" style="color: #ffffff !important;">add_circle</span>
+                                        <span style="color: #ffffff !important; font-weight: 700 !important;">+ Cadastrar Item (EPI, Mobília, Ferramentas)</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Botões de Chips de Categoria para Acesso Rápido -->
+                            <div class="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5 text-xs" id="dead-stock-category-chips">
+                                <!-- Preenchido dinamicamente via JS com pills clicáveis -->
                             </div>
                         </div>
 
@@ -3554,7 +3576,7 @@
         </div>
     </div>
 
-    <script type="module" src="assets/js/main.js?v=2.1.4"></script>
+    <script type="module" src="assets/js/main.js?v=2.1.5"></script>
 
     <!-- Script Gerador de Plaquinhas Customizadas -->
     <!-- Script Oficial de Placas de Identificação Visual (Materiais Encobertos) -->
