@@ -9855,6 +9855,15 @@
                                 <div>📅 ${dateStr}</div>
                                 <div class="text-[10px] text-slate-400 mt-0.5">Por: ${escHtmlText(sale.soldBy || 'Sistema')}</div>
                             </td>
+                            <td class="p-3.5 sm:p-4 text-center align-top whitespace-nowrap">
+                                <button type="button" 
+                                    onclick="window.openCancelDeadStockSaleModal('${sale.id}')" 
+                                    class="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 transition active:scale-95 cursor-pointer shadow-2xs"
+                                    title="Estornar / Cancelar esta venda">
+                                    <span class="material-symbols-outlined text-[15px]">undo</span>
+                                    <span>Estornar</span>
+                                </button>
+                            </td>
                         `;
                         salesListContainer.appendChild(tr);
                     });
@@ -10147,6 +10156,114 @@
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Confirmar Saída / Venda';
+            }
+        });
+
+        // 3.1 MODAL DE ESTORNO / CANCELAMENTO DE VENDA DO ESTOQUE MORTO
+        const openCancelDeadStockSaleModal = (saleId) => {
+            const sale = deadStockSales.find(s => s.id === saleId);
+            if (!sale) {
+                showToast("Registro de venda não encontrado.", true);
+                return;
+            }
+
+            document.getElementById('cancel-ds-sale-id').value = sale.id;
+            document.getElementById('cancel-ds-product-name').textContent = sale.productName || 'Produto';
+            document.getElementById('cancel-ds-quantity').textContent = `${sale.quantity || 1} ${sale.productUnit || 'UN'}`;
+            document.getElementById('cancel-ds-destination').textContent = sale.destination || 'Não informado';
+            const total = parseFloat(sale.total) || ((parseFloat(sale.price) || 0) * (parseInt(sale.quantity, 10) || 1));
+            document.getElementById('cancel-ds-total').textContent = total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            
+            const returnCheck = document.getElementById('cancel-ds-return-to-stock');
+            if (returnCheck) returnCheck.checked = true;
+            
+            const reasonInput = document.getElementById('cancel-ds-reason');
+            if (reasonInput) reasonInput.value = '';
+
+            openModal('cancel-dead-stock-sale-modal');
+        };
+
+        window.openCancelDeadStockSaleModal = openCancelDeadStockSaleModal;
+
+        document.getElementById('cancel-dead-stock-sale-form')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<div class="spinner-small"></div>';
+
+            try {
+                const saleId = document.getElementById('cancel-ds-sale-id').value;
+                const returnToStock = document.getElementById('cancel-ds-return-to-stock')?.checked ?? true;
+                const reason = document.getElementById('cancel-ds-reason')?.value || 'Venda cancelada / material emprestado';
+
+                const sale = deadStockSales.find(s => s.id === saleId);
+                if (!sale) throw new Error("Registro de venda não encontrado.");
+
+                const saleRef = doc(deadStockSalesCollectionRef, saleId);
+                const deadStockId = sale.deadStockId;
+                const returnQty = parseInt(sale.quantity, 10) || 1;
+
+                await runTransaction(db, async (transaction) => {
+                    if (returnToStock && deadStockId) {
+                        const dsRef = doc(deadStockCollectionRef, deadStockId);
+                        const dsDoc = await transaction.get(dsRef);
+
+                        if (dsDoc.exists()) {
+                            const currentQty = parseInt(dsDoc.data().quantity, 10) || 0;
+                            transaction.update(dsRef, {
+                                quantity: currentQty + returnQty,
+                                updatedAt: serverTimestamp(),
+                                updatedBy: currentUser?.displayName || currentUser?.email || 'Sistema'
+                            });
+                        } else {
+                            // Documento original havia sido excluído ao vender tudo; recria no estoque morto
+                            transaction.set(dsRef, {
+                                originalProductId: sale.originalProductId || null,
+                                productName: sale.productName || 'Produto',
+                                productCode: sale.productCode || '',
+                                productCodeRM: sale.productCodeRM || '',
+                                productUnit: sale.productUnit || 'UN',
+                                category: sale.category || 'Outros / Bens',
+                                isCustomItem: !!sale.isCustomItem,
+                                condition: sale.condition || 'Bom',
+                                quantity: returnQty,
+                                price: parseFloat(sale.price) || 0,
+                                observation: `Estornado de venda para: ${sale.destination || ''}. Motivo: ${reason}`,
+                                createdAt: serverTimestamp(),
+                                createdBy: currentUser?.displayName || currentUser?.email || 'Sistema',
+                                updatedAt: serverTimestamp(),
+                                updatedBy: currentUser?.displayName || currentUser?.email || 'Sistema'
+                            });
+                        }
+                    }
+
+                    // Exclui o documento da coleção de vendas
+                    transaction.delete(saleRef);
+
+                    // Registra no histórico de auditoria
+                    if (historyCollectionRef) {
+                        const historyRef = doc(historyCollectionRef);
+                        transaction.set(historyRef, {
+                            productId: sale.originalProductId || deadStockId || saleId,
+                            productName: sale.productName || 'Item Estoque Morto',
+                            type: 'Estorno Venda Estoque Morto',
+                            quantity: returnToStock ? returnQty : 0,
+                            observation: `Estorno de venda para: ${sale.destination || 'Comprador'}. ${returnToStock ? `(+${returnQty} ${sale.productUnit || 'UN'} devolvidos ao estoque morto)` : '(sem devolução de saldo)'}. Motivo: ${reason}`,
+                            user: currentUser?.displayName || currentUser?.email || 'Desconhecido',
+                            date: serverTimestamp()
+                        });
+                    }
+                });
+
+                showToast(returnToStock ? "Venda estornada! Saldo devolvido ao Estoque Morto." : "Registro de venda removido com sucesso!");
+                closeModal('cancel-dead-stock-sale-modal');
+                renderDeadStock();
+            } catch (error) {
+                console.error("Erro ao estornar venda:", error);
+                showToast(error.message || "Erro ao estornar venda.", true);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<span class="material-symbols-outlined text-base">delete_sweep</span><span>Confirmar Estorno</span>';
             }
         });
 
