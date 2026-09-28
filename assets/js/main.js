@@ -10493,8 +10493,8 @@
             }
         });
 
-        // 5. FUNÇÃO REUTILIZÁVEL PARA GERAR ABA DE ESTOQUE MORTO NO EXCEL
-        const buildDeadStockWorksheet = (XLS, items, obraNome, salePercent, dataHoraFormatada, usuarioExport) => {
+        // 5. FUNÇÃO REUTILIZÁVEL PARA GERAR ABA DE ESTOQUE MORTO NO EXCEL (SUPORTA COLUNA DE OBRA)
+        const buildDeadStockWorksheet = (XLS, items, obraNome, salePercent, dataHoraFormatada, usuarioExport, includeObraColumn = false) => {
             const bdr = (color = 'CBD5E1') => ({
                 top:    { style: 'thin', color: { rgb: color } },
                 bottom: { style: 'thin', color: { rgb: color } },
@@ -10558,7 +10558,27 @@
             };
 
             const ws = XLS.utils.aoa_to_sheet([]);
-            ws['!cols'] = [
+            const numCols = includeObraColumn ? 17 : 16;
+            
+            ws['!cols'] = includeObraColumn ? [
+                { wch: 6 },  // A: #
+                { wch: 16 }, // B: OBRA / EMPREENDIMENTO
+                { wch: 24 }, // C: GRUPO / CATEGORIA
+                { wch: 18 }, // D: CÓDIGO RM / PATRIMÔNIO
+                { wch: 18 }, // E: CÓDIGO SKU / SÉRIE
+                { wch: 44 }, // F: DESCRIÇÃO DO PRODUTO
+                { wch: 18 }, // G: ESTADO / CONDIÇÃO
+                { wch: 10 }, // H: UNIDADE (UN, PÇ, KG)
+                { wch: 10 }, // I: QTD.
+                { wch: 22 }, // J: PREÇO UNIT. BASE (R$)
+                { wch: 22 }, // K: VALOR TOTAL BASE (R$)
+                { wch: 12 }, // L: % VENDA
+                { wch: 22 }, // M: PREÇO UNIT. VENDA (R$)
+                { wch: 22 }, // N: VALOR TOTAL VENDA (R$)
+                { wch: 32 }, // O: LOCALIZAÇÃO / OBSERVAÇÃO
+                { wch: 16 }, // P: DATA CADASTRO
+                { wch: 22 }  // Q: RESPONSÁVEL
+            ] : [
                 { wch: 6 },  // A: #
                 { wch: 24 }, // B: GRUPO / CATEGORIA
                 { wch: 18 }, // C: CÓDIGO RM / PATRIMÔNIO
@@ -10576,6 +10596,7 @@
                 { wch: 16 }, // O: DATA CADASTRO
                 { wch: 22 }  // P: RESPONSÁVEL
             ];
+
             ws['!merges'] = [];
             ws['!rows'] = [];
 
@@ -10591,21 +10612,21 @@
             const merge = (r_s, c_s, r_e, c_e) => ws['!merges'].push({ s: { r: r_s, c: c_s }, e: { r: r_e, c: c_e } });
 
             // Linha 1: Título
-            for (let c = 0; c < 16; c++) sc(r, c, '', sTitle);
+            for (let c = 0; c < numCols; c++) sc(r, c, '', sTitle);
             sc(r, 0, `RELATÓRIO DE ESTOQUE MORTO & BENS — ${obraNome.toUpperCase()}`, sTitle);
-            merge(r, 0, r, 15);
+            merge(r, 0, r, numCols - 1);
             ws['!rows'][r] = { hpt: 32 }; r++;
 
             // Linha 2: Metadados
-            for (let c = 0; c < 16; c++) sc(r, c, '', sSub);
-            sc(r, 0, `Obra: ${obraNome}  |  Emitido em: ${dataHoraFormatada}  |  Responsável: ${usuarioExport}  |  Percentual Aplicado para Venda: ${salePercent}%  |  Itens: ${items.length}`, sSub);
-            merge(r, 0, r, 15);
+            for (let c = 0; c < numCols; c++) sc(r, c, '', sSub);
+            sc(r, 0, `Escopo: ${obraNome}  |  Emitido em: ${dataHoraFormatada}  |  Responsável: ${usuarioExport}  |  Percentual Aplicado para Venda: ${salePercent}%  |  Itens: ${items.length}`, sSub);
+            merge(r, 0, r, numCols - 1);
             ws['!rows'][r] = { hpt: 20 }; r++;
 
             // Linha 3: RM Banner
-            for (let c = 0; c < 16; c++) sc(r, c, '', sRMBanner);
+            for (let c = 0; c < numCols; c++) sc(r, c, '', sRMBanner);
             sc(r, 0, `⚠️ AVISO: Valores unitários base extraídos do Sistema RM (TOTVS) ou apuração patrimonial. Aplicado percentual de ${salePercent}% sobre o preço de referência.`, sRMBanner);
-            merge(r, 0, r, 15);
+            merge(r, 0, r, numCols - 1);
             ws['!rows'][r] = { hpt: 22 }; r++;
 
             // Linha 4: Espaço real para isolar o banner
@@ -10613,13 +10634,31 @@
 
             // Linha 5: Cabeçalhos da Tabela
             const headerRow = r;
-            const headers = [
+            const headers = includeObraColumn ? [
                 '#', 
-                'GRUPO / CATEGORIA',
+                'OBRA',
+                'GRUPO / CATEGORIA', 
                 'CÓDIGO RM / PATRIMÔNIO', 
                 'CÓDIGO SKU / SÉRIE', 
                 'DESCRIÇÃO DO PRODUTO', 
-                'ESTADO / CONDIÇÃO',
+                'ESTADO / CONDIÇÃO', 
+                'UNIDADE', 
+                'QTD.', 
+                'PREÇO UNIT. BASE (R$)', 
+                'VALOR TOTAL BASE (R$)', 
+                '% VENDA', 
+                'PREÇO UNIT. VENDA (R$)', 
+                'VALOR TOTAL VENDA (R$)', 
+                'LOCALIZAÇÃO / OBSERVAÇÃO', 
+                'DATA CADASTRO', 
+                'RESPONSÁVEL'
+            ] : [
+                '#', 
+                'GRUPO / CATEGORIA', 
+                'CÓDIGO RM / PATRIMÔNIO', 
+                'CÓDIGO SKU / SÉRIE', 
+                'DESCRIÇÃO DO PRODUTO', 
+                'ESTADO / CONDIÇÃO', 
                 'UNIDADE', 
                 'QTD.', 
                 'PREÇO UNIT. BASE (R$)', 
@@ -10648,23 +10687,51 @@
                     const groupCat = item.category || (item.isCustomItem ? 'Outros / Bens' : 'Estoque de Obra');
                     const condition = item.condition || 'Sem avarias';
                     const locObs = [item.location ? `Loc: ${item.location}` : '', item.observation].filter(Boolean).join(' | ');
+                    const itemObra = item.obraOrigem || obraNome;
 
                     sc(rowIdx, 0, index + 1, sCell(even, 'center'), 'n');
-                    sc(rowIdx, 1, groupCat, sCell(even, 'center', '1E40AF', true));
-                    sc(rowIdx, 2, item.productCodeRM || item.assetCode || '-', sCell(even, 'center'));
-                    sc(rowIdx, 3, item.productCode || item.sku || '-', sCell(even, 'center'));
-                    sc(rowIdx, 4, item.productName || item.description || 'Não especificado', sCell(even, 'left', '0F172A', true));
-                    sc(rowIdx, 5, condition, sCell(even, 'center'));
-                    sc(rowIdx, 6, unit, sCell(even, 'center', '0F172A', true));
-                    sc(rowIdx, 7, qty, sCell(even, 'center', '0F172A', true), 'n', '#,##0');
-                    sc(rowIdx, 8, price, sCell(even, 'right'), 'n', '"R$" #,##0.00');
-                    scF(rowIdx, 9, `H${rowExcel}*I${rowExcel}`, sCell(even, 'right', '1E40AF', true), '"R$" #,##0.00');
-                    sc(rowIdx, 10, pctVal, sCell(even, 'center', '4338CA', true), 'n', '0%');
-                    scF(rowIdx, 11, `ROUND(I${rowExcel}*K${rowExcel}, 2)`, sCell(even, 'right', '4338CA', true), '"R$" #,##0.00');
-                    scF(rowIdx, 12, `ROUND(H${rowExcel}*L${rowExcel}, 2)`, sCell(even, 'right', '047857', true), '"R$" #,##0.00');
-                    sc(rowIdx, 13, locObs, sCell(even, 'left'));
-                    sc(rowIdx, 14, dateStr, sCell(even, 'center'));
-                    sc(rowIdx, 15, item.createdBy || '', sCell(even, 'left'));
+
+                    if (includeObraColumn) {
+                        const isEstrela = itemObra.includes('Estrela');
+                        sc(rowIdx, 1, itemObra, sCell(even, 'center', isEstrela ? '1D4ED8' : 'B45309', true));
+                        sc(rowIdx, 2, groupCat, sCell(even, 'center', '1E40AF', true));
+                        sc(rowIdx, 3, item.productCodeRM || item.assetCode || '-', sCell(even, 'center'));
+                        sc(rowIdx, 4, item.productCode || item.sku || '-', sCell(even, 'center'));
+                        sc(rowIdx, 5, item.productName || item.description || 'Não especificado', sCell(even, 'left', '0F172A', true));
+                        sc(rowIdx, 6, condition, sCell(even, 'center'));
+                        sc(rowIdx, 7, unit, sCell(even, 'center', '0F172A', true));
+                        sc(rowIdx, 8, qty, sCell(even, 'center', '0F172A', true), 'n', '#,##0');
+                        sc(rowIdx, 9, price, sCell(even, 'right'), 'n', '"R$" #,##0.00');
+                        // Fórmulas para 17 colunas: Total Base = I * J
+                        scF(rowIdx, 10, `I${rowExcel}*J${rowExcel}`, sCell(even, 'right', '1E40AF', true), '"R$" #,##0.00');
+                        sc(rowIdx, 11, pctVal, sCell(even, 'center', '4338CA', true), 'n', '0%');
+                        // Preço Unit Venda = J * L
+                        scF(rowIdx, 12, `ROUND(J${rowExcel}*L${rowExcel}, 2)`, sCell(even, 'right', '4338CA', true), '"R$" #,##0.00');
+                        // Total Venda = I * M
+                        scF(rowIdx, 13, `ROUND(I${rowExcel}*M${rowExcel}, 2)`, sCell(even, 'right', '047857', true), '"R$" #,##0.00');
+                        sc(rowIdx, 14, locObs, sCell(even, 'left'));
+                        sc(rowIdx, 15, dateStr, sCell(even, 'center'));
+                        sc(rowIdx, 16, item.createdBy || '', sCell(even, 'left'));
+                    } else {
+                        sc(rowIdx, 1, groupCat, sCell(even, 'center', '1E40AF', true));
+                        sc(rowIdx, 2, item.productCodeRM || item.assetCode || '-', sCell(even, 'center'));
+                        sc(rowIdx, 3, item.productCode || item.sku || '-', sCell(even, 'center'));
+                        sc(rowIdx, 4, item.productName || item.description || 'Não especificado', sCell(even, 'left', '0F172A', true));
+                        sc(rowIdx, 5, condition, sCell(even, 'center'));
+                        sc(rowIdx, 6, unit, sCell(even, 'center', '0F172A', true));
+                        sc(rowIdx, 7, qty, sCell(even, 'center', '0F172A', true), 'n', '#,##0');
+                        sc(rowIdx, 8, price, sCell(even, 'right'), 'n', '"R$" #,##0.00');
+                        // Fórmulas para 16 colunas: Total Base = H * I
+                        scF(rowIdx, 9, `H${rowExcel}*I${rowExcel}`, sCell(even, 'right', '1E40AF', true), '"R$" #,##0.00');
+                        sc(rowIdx, 10, pctVal, sCell(even, 'center', '4338CA', true), 'n', '0%');
+                        // Preço Unit Venda = I * K
+                        scF(rowIdx, 11, `ROUND(I${rowExcel}*K${rowExcel}, 2)`, sCell(even, 'right', '4338CA', true), '"R$" #,##0.00');
+                        // Total Venda = H * L
+                        scF(rowIdx, 12, `ROUND(H${rowExcel}*L${rowExcel}, 2)`, sCell(even, 'right', '047857', true), '"R$" #,##0.00');
+                        sc(rowIdx, 13, locObs, sCell(even, 'left'));
+                        sc(rowIdx, 14, dateStr, sCell(even, 'center'));
+                        sc(rowIdx, 15, item.createdBy || '', sCell(even, 'left'));
+                    }
 
                     ws['!rows'][rowIdx] = { hpt: 22 };
                     r++;
@@ -10675,64 +10742,740 @@
                 ws['!rows'][r] = { hpt: 10 }; r++;
 
                 // Linha de Totais SEM MESCLAGEM
-                for (let c = 0; c < 16; c++) sc(r, c, '', sTotalHdr);
+                for (let c = 0; c < numCols; c++) sc(r, c, '', sTotalHdr);
                 sc(r, 1, 'TOTAL CONSOLIDADO', sTotalHdr);
-                scF(r, 7, `SUBTOTAL(109, H${startRow}:H${endRow})`, sTotalVal('center'), '#,##0');
-                sc(r, 8, '-', sTotalVal('center'));
-                scF(r, 9, `SUBTOTAL(109, J${startRow}:J${endRow})`, sTotalVal('right'), '"R$" #,##0.00');
-                sc(r, 10, `${salePercent}%`, sTotalVal('center'));
-                sc(r, 11, '-', sTotalVal('center'));
-                scF(r, 12, `SUBTOTAL(109, M${startRow}:M${endRow})`, sTotalValEmerald, '"R$" #,##0.00');
-                sc(r, 13, '-', sTotalVal('center'));
-                sc(r, 14, '-', sTotalVal('center'));
-                sc(r, 15, '-', sTotalVal('center'));
+
+                if (includeObraColumn) {
+                    scF(r, 8, `SUBTOTAL(109, I${startRow}:I${endRow})`, sTotalVal('center'), '#,##0');
+                    sc(r, 9, '-', sTotalVal('center'));
+                    scF(r, 10, `SUBTOTAL(109, K${startRow}:K${endRow})`, sTotalVal('right'), '"R$" #,##0.00');
+                    sc(r, 11, `${salePercent}%`, sTotalVal('center'));
+                    sc(r, 12, '-', sTotalVal('center'));
+                    scF(r, 13, `SUBTOTAL(109, N${startRow}:N${endRow})`, sTotalValEmerald, '"R$" #,##0.00');
+                    sc(r, 14, '-', sTotalVal('center'));
+                    sc(r, 15, '-', sTotalVal('center'));
+                    sc(r, 16, '-', sTotalVal('center'));
+                } else {
+                    scF(r, 7, `SUBTOTAL(109, H${startRow}:H${endRow})`, sTotalVal('center'), '#,##0');
+                    sc(r, 8, '-', sTotalVal('center'));
+                    scF(r, 9, `SUBTOTAL(109, J${startRow}:J${endRow})`, sTotalVal('right'), '"R$" #,##0.00');
+                    sc(r, 10, `${salePercent}%`, sTotalVal('center'));
+                    sc(r, 11, '-', sTotalVal('center'));
+                    scF(r, 12, `SUBTOTAL(109, M${startRow}:M${endRow})`, sTotalValEmerald, '"R$" #,##0.00');
+                    sc(r, 13, '-', sTotalVal('center'));
+                    sc(r, 14, '-', sTotalVal('center'));
+                    sc(r, 15, '-', sTotalVal('center'));
+                }
                 ws['!rows'][r] = { hpt: 26 }; r++;
 
                 ws['!autofilter'] = {
                     ref: XLS.utils.encode_range({
                         s: { r: headerRow, c: 0 },
-                        e: { r: endRow - 1, c: 15 }
+                        e: { r: endRow - 1, c: numCols - 1 }
                     })
                 };
             } else {
                 sc(r, 0, '-', sCell(false, 'center'));
                 sc(r, 1, 'Sem dados', sCell(false, 'center'));
-                sc(r, 4, 'Nenhum item em Estoque Morto cadastrado nesta obra até o momento.', sCell(false, 'left'));
+                sc(r, 4, 'Nenhum item em Estoque Morto cadastrado nesta aba até o momento.', sCell(false, 'left'));
                 ws['!rows'][r] = { hpt: 24 }; r++;
             }
 
             ws['!freeze'] = { xSplit: 0, ySplit: headerRow + 1 };
-            ws['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(r - 1, headerRow), c: 15 } });
+            ws['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(r - 1, headerRow), c: numCols - 1 } });
             return ws;
         };
 
-        // Helper para carregar o estoque morto de ambas as obras
-        const fetchBothDeadStocks = async () => {
+        // 5.1 FUNÇÃO REUTILIZÁVEL PARA GERAR ABA DE VENDAS CONCLUÍDAS NO EXCEL
+        const buildDeadStockSalesWorksheet = (XLS, sales, title, dataHoraFormatada, usuarioExport, includeObraColumn = true) => {
+            const bdr = (color = 'CBD5E1') => ({
+                top:    { style: 'thin', color: { rgb: color } },
+                bottom: { style: 'thin', color: { rgb: color } },
+                left:   { style: 'thin', color: { rgb: color } },
+                right:  { style: 'thin', color: { rgb: color } }
+            });
+            const sTitle = {
+                font:      { bold: true, sz: 13, color: { rgb: 'FFFFFF' } },
+                fill:      { fgColor: { rgb: '0F172A' } },
+                alignment: { horizontal: 'center', vertical: 'center' },
+                border:    { bottom: { style: 'medium', color: { rgb: '059669' } } }
+            };
+            const sSub = {
+                font:      { italic: true, sz: 9, color: { rgb: '94A3B8' } },
+                fill:      { fgColor: { rgb: '1E293B' } },
+                alignment: { horizontal: 'center', vertical: 'center' }
+            };
+            const sHeader = {
+                font:      { bold: true, sz: 10, color: { rgb: 'FFFFFF' } },
+                fill:      { fgColor: { rgb: '1E3A8A' } },
+                alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+                border:    bdr('1E3A8A')
+            };
+            const sCell = (even, align = 'left', fgColor = '1E293B', bold = false) => ({
+                font:      { bold, sz: 10, color: { rgb: fgColor } },
+                fill:      { fgColor: { rgb: even ? 'F8FAFC' : 'FFFFFF' } },
+                alignment: { horizontal: align, vertical: 'center' },
+                border:    bdr('E2E8F0')
+            });
+            const sTotalHdr = {
+                font:      { bold: true, sz: 11, color: { rgb: '0F172A' } },
+                fill:      { fgColor: { rgb: 'E2E8F0' } },
+                alignment: { horizontal: 'right', vertical: 'center' },
+                border:    { top: { style: 'medium', color: { rgb: '059669' } }, bottom: { style: 'medium', color: { rgb: '059669' } } }
+            };
+            const sTotalVal = (align = 'center') => ({
+                font:      { bold: true, sz: 11, color: { rgb: '0F172A' } },
+                fill:      { fgColor: { rgb: 'E2E8F0' } },
+                alignment: { horizontal: align, vertical: 'center' },
+                border:    { top: { style: 'medium', color: { rgb: '059669' } }, bottom: { style: 'medium', color: { rgb: '059669' } } }
+            });
+            const sTotalValEmerald = {
+                font:      { bold: true, sz: 11, color: { rgb: '047857' } },
+                fill:      { fgColor: { rgb: 'D1FAE5' } },
+                alignment: { horizontal: 'right', vertical: 'center' },
+                border:    { top: { style: 'medium', color: { rgb: '059669' } }, bottom: { style: 'medium', color: { rgb: '059669' } } }
+            };
+
+            const ws = XLS.utils.aoa_to_sheet([]);
+            const numCols = includeObraColumn ? 13 : 12;
+
+            ws['!cols'] = includeObraColumn ? [
+                { wch: 6 },  // A: #
+                { wch: 16 }, // B: OBRA
+                { wch: 24 }, // C: GRUPO / CATEGORIA
+                { wch: 18 }, // D: CÓDIGO RM / PATRIMÔNIO
+                { wch: 18 }, // E: CÓDIGO SKU / SÉRIE
+                { wch: 40 }, // F: DESCRIÇÃO DO PRODUTO
+                { wch: 10 }, // G: UNIDADE
+                { wch: 10 }, // H: QTD.
+                { wch: 20 }, // I: VALOR NEGOCIADO (R$)
+                { wch: 20 }, // J: TOTAL REALIZADO (R$)
+                { wch: 30 }, // K: DESTINO / COMPRADOR
+                { wch: 18 }, // L: Nº NF / RECIBO
+                { wch: 22 }  // M: DATA & RESPONSÁVEL
+            ] : [
+                { wch: 6 },  // A: #
+                { wch: 24 }, // B: GRUPO / CATEGORIA
+                { wch: 18 }, // C: CÓDIGO RM / PATRIMÔNIO
+                { wch: 18 }, // D: CÓDIGO SKU / SÉRIE
+                { wch: 40 }, // E: DESCRIÇÃO DO PRODUTO
+                { wch: 10 }, // F: UNIDADE
+                { wch: 10 }, // G: QTD.
+                { wch: 20 }, // H: VALOR NEGOCIADO (R$)
+                { wch: 20 }, // I: TOTAL REALIZADO (R$)
+                { wch: 30 }, // J: DESTINO / COMPRADOR
+                { wch: 18 }, // K: Nº NF / RECIBO
+                { wch: 22 }  // L: DATA & RESPONSÁVEL
+            ];
+
+            ws['!merges'] = [];
+            ws['!rows'] = [];
+
+            let r = 0;
+            const sc = (r, c, v, style, t = 's', z = undefined) => { 
+                const cell = { v, t, s: style };
+                if (z) cell.z = z;
+                ws[XLS.utils.encode_cell({ r, c })] = cell; 
+            };
+            const scF = (r, c, f, style, z = '"R$" #,##0.00') => { 
+                ws[XLS.utils.encode_cell({ r, c })] = { f, t: 'n', s: style, z }; 
+            };
+            const merge = (r_s, c_s, r_e, c_e) => ws['!merges'].push({ s: { r: r_s, c: c_s }, e: { r: r_e, c: c_e } });
+
+            for (let c = 0; c < numCols; c++) sc(r, c, '', sTitle);
+            sc(r, 0, title.toUpperCase(), sTitle);
+            merge(r, 0, r, numCols - 1);
+            ws['!rows'][r] = { hpt: 32 }; r++;
+
+            for (let c = 0; c < numCols; c++) sc(r, c, '', sSub);
+            sc(r, 0, `Total de Baixas Concluídas: ${sales.length}  |  Emitido em: ${dataHoraFormatada}  |  Responsável: ${usuarioExport}`, sSub);
+            merge(r, 0, r, numCols - 1);
+            ws['!rows'][r] = { hpt: 20 }; r++;
+
+            // Linha vazia real
+            ws['!rows'][r] = { hpt: 10 }; r++;
+
+            const headerRow = r;
+            const headers = includeObraColumn ? [
+                '#', 'OBRA', 'GRUPO / CATEGORIA', 'CÓDIGO RM / PATRIMÔNIO', 'CÓDIGO SKU / SÉRIE', 'DESCRIÇÃO DO PRODUTO', 'UNIDADE', 'QTD.', 'VALOR NEGOCIADO (R$)', 'TOTAL REALIZADO (R$)', 'DESTINO / COMPRADOR', 'Nº NF / RECIBO', 'DATA & RESPONSÁVEL'
+            ] : [
+                '#', 'GRUPO / CATEGORIA', 'CÓDIGO RM / PATRIMÔNIO', 'CÓDIGO SKU / SÉRIE', 'DESCRIÇÃO DO PRODUTO', 'UNIDADE', 'QTD.', 'VALOR NEGOCIADO (R$)', 'TOTAL REALIZADO (R$)', 'DESTINO / COMPRADOR', 'Nº NF / RECIBO', 'DATA & RESPONSÁVEL'
+            ];
+            headers.forEach((h, c) => sc(r, c, h, sHeader));
+            ws['!rows'][r] = { hpt: 24 }; r++;
+
+            const startRow = r + 1;
+            if (sales.length > 0) {
+                sales.forEach((sale, index) => {
+                    const rowIdx = r;
+                    const rowExcel = rowIdx + 1;
+                    const even = index % 2 === 1;
+                    const qty = parseInt(sale.quantity, 10) || 0;
+                    const unit = sale.productUnit || 'UN';
+                    const price = parseFloat(sale.price) || 0;
+                    const dateStr = sale.soldAt?.seconds ? new Date(sale.soldAt.seconds * 1000).toLocaleDateString('pt-BR') : '';
+                    const groupCat = sale.category || (sale.isCustomItem ? 'Outros / Bens' : 'Estoque de Obra');
+                    const saleObra = sale.obraOrigem || 'Não especificada';
+
+                    sc(rowIdx, 0, index + 1, sCell(even, 'center'), 'n');
+
+                    if (includeObraColumn) {
+                        const isEstrela = saleObra.includes('Estrela');
+                        sc(rowIdx, 1, saleObra, sCell(even, 'center', isEstrela ? '1D4ED8' : 'B45309', true));
+                        sc(rowIdx, 2, groupCat, sCell(even, 'center', '1E40AF', true));
+                        sc(rowIdx, 3, sale.productCodeRM || sale.assetCode || '-', sCell(even, 'center'));
+                        sc(rowIdx, 4, sale.productCode || sale.sku || '-', sCell(even, 'center'));
+                        sc(rowIdx, 5, sale.productName || sale.description || 'Não especificado', sCell(even, 'left', '0F172A', true));
+                        sc(rowIdx, 6, unit, sCell(even, 'center', '0F172A', true));
+                        sc(rowIdx, 7, qty, sCell(even, 'center', '0F172A', true), 'n', '#,##0');
+                        sc(rowIdx, 8, price, sCell(even, 'right'), 'n', '"R$" #,##0.00');
+                        // FÓRMULA REAL: Total = Quantidade (H) * Preço Unitário (I)
+                        scF(rowIdx, 9, `H${rowExcel}*I${rowExcel}`, sCell(even, 'right', '047857', true), '"R$" #,##0.00');
+                        sc(rowIdx, 10, sale.destination || '', sCell(even, 'left'));
+                        sc(rowIdx, 11, sale.nfNumber || '-', sCell(even, 'center'));
+                        sc(rowIdx, 12, `${dateStr} (${sale.soldBy || ''})`, sCell(even, 'left'));
+                    } else {
+                        sc(rowIdx, 1, groupCat, sCell(even, 'center', '1E40AF', true));
+                        sc(rowIdx, 2, sale.productCodeRM || sale.assetCode || '-', sCell(even, 'center'));
+                        sc(rowIdx, 3, sale.productCode || sale.sku || '-', sCell(even, 'center'));
+                        sc(rowIdx, 4, sale.productName || sale.description || 'Não especificado', sCell(even, 'left', '0F172A', true));
+                        sc(rowIdx, 5, unit, sCell(even, 'center', '0F172A', true));
+                        sc(rowIdx, 6, qty, sCell(even, 'center', '0F172A', true), 'n', '#,##0');
+                        sc(rowIdx, 7, price, sCell(even, 'right'), 'n', '"R$" #,##0.00');
+                        // FÓRMULA REAL: Total = Quantidade (G) * Preço Unitário (H)
+                        scF(rowIdx, 8, `G${rowExcel}*H${rowExcel}`, sCell(even, 'right', '047857', true), '"R$" #,##0.00');
+                        sc(rowIdx, 9, sale.destination || '', sCell(even, 'left'));
+                        sc(rowIdx, 10, sale.nfNumber || '-', sCell(even, 'center'));
+                        sc(rowIdx, 11, `${dateStr} (${sale.soldBy || ''})`, sCell(even, 'left'));
+                    }
+
+                    ws['!rows'][rowIdx] = { hpt: 22 };
+                    r++;
+                });
+
+                const endRow = r;
+                // Linha separadora vazia
+                ws['!rows'][r] = { hpt: 10 }; r++;
+
+                // Totais SEM MESCLAGEM
+                for (let c = 0; c < numCols; c++) sc(r, c, '', sTotalHdr);
+                sc(r, 1, 'TOTAL ARRECADADO', sTotalHdr);
+
+                if (includeObraColumn) {
+                    scF(r, 7, `SUBTOTAL(109, H${startRow}:H${endRow})`, sTotalVal('center'), '#,##0');
+                    sc(r, 8, '-', sTotalVal('center'));
+                    scF(r, 9, `SUBTOTAL(109, J${startRow}:J${endRow})`, sTotalValEmerald, '"R$" #,##0.00');
+                    sc(r, 10, '-', sTotalVal('center'));
+                    sc(r, 11, '-', sTotalVal('center'));
+                    sc(r, 12, '-', sTotalVal('center'));
+                } else {
+                    scF(r, 6, `SUBTOTAL(109, G${startRow}:G${endRow})`, sTotalVal('center'), '#,##0');
+                    sc(r, 7, '-', sTotalVal('center'));
+                    scF(r, 8, `SUBTOTAL(109, I${startRow}:I${endRow})`, sTotalValEmerald, '"R$" #,##0.00');
+                    sc(r, 9, '-', sTotalVal('center'));
+                    sc(r, 10, '-', sTotalVal('center'));
+                    sc(r, 11, '-', sTotalVal('center'));
+                }
+                ws['!rows'][r] = { hpt: 26 }; r++;
+
+                ws['!autofilter'] = {
+                    ref: XLS.utils.encode_range({
+                        s: { r: headerRow, c: 0 },
+                        e: { r: endRow - 1, c: numCols - 1 }
+                    })
+                };
+            } else {
+                sc(r, 0, '-', sCell(false, 'center'));
+                sc(r, 1, 'Sem baixas', sCell(false, 'center'));
+                sc(r, 4, 'Nenhuma venda ou baixa registrada até o momento.', sCell(false, 'left'));
+                ws['!rows'][r] = { hpt: 24 }; r++;
+            }
+
+            ws['!freeze'] = { xSplit: 0, ySplit: headerRow + 1 };
+            ws['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(r - 1, headerRow), c: numCols - 1 } });
+            return ws;
+        };
+
+        // 5.2 FUNÇÃO PARA GERAR A ABA DE DASHBOARD EXECUTIVO CONSOLIDADO
+        const buildDeadStockDashboardWorksheet = (XLS, estrelaItems, tabocaItems, estrelaSales, tabocaSales, salePercent, dataHoraFormatada, usuarioExport) => {
+            const bdr = (color = 'CBD5E1') => ({
+                top:    { style: 'thin', color: { rgb: color } },
+                bottom: { style: 'thin', color: { rgb: color } },
+                left:   { style: 'thin', color: { rgb: color } },
+                right:  { style: 'thin', color: { rgb: color } }
+            });
+
+            const sTitle = {
+                font:      { bold: true, sz: 14, color: { rgb: 'FFFFFF' } },
+                fill:      { fgColor: { rgb: '0F172A' } },
+                alignment: { horizontal: 'center', vertical: 'center' },
+                border:    { bottom: { style: 'medium', color: { rgb: '059669' } } }
+            };
+
+            const sSub = {
+                font:      { italic: true, sz: 9, color: { rgb: '94A3B8' } },
+                fill:      { fgColor: { rgb: '1E293B' } },
+                alignment: { horizontal: 'center', vertical: 'center' }
+            };
+
+            const sRMBanner = {
+                font:      { bold: true, sz: 9, color: { rgb: '1E40AF' } },
+                fill:      { fgColor: { rgb: 'DBEAFE' } },
+                alignment: { horizontal: 'center', vertical: 'center' },
+                border:    { top: { style: 'thin', color: { rgb: '93C5FD' } }, bottom: { style: 'thin', color: { rgb: '93C5FD' } } }
+            };
+
+            const sSecHdr = {
+                font:      { bold: true, sz: 11, color: { rgb: 'FFFFFF' } },
+                fill:      { fgColor: { rgb: '0F766E' } },
+                alignment: { horizontal: 'left', vertical: 'center' },
+                border:    bdr('0D9488')
+            };
+
+            const sTH = {
+                font:      { bold: true, sz: 10, color: { rgb: 'FFFFFF' } },
+                fill:      { fgColor: { rgb: '1E3A8A' } },
+                alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+                border:    bdr('1E3A8A')
+            };
+
+            const sCell = (even, align = 'left', fgColor = '1E293B', bold = false) => ({
+                font:      { bold, sz: 10, color: { rgb: fgColor } },
+                fill:      { fgColor: { rgb: even ? 'F8FAFC' : 'FFFFFF' } },
+                alignment: { horizontal: align, vertical: 'center' },
+                border:    bdr('E2E8F0')
+            });
+
+            const sTotalHdr = {
+                font:      { bold: true, sz: 11, color: { rgb: '0F172A' } },
+                fill:      { fgColor: { rgb: 'E2E8F0' } },
+                alignment: { horizontal: 'right', vertical: 'center' },
+                border:    { top: { style: 'medium', color: { rgb: '059669' } }, bottom: { style: 'medium', color: { rgb: '059669' } } }
+            };
+
+            const sTotalVal = (align = 'center', fgColor = '0F172A') => ({
+                font:      { bold: true, sz: 11, color: { rgb: fgColor } },
+                fill:      { fgColor: { rgb: 'E2E8F0' } },
+                alignment: { horizontal: align, vertical: 'center' },
+                border:    { top: { style: 'medium', color: { rgb: '059669' } }, bottom: { style: 'medium', color: { rgb: '059669' } } }
+            });
+
+            const sTotalValEmerald = {
+                font:      { bold: true, sz: 11, color: { rgb: '047857' } },
+                fill:      { fgColor: { rgb: 'D1FAE5' } },
+                alignment: { horizontal: 'right', vertical: 'center' },
+                border:    { top: { style: 'medium', color: { rgb: '059669' } }, bottom: { style: 'medium', color: { rgb: '059669' } } }
+            };
+
+            const sNote = {
+                font:      { italic: true, sz: 9, color: { rgb: '475569' } },
+                fill:      { fgColor: { rgb: 'F1F5F9' } },
+                alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
+                border:    bdr('CBD5E1')
+            };
+
+            // Cálculos dos KPIs
+            const estrelaCount = estrelaItems.length;
+            const tabocaCount = tabocaItems.length;
+            const totalAvailable = estrelaCount + tabocaCount;
+
+            const estrelaUnits = estrelaItems.reduce((s, p) => s + (parseInt(p.quantity, 10) || 0), 0);
+            const tabocaUnits = tabocaItems.reduce((s, p) => s + (parseInt(p.quantity, 10) || 0), 0);
+            const totalUnits = estrelaUnits + tabocaUnits;
+
+            const estrelaBaseVal = estrelaItems.reduce((s, p) => s + ((parseFloat(p.price) || 0) * (parseInt(p.quantity, 10) || 0)), 0);
+            const tabocaBaseVal = tabocaItems.reduce((s, p) => s + ((parseFloat(p.price) || 0) * (parseInt(p.quantity, 10) || 0)), 0);
+            const totalBaseVal = estrelaBaseVal + tabocaBaseVal;
+
+            const estrelaSaleVal = estrelaBaseVal * (salePercent / 100);
+            const tabocaSaleVal = tabocaBaseVal * (salePercent / 100);
+            const totalSaleVal = totalBaseVal * (salePercent / 100);
+
+            const estrelaSalesCount = estrelaSales.length;
+            const tabocaSalesCount = tabocaSales.length;
+            const totalSalesCount = estrelaSalesCount + tabocaSalesCount;
+
+            const estrelaRealizedVal = estrelaSales.reduce((s, p) => s + ((parseFloat(p.price) || 0) * (parseInt(p.quantity, 10) || 0)), 0);
+            const tabocaRealizedVal = tabocaSales.reduce((s, p) => s + ((parseFloat(p.price) || 0) * (parseInt(p.quantity, 10) || 0)), 0);
+            const totalRealizedVal = estrelaRealizedVal + tabocaRealizedVal;
+
+            // Agrupamento por Categoria
+            const catMap = new Map();
+            [...estrelaItems, ...tabocaItems].forEach(item => {
+                const cat = item.category || (item.isCustomItem ? 'Outros / Bens' : 'Estoque de Obra');
+                const isEstrela = item.obraOrigem === 'UHE Estrela';
+                const qty = parseInt(item.quantity, 10) || 0;
+                const price = parseFloat(item.price) || 0;
+                const baseVal = qty * price;
+                const saleVal = baseVal * (salePercent / 100);
+
+                if (!catMap.has(cat)) {
+                    catMap.set(cat, {
+                        name: cat,
+                        estrelaCount: 0,
+                        tabocaCount: 0,
+                        totalUnits: 0,
+                        totalBase: 0,
+                        totalSale: 0
+                    });
+                }
+                const c = catMap.get(cat);
+                if (isEstrela) c.estrelaCount++;
+                else c.tabocaCount++;
+                c.totalUnits += qty;
+                c.totalBase += baseVal;
+                c.totalSale += saleVal;
+            });
+            const categories = Array.from(catMap.values()).sort((a, b) => b.totalBase - a.totalBase);
+
+            const ws = XLS.utils.aoa_to_sheet([]);
+            ws['!cols'] = [
+                { wch: 38 }, // A: Métrica / Categoria / Guia
+                { wch: 18 }, // B: Estrela
+                { wch: 18 }, // C: Taboca
+                { wch: 22 }, // D: Total Consolidado
+                { wch: 18 }, // E: Volume / Peças
+                { wch: 24 }, // F: Valor Base RM (R$)
+                { wch: 24 }  // G: Valor Venda Estimado (R$)
+            ];
+            ws['!merges'] = [];
+            ws['!rows'] = [];
+
+            let r = 0;
+            const sc = (r, c, v, style, t = 's', z = undefined) => { 
+                const cell = { v, t, s: style };
+                if (z) cell.z = z;
+                ws[XLS.utils.encode_cell({ r, c })] = cell; 
+            };
+            const scF = (r, c, f, style, z = '"R$" #,##0.00') => { 
+                ws[XLS.utils.encode_cell({ r, c })] = { f, t: 'n', s: style, z }; 
+            };
+            const merge = (r_s, c_s, r_e, c_e) => ws['!merges'].push({ s: { r: r_s, c: c_s }, e: { r: r_e, c: c_e } });
+
+            // 1. Banner Principal
+            for (let c = 0; c < 7; c++) sc(r, c, '', sTitle);
+            sc(r, 0, 'PAINEL EXECUTIVO CONSOLIDADO — ESTOQUE MORTO & BENS', sTitle);
+            merge(r, 0, r, 6);
+            ws['!rows'][r] = { hpt: 32 }; r++;
+
+            for (let c = 0; c < 7; c++) sc(r, c, '', sSub);
+            sc(r, 0, `Consolidação: UHE Estrela + PCH Taboca  |  Data da Emissão: ${dataHoraFormatada}  |  Responsável: ${usuarioExport}  |  Deságio Aplicado: ${salePercent}%`, sSub);
+            merge(r, 0, r, 6);
+            ws['!rows'][r] = { hpt: 20 }; r++;
+
+            for (let c = 0; c < 7; c++) sc(r, c, '', sRMBanner);
+            sc(r, 0, `⚠️ Valores unitários base extraídos do Sistema RM (TOTVS) ou apuração patrimonial. Aplicado deságio para venda de ${salePercent}%.`, sRMBanner);
+            merge(r, 0, r, 6);
+            ws['!rows'][r] = { hpt: 22 }; r++;
+
+            ws['!rows'][r] = { hpt: 12 }; r++; // Espaço
+
+            // 2. Seção 1: Indicadores Chave de Desempenho (KPIs)
+            for (let c = 0; c < 7; c++) sc(r, c, '', sSecHdr);
+            sc(r, 0, '1. RESUMO GERAL CONSOLIDADO DOS EMPREENDIMENTOS (KPIs)', sSecHdr);
+            merge(r, 0, r, 6);
+            ws['!rows'][r] = { hpt: 24 }; r++;
+
+            const kpiHeaders = ['INDICADOR PRINCIPAL', 'UHE ESTRELA', 'PCH TABOCA', 'TOTAL CONSOLIDADO', 'DETALHES / STATUS', '', ''];
+            kpiHeaders.forEach((h, c) => {
+                if (c <= 4) sc(r, c, h, sTH);
+                else sc(r, c, '', sTH);
+            });
+            merge(r, 4, r, 6);
+            ws['!rows'][r] = { hpt: 24 }; r++;
+
+            const kpiRows = [
+                {
+                    lbl: 'Itens / SKUs Ativos Disponíveis',
+                    vEst: estrelaCount,
+                    vTab: tabocaCount,
+                    vTot: totalAvailable,
+                    type: 'n',
+                    fmt: '#,##0',
+                    note: 'Produtos segregados cadastrados para alienação / venda'
+                },
+                {
+                    lbl: 'Volume Total Físico (Peças / Unidades)',
+                    vEst: estrelaUnits,
+                    vTab: tabocaUnits,
+                    vTot: totalUnits,
+                    type: 'n',
+                    fmt: '#,##0',
+                    note: 'Somatório de todas as quantidades em estoque'
+                },
+                {
+                    lbl: 'Valor Contábil Base RM (100% de Referência)',
+                    vEst: estrelaBaseVal,
+                    vTab: tabocaBaseVal,
+                    vTot: totalBaseVal,
+                    type: 'n',
+                    fmt: '"R$" #,##0.00',
+                    note: 'Preço de custo oficial apurado no Sistema TOTVS RM'
+                },
+                {
+                    lbl: 'Percentual de Deságio Aplicado para Venda',
+                    vEst: `${salePercent}%`,
+                    vTab: `${salePercent}%`,
+                    vTot: `${salePercent}%`,
+                    type: 's',
+                    fmt: undefined,
+                    note: 'Percentual parametrizado para cálculo do preço de venda'
+                },
+                {
+                    lbl: 'Valor Total Estimado para Alienação / Venda',
+                    vEst: estrelaSaleVal,
+                    vTab: tabocaSaleVal,
+                    vTot: totalSaleVal,
+                    type: 'n',
+                    fmt: '"R$" #,##0.00',
+                    note: 'Receita potencial estimada aplicando o percentual de deságio'
+                },
+                {
+                    lbl: 'Baixas / Vendas Concluídas (Qtd Baixas)',
+                    vEst: estrelaSalesCount,
+                    vTab: tabocaSalesCount,
+                    vTot: totalSalesCount,
+                    type: 'n',
+                    fmt: '#,##0',
+                    note: 'Registros de desmobilização, transferências e vendas finalizadas'
+                },
+                {
+                    lbl: 'Total Arrecadado Realizado com Baixas / Vendas',
+                    vEst: estrelaRealizedVal,
+                    vTab: tabocaRealizedVal,
+                    vTot: totalRealizedVal,
+                    type: 'n',
+                    fmt: '"R$" #,##0.00',
+                    note: 'Valor financeiro efetivamente realizado e comprovado por recibo/NF'
+                }
+            ];
+
+            kpiRows.forEach((kpi, idx) => {
+                const even = idx % 2 === 1;
+                sc(r, 0, kpi.lbl, sCell(even, 'left', '0F172A', true));
+                sc(r, 1, kpi.vEst, sCell(even, 'center', '1D4ED8', true), kpi.type, kpi.fmt);
+                sc(r, 2, kpi.vTab, sCell(even, 'center', 'B45309', true), kpi.type, kpi.fmt);
+                sc(r, 3, kpi.vTot, sCell(even, 'center', '047857', true), kpi.type, kpi.fmt);
+                sc(r, 4, kpi.note, sNote);
+                sc(r, 5, '', sNote);
+                sc(r, 6, '', sNote);
+                merge(r, 4, r, 6);
+                ws['!rows'][r] = { hpt: 22 };
+                r++;
+            });
+
+            ws['!rows'][r] = { hpt: 12 }; r++; // Espaço
+
+            // 3. Seção 2: Comparativo Direto entre as Obras
+            for (let c = 0; c < 7; c++) sc(r, c, '', sSecHdr);
+            sc(r, 0, '2. DETALHAMENTO COMPARATIVO ENTRE OS EMPREENDIMENTOS', sSecHdr);
+            merge(r, 0, r, 6);
+            ws['!rows'][r] = { hpt: 24 }; r++;
+
+            const compHeaders = [
+                'EMPREENDIMENTO / OBRA',
+                'ITENS DISP. (SKU)',
+                'VOLUME (UNIDADES)',
+                'VALOR BASE RM (R$)',
+                `VALOR VENDA (${salePercent}%)`,
+                'BAIXAS CONCLUÍDAS',
+                'TOTAL ARRECADADO (R$)'
+            ];
+            compHeaders.forEach((h, c) => sc(r, c, h, sTH));
+            ws['!rows'][r] = { hpt: 24 }; r++;
+
+            const compStartRow = r + 1;
+            // Linha UHE Estrela
+            sc(r, 0, 'UHE Estrela', sCell(false, 'left', '1D4ED8', true));
+            sc(r, 1, estrelaCount, sCell(false, 'center', '0F172A', true), 'n', '#,##0');
+            sc(r, 2, estrelaUnits, sCell(false, 'center', '0F172A', true), 'n', '#,##0');
+            sc(r, 3, estrelaBaseVal, sCell(false, 'right', '1E40AF', true), 'n', '"R$" #,##0.00');
+            sc(r, 4, estrelaSaleVal, sCell(false, 'right', '047857', true), 'n', '"R$" #,##0.00');
+            sc(r, 5, estrelaSalesCount, sCell(false, 'center', '0F172A', true), 'n', '#,##0');
+            sc(r, 6, estrelaRealizedVal, sCell(false, 'right', '047857', true), 'n', '"R$" #,##0.00');
+            ws['!rows'][r] = { hpt: 22 }; r++;
+
+            // Linha PCH Taboca
+            sc(r, 0, 'PCH Taboca', sCell(true, 'left', 'B45309', true));
+            sc(r, 1, tabocaCount, sCell(true, 'center', '0F172A', true), 'n', '#,##0');
+            sc(r, 2, tabocaUnits, sCell(true, 'center', '0F172A', true), 'n', '#,##0');
+            sc(r, 3, tabocaBaseVal, sCell(true, 'right', '1E40AF', true), 'n', '"R$" #,##0.00');
+            sc(r, 4, tabocaSaleVal, sCell(true, 'right', '047857', true), 'n', '"R$" #,##0.00');
+            sc(r, 5, tabocaSalesCount, sCell(true, 'center', '0F172A', true), 'n', '#,##0');
+            sc(r, 6, tabocaRealizedVal, sCell(true, 'right', '047857', true), 'n', '"R$" #,##0.00');
+            ws['!rows'][r] = { hpt: 22 }; r++;
+
+            const compEndRow = r;
+            // Linha Total Comparativo
+            sc(r, 0, 'TOTAL GERAL CONSOLIDADO', sTotalHdr);
+            scF(r, 1, `SUM(B${compStartRow}:B${compEndRow})`, sTotalVal('center'), '#,##0');
+            scF(r, 2, `SUM(C${compStartRow}:C${compEndRow})`, sTotalVal('center'), '#,##0');
+            scF(r, 3, `SUM(D${compStartRow}:D${compEndRow})`, sTotalVal('right'), '"R$" #,##0.00');
+            scF(r, 4, `SUM(E${compStartRow}:E${compEndRow})`, sTotalValEmerald, '"R$" #,##0.00');
+            scF(r, 5, `SUM(F${compStartRow}:F${compEndRow})`, sTotalVal('center'), '#,##0');
+            scF(r, 6, `SUM(G${compStartRow}:G${compEndRow})`, sTotalValEmerald, '"R$" #,##0.00');
+            ws['!rows'][r] = { hpt: 26 }; r++;
+
+            ws['!rows'][r] = { hpt: 12 }; r++; // Espaço
+
+            // 4. Seção 3: Distribuição por Categoria / Grupo
+            for (let c = 0; c < 7; c++) sc(r, c, '', sSecHdr);
+            sc(r, 0, '3. DISTRIBUIÇÃO DOS ITENS DISPONÍVEIS POR GRUPO / CATEGORIA', sSecHdr);
+            merge(r, 0, r, 6);
+            ws['!rows'][r] = { hpt: 24 }; r++;
+
+            const catHeaders = [
+                'GRUPO / CATEGORIA',
+                'ESTRELA (SKU)',
+                'TABOCA (SKU)',
+                'TOTAL SKUs',
+                'VOLUME (UN)',
+                'VALOR BASE RM (R$)',
+                `VALOR VENDA (${salePercent}%)`
+            ];
+            catHeaders.forEach((h, c) => sc(r, c, h, sTH));
+            ws['!rows'][r] = { hpt: 24 }; r++;
+
+            const catStartRow = r + 1;
+            if (categories.length > 0) {
+                categories.forEach((c, idx) => {
+                    const rowExcel = r + 1;
+                    const even = idx % 2 === 1;
+                    sc(r, 0, c.name, sCell(even, 'left', '0F172A', true));
+                    sc(r, 1, c.estrelaCount, sCell(even, 'center', '1D4ED8'), 'n', '#,##0');
+                    sc(r, 2, c.tabocaCount, sCell(even, 'center', 'B45309'), 'n', '#,##0');
+                    scF(r, 3, `B${rowExcel}+C${rowExcel}`, sCell(even, 'center', '0F172A', true), '#,##0');
+                    sc(r, 4, c.totalUnits, sCell(even, 'center', '0F172A'), 'n', '#,##0');
+                    sc(r, 5, c.totalBase, sCell(even, 'right', '1E40AF', true), 'n', '"R$" #,##0.00');
+                    scF(r, 6, `ROUND(F${rowExcel}*${salePercent/100}, 2)`, sCell(even, 'right', '047857', true), '"R$" #,##0.00');
+                    ws['!rows'][r] = { hpt: 22 };
+                    r++;
+                });
+
+                const catEndRow = r;
+                sc(r, 0, 'TOTAL POR CATEGORIAS', sTotalHdr);
+                scF(r, 1, `SUM(B${catStartRow}:B${catEndRow})`, sTotalVal('center'), '#,##0');
+                scF(r, 2, `SUM(C${catStartRow}:C${catEndRow})`, sTotalVal('center'), '#,##0');
+                scF(r, 3, `SUM(D${catStartRow}:D${catEndRow})`, sTotalVal('center'), '#,##0');
+                scF(r, 4, `SUM(E${catStartRow}:E${catEndRow})`, sTotalVal('center'), '#,##0');
+                scF(r, 5, `SUM(F${catStartRow}:F${catEndRow})`, sTotalVal('right'), '"R$" #,##0.00');
+                scF(r, 6, `SUM(G${catStartRow}:G${catEndRow})`, sTotalValEmerald, '"R$" #,##0.00');
+                ws['!rows'][r] = { hpt: 26 }; r++;
+            } else {
+                sc(r, 0, 'Nenhuma categoria cadastrada', sCell(false, 'left'));
+                for (let c = 1; c < 7; c++) sc(r, c, '-', sCell(false, 'center'));
+                ws['!rows'][r] = { hpt: 22 }; r++;
+            }
+
+            ws['!rows'][r] = { hpt: 12 }; r++; // Espaço
+
+            // 5. Seção 4: Guia Explicativo das Abas da Planilha
+            for (let c = 0; c < 7; c++) sc(r, c, '', sSecHdr);
+            sc(r, 0, '4. ESTRUTURA DA PLANILHA E GUIA EXPLICATIVO DAS ABAS', sSecHdr);
+            merge(r, 0, r, 6);
+            ws['!rows'][r] = { hpt: 24 }; r++;
+
+            const guideHeaders = ['ABA / SEÇÃO', 'DESCRIÇÃO E FINALIDADE', '', '', '', '', ''];
+            guideHeaders.forEach((h, c) => {
+                if (c <= 1) sc(r, c, h, sTH);
+                else sc(r, c, '', sTH);
+            });
+            merge(r, 1, r, 6);
+            ws['!rows'][r] = { hpt: 24 }; r++;
+
+            const guideRows = [
+                {
+                    aba: '📊 Dashboard & Indicadores',
+                    desc: 'Visão executiva consolidada de todos os indicadores, comparativos entre UHE Estrela e PCH Taboca e distribuição de itens por categoria.'
+                },
+                {
+                    aba: '📑 Consolidado Geral',
+                    desc: 'Planilha única unificada contendo todos os materiais disponíveis de ambas as obras, com coluna OBRA indicando a procedência, fórmulas ativas e filtros nativos.'
+                },
+                {
+                    aba: '⚡ UHE Estrela',
+                    desc: 'Aba exclusiva contendo apenas os materiais, bens e peças disponíveis para venda ou transferência alocados na UHE Estrela.'
+                },
+                {
+                    aba: '💧 PCH Taboca',
+                    desc: 'Aba exclusiva contendo apenas os materiais, bens e peças disponíveis para venda ou transferência alocados na PCH Taboca.'
+                },
+                {
+                    aba: '💰 Vendas Concluídas',
+                    desc: 'Histórico unificado de todas as desmobilizações, vendas e baixas efetuadas nas duas obras, incluindo dados do comprador, valor realizado e número da NF/Recibo.'
+                },
+                {
+                    aba: '💡 Instruções de Filtro no Excel',
+                    desc: 'Todas as abas de dados utilizam filtros nativos do Excel e a fórmula SUBTOTAL(109). Ao filtrar por Grupo ou Obra, os totais no rodapé recalculam automaticamente somando apenas os itens visíveis!'
+                }
+            ];
+
+            guideRows.forEach((g, idx) => {
+                const even = idx % 2 === 1;
+                sc(r, 0, g.aba, sCell(even, 'left', '0F172A', true));
+                for (let c = 1; c < 7; c++) sc(r, c, '', sNote);
+                sc(r, 1, g.desc, sNote);
+                merge(r, 1, r, 6);
+                ws['!rows'][r] = { hpt: 24 };
+                r++;
+            });
+
+            ws['!freeze'] = { xSplit: 0, ySplit: 4 };
+            ws['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r - 1, c: 6 } });
+            return ws;
+        };
+
+        // Helper para carregar estoque morto e histórico de vendas de ambas as obras
+        const fetchBothDeadStocksAndSales = async () => {
             let estrelaItems = [];
             let tabocaItems = [];
+            let estrelaSales = [];
+            let tabocaSales = [];
 
+            // 1. Estrela Estoque Disponível
             try {
                 const estrelaRef = collection(db, `/artifacts/${appId}/public/data/dead_stock`);
                 const snapEstrela = await getDocs(estrelaRef);
-                estrelaItems = snapEstrela.docs.map(d => sanitizeProductData({ id: d.id, ...d.data() }));
+                estrelaItems = snapEstrela.docs.map(d => sanitizeProductData({ id: d.id, ...d.data(), obraOrigem: 'UHE Estrela' }));
             } catch (err) {
                 console.warn("Aviso ao buscar dead_stock Estrela:", err);
-                if (currentObraId === 'uhe_estrela') estrelaItems = [...deadStock];
+                if (currentObraId === 'uhe_estrela') estrelaItems = deadStock.map(i => ({ ...i, obraOrigem: 'UHE Estrela' }));
             }
 
+            // 2. Estrela Vendas Concluídas
+            try {
+                const estrelaSalesRef = collection(db, `/artifacts/${appId}/public/data/dead_stock_sales`);
+                const snapEstrelaSales = await getDocs(estrelaSalesRef);
+                estrelaSales = snapEstrelaSales.docs.map(d => sanitizeProductData({ id: d.id, ...d.data(), obraOrigem: 'UHE Estrela' }));
+            } catch (err) {
+                console.warn("Aviso ao buscar dead_stock_sales Estrela:", err);
+                if (currentObraId === 'uhe_estrela') estrelaSales = deadStockSales.map(i => ({ ...i, obraOrigem: 'UHE Estrela' }));
+            }
+
+            // 3. Taboca Estoque Disponível
             try {
                 const tabocaRef = collection(db, `/artifacts/${appId}/public/data/obras/pch_taboca/dead_stock`);
                 const snapTaboca = await getDocs(tabocaRef);
-                tabocaItems = snapTaboca.docs.map(d => sanitizeProductData({ id: d.id, ...d.data() }));
+                tabocaItems = snapTaboca.docs.map(d => sanitizeProductData({ id: d.id, ...d.data(), obraOrigem: 'PCH Taboca' }));
             } catch (err) {
                 console.warn("Aviso ao buscar dead_stock Taboca:", err);
-                if (currentObraId === 'pch_taboca') tabocaItems = [...deadStock];
+                if (currentObraId === 'pch_taboca') tabocaItems = deadStock.map(i => ({ ...i, obraOrigem: 'PCH Taboca' }));
             }
 
-            return { estrelaItems, tabocaItems };
+            // 4. Taboca Vendas Concluídas
+            try {
+                const tabocaSalesRef = collection(db, `/artifacts/${appId}/public/data/obras/pch_taboca/dead_stock_sales`);
+                const snapTabocaSales = await getDocs(tabocaSalesRef);
+                tabocaSales = snapTabocaSales.docs.map(d => sanitizeProductData({ id: d.id, ...d.data(), obraOrigem: 'PCH Taboca' }));
+            } catch (err) {
+                console.warn("Aviso ao buscar dead_stock_sales Taboca:", err);
+                if (currentObraId === 'pch_taboca') tabocaSales = deadStockSales.map(i => ({ ...i, obraOrigem: 'PCH Taboca' }));
+            }
+
+            return { estrelaItems, tabocaItems, estrelaSales, tabocaSales };
         };
 
-        // 5.1 EXPORTAÇÃO EXECUTIVA DA PLANILHA EXCEL (.XLSX) DA OBRA ATUAL
+        // 5.3 EXPORTAÇÃO EXECUTIVA DA PLANILHA EXCEL (.XLSX) DA OBRA ATUAL
         document.getElementById('export-dead-stock-btn')?.addEventListener('click', () => {
             const XLS = typeof XLSX !== 'undefined' ? XLSX : null;
             if (!XLS) {
@@ -10754,158 +11497,12 @@
                 const wb = XLS.utils.book_new();
 
                 // Aba 1: Itens Disponíveis
-                const ws1 = buildDeadStockWorksheet(XLS, deadStock, obraNome, deadStockSalePercent, dataHoraFormatada, usuarioExport);
+                const ws1 = buildDeadStockWorksheet(XLS, deadStock, obraNome, deadStockSalePercent, dataHoraFormatada, usuarioExport, false);
                 XLS.utils.book_append_sheet(wb, ws1, "Itens Disponíveis");
 
                 // Aba 2: Vendas e Saídas Concluídas
                 if (deadStockSales.length > 0) {
-                    const bdr = (color = 'CBD5E1') => ({
-                        top:    { style: 'thin', color: { rgb: color } },
-                        bottom: { style: 'thin', color: { rgb: color } },
-                        left:   { style: 'thin', color: { rgb: color } },
-                        right:  { style: 'thin', color: { rgb: color } }
-                    });
-                    const sTitle = {
-                        font:      { bold: true, sz: 13, color: { rgb: 'FFFFFF' } },
-                        fill:      { fgColor: { rgb: '0F172A' } },
-                        alignment: { horizontal: 'center', vertical: 'center' },
-                        border:    { bottom: { style: 'medium', color: { rgb: '059669' } } }
-                    };
-                    const sSub = {
-                        font:      { italic: true, sz: 9, color: { rgb: '94A3B8' } },
-                        fill:      { fgColor: { rgb: '1E293B' } },
-                        alignment: { horizontal: 'center', vertical: 'center' }
-                    };
-                    const sHeader = {
-                        font:      { bold: true, sz: 10, color: { rgb: 'FFFFFF' } },
-                        fill:      { fgColor: { rgb: '1E3A8A' } },
-                        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-                        border:    bdr('1E3A8A')
-                    };
-                    const sCell = (even, align = 'left', fgColor = '1E293B', bold = false) => ({
-                        font:      { bold, sz: 10, color: { rgb: fgColor } },
-                        fill:      { fgColor: { rgb: even ? 'F8FAFC' : 'FFFFFF' } },
-                        alignment: { horizontal: align, vertical: 'center' },
-                        border:    bdr('E2E8F0')
-                    });
-                    const sTotalHdr = {
-                        font:      { bold: true, sz: 11, color: { rgb: '0F172A' } },
-                        fill:      { fgColor: { rgb: 'E2E8F0' } },
-                        alignment: { horizontal: 'right', vertical: 'center' },
-                        border:    { top: { style: 'medium', color: { rgb: '059669' } }, bottom: { style: 'medium', color: { rgb: '059669' } } }
-                    };
-                    const sTotalVal = (align = 'center') => ({
-                        font:      { bold: true, sz: 11, color: { rgb: '0F172A' } },
-                        fill:      { fgColor: { rgb: 'E2E8F0' } },
-                        alignment: { horizontal: align, vertical: 'center' },
-                        border:    { top: { style: 'medium', color: { rgb: '059669' } }, bottom: { style: 'medium', color: { rgb: '059669' } } }
-                    });
-                    const sTotalValEmerald = {
-                        font:      { bold: true, sz: 11, color: { rgb: '047857' } },
-                        fill:      { fgColor: { rgb: 'D1FAE5' } },
-                        alignment: { horizontal: 'right', vertical: 'center' },
-                        border:    { top: { style: 'medium', color: { rgb: '059669' } }, bottom: { style: 'medium', color: { rgb: '059669' } } }
-                    };
-
-                    const ws2 = XLS.utils.aoa_to_sheet([]);
-                    ws2['!cols'] = [
-                        { wch: 6 },  // A: #
-                        { wch: 24 }, // B: GRUPO / CATEGORIA
-                        { wch: 18 }, // C: CÓDIGO RM / PATRIMÔNIO
-                        { wch: 18 }, // D: CÓDIGO SKU / SÉRIE
-                        { wch: 40 }, // E: DESCRIÇÃO DO PRODUTO
-                        { wch: 10 }, // F: UNIDADE
-                        { wch: 10 }, // G: QTD.
-                        { wch: 20 }, // H: VALOR NEGOCIADO (R$)
-                        { wch: 20 }, // I: TOTAL REALIZADO (R$)
-                        { wch: 30 }, // J: DESTINO / COMPRADOR
-                        { wch: 18 }, // K: Nº NF / RECIBO
-                        { wch: 22 }  // L: DATA & RESPONSÁVEL
-                    ];
-                    ws2['!merges'] = [];
-                    ws2['!rows'] = [];
-
-                    let r2 = 0;
-                    const sc2 = (r, c, v, style, t = 's', z = undefined) => { 
-                        const cell = { v, t, s: style };
-                        if (z) cell.z = z;
-                        ws2[XLS.utils.encode_cell({ r, c })] = cell; 
-                    };
-                    const scF2 = (r, c, f, style, z = '"R$" #,##0.00') => { 
-                        ws2[XLS.utils.encode_cell({ r, c })] = { f, t: 'n', s: style, z }; 
-                    };
-                    const merge2 = (r_s, c_s, r_e, c_e) => ws2['!merges'].push({ s: { r: r_s, c: c_s }, e: { r: r_e, c: c_e } });
-
-                    for (let c = 0; c < 12; c++) sc2(r2, c, '', sTitle);
-                    sc2(r2, 0, 'HISTÓRICO DE VENDAS & TRANSFERÊNCIAS CONCLUÍDAS', sTitle);
-                    merge2(r2, 0, r2, 11);
-                    ws2['!rows'][r2] = { hpt: 32 }; r2++;
-
-                    for (let c = 0; c < 12; c++) sc2(r2, c, '', sSub);
-                    sc2(r2, 0, `Obra: ${obraNome}  |  Total de Baixas Concluídas: ${deadStockSales.length}`, sSub);
-                    merge2(r2, 0, r2, 11);
-                    ws2['!rows'][r2] = { hpt: 20 }; r2++;
-
-                    // Linha vazia real
-                    ws2['!rows'][r2] = { hpt: 10 }; r2++;
-
-                    const headerRow2 = r2;
-                    const headers2 = ['#', 'GRUPO / CATEGORIA', 'CÓDIGO RM / PATRIMÔNIO', 'CÓDIGO SKU / SÉRIE', 'DESCRIÇÃO DO PRODUTO', 'UNIDADE', 'QTD.', 'VALOR NEGOCIADO (R$)', 'TOTAL REALIZADO (R$)', 'DESTINO / COMPRADOR', 'Nº NF / RECIBO', 'DATA & RESPONSÁVEL'];
-                    headers2.forEach((h, c) => sc2(r2, c, h, sHeader));
-                    ws2['!rows'][r2] = { hpt: 24 }; r2++;
-
-                    const startRow2 = r2 + 1;
-                    deadStockSales.forEach((sale, index) => {
-                        const rowIdx = r2;
-                        const rowExcel = rowIdx + 1;
-                        const even = index % 2 === 1;
-                        const qty = parseInt(sale.quantity, 10) || 0;
-                        const unit = sale.productUnit || 'UN';
-                        const price = parseFloat(sale.price) || 0;
-                        const dateStr = sale.soldAt?.seconds ? new Date(sale.soldAt.seconds * 1000).toLocaleDateString('pt-BR') : '';
-                        const groupCat = sale.category || (sale.isCustomItem ? 'Outros / Bens' : 'Estoque de Obra');
-
-                        sc2(rowIdx, 0, index + 1, sCell(even, 'center'), 'n');
-                        sc2(rowIdx, 1, groupCat, sCell(even, 'center', '1E40AF', true));
-                        sc2(rowIdx, 2, sale.productCodeRM || sale.assetCode || '-', sCell(even, 'center'));
-                        sc2(rowIdx, 3, sale.productCode || sale.sku || '-', sCell(even, 'center'));
-                        sc2(rowIdx, 4, sale.productName || sale.description || 'Não especificado', sCell(even, 'left', '0F172A', true));
-                        sc2(rowIdx, 5, unit, sCell(even, 'center', '0F172A', true));
-                        sc2(rowIdx, 6, qty, sCell(even, 'center', '0F172A', true), 'n', '#,##0');
-                        sc2(rowIdx, 7, price, sCell(even, 'right'), 'n', '"R$" #,##0.00');
-                        // FÓRMULA REAL: Total = Quantidade (G) * Preço Unitário (H)
-                        scF2(rowIdx, 8, `G${rowExcel}*H${rowExcel}`, sCell(even, 'right', '047857', true), '"R$" #,##0.00');
-                        sc2(rowIdx, 9, sale.destination || '', sCell(even, 'left'));
-                        sc2(rowIdx, 10, sale.nfNumber || '-', sCell(even, 'center'));
-                        sc2(rowIdx, 11, `${dateStr} (${sale.soldBy || ''})`, sCell(even, 'left'));
-
-                        ws2['!rows'][rowIdx] = { hpt: 22 };
-                        r2++;
-                    });
-
-                    const endRow2 = r2;
-                    // Linha separadora vazia
-                    ws2['!rows'][r2] = { hpt: 10 }; r2++;
-
-                    // Totais SEM MESCLAGEM
-                    for (let c = 0; c < 12; c++) sc2(r2, c, '', sTotalHdr);
-                    sc2(r2, 1, 'TOTAL ARRECADADO', sTotalHdr);
-                    scF2(r2, 6, `SUBTOTAL(109, G${startRow2}:G${endRow2})`, sTotalVal('center'), '#,##0');
-                    sc2(r2, 7, '-', sTotalVal('center'));
-                    scF2(r2, 8, `SUBTOTAL(109, I${startRow2}:I${endRow2})`, sTotalValEmerald, '"R$" #,##0.00');
-                    sc2(r2, 9, '-', sTotalVal('center'));
-                    sc2(r2, 10, '-', sTotalVal('center'));
-                    sc2(r2, 11, '-', sTotalVal('center'));
-                    ws2['!rows'][r2] = { hpt: 26 }; r2++;
-
-                    ws2['!autofilter'] = {
-                        ref: XLS.utils.encode_range({
-                            s: { r: headerRow2, c: 0 },
-                            e: { r: endRow2 - 1, c: 11 }
-                        })
-                    };
-                    ws2['!freeze'] = { xSplit: 0, ySplit: headerRow2 + 1 };
-                    ws2['!ref'] = XLS.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r2 - 1, c: 11 } });
+                    const ws2 = buildDeadStockSalesWorksheet(XLS, deadStockSales, `HISTÓRICO DE VENDAS & TRANSFERÊNCIAS CONCLUÍDAS — ${obraNome}`, dataHoraFormatada, usuarioExport, false);
                     XLS.utils.book_append_sheet(wb, ws2, "Vendas Concluídas");
                 }
 
@@ -10919,7 +11516,7 @@
             }
         });
 
-        // 5.2 EXPORTAÇÃO CONSOLIDADA (DUAS ABAS: UHE ESTRELA E PCH TABOCA)
+        // 5.4 EXPORTAÇÃO CONSOLIDADA MULTI-ABAS (5 ABAS COMPLETAS: DASHBOARD, CONSOLIDADO, ESTRELA, TABOCA, VENDAS)
         document.getElementById('export-dead-stock-consolidated-btn')?.addEventListener('click', async () => {
             const XLS = typeof XLSX !== 'undefined' ? XLSX : null;
             if (!XLS) {
@@ -10927,13 +11524,13 @@
                 return;
             }
 
-            showToast("Buscando itens de UHE Estrela e PCH Taboca...");
+            showToast("Gerando planilha consolidada executiva com 5 abas (Dashboard, Consolidado, Estrela, Taboca e Vendas)...");
 
             try {
-                const { estrelaItems, tabocaItems } = await fetchBothDeadStocks();
+                const { estrelaItems, tabocaItems, estrelaSales, tabocaSales } = await fetchBothDeadStocksAndSales();
 
-                if (estrelaItems.length === 0 && tabocaItems.length === 0) {
-                    showToast("Não há itens de Estoque Morto cadastrados em nenhuma das duas obras.", true);
+                if (estrelaItems.length === 0 && tabocaItems.length === 0 && estrelaSales.length === 0 && tabocaSales.length === 0) {
+                    showToast("Não há itens de Estoque Morto ou Vendas cadastrados em nenhuma das duas obras.", true);
                     return;
                 }
 
@@ -10941,19 +11538,33 @@
                 const usuarioExport = currentUser?.displayName || currentUser?.email || 'Sistema';
                 const wb = XLS.utils.book_new();
 
-                // Aba 1: UHE Estrela
-                const wsEstrela = buildDeadStockWorksheet(XLS, estrelaItems, 'UHE Estrela', deadStockSalePercent, dataHoraFormatada, usuarioExport);
+                // 1. Aba Dashboard & Indicadores Explicado
+                const wsDash = buildDeadStockDashboardWorksheet(XLS, estrelaItems, tabocaItems, estrelaSales, tabocaSales, deadStockSalePercent, dataHoraFormatada, usuarioExport);
+                XLS.utils.book_append_sheet(wb, wsDash, "Dashboard & Indicadores");
+
+                // 2. Aba Consolidado Geral (Produtos de ambas as obras juntos em lista única)
+                const allAvailable = [...estrelaItems, ...tabocaItems];
+                const wsConsolidado = buildDeadStockWorksheet(XLS, allAvailable, 'Consolidado Geral (Estrela + Taboca)', deadStockSalePercent, dataHoraFormatada, usuarioExport, true);
+                XLS.utils.book_append_sheet(wb, wsConsolidado, "Consolidado Geral");
+
+                // 3. Aba UHE Estrela
+                const wsEstrela = buildDeadStockWorksheet(XLS, estrelaItems, 'UHE Estrela', deadStockSalePercent, dataHoraFormatada, usuarioExport, false);
                 XLS.utils.book_append_sheet(wb, wsEstrela, "UHE Estrela");
 
-                // Aba 2: PCH Taboca
-                const wsTaboca = buildDeadStockWorksheet(XLS, tabocaItems, 'PCH Taboca', deadStockSalePercent, dataHoraFormatada, usuarioExport);
+                // 4. Aba PCH Taboca
+                const wsTaboca = buildDeadStockWorksheet(XLS, tabocaItems, 'PCH Taboca', deadStockSalePercent, dataHoraFormatada, usuarioExport, false);
                 XLS.utils.book_append_sheet(wb, wsTaboca, "PCH Taboca");
 
+                // 5. Aba Vendas Concluídas (Ambas as Obras Juntas)
+                const allSales = [...estrelaSales, ...tabocaSales];
+                const wsVendas = buildDeadStockSalesWorksheet(XLS, allSales, 'HISTÓRICO CONSOLIDADO DE VENDAS & TRANSFERÊNCIAS (ESTRELA + TABOCA)', dataHoraFormatada, usuarioExport, true);
+                XLS.utils.book_append_sheet(wb, wsVendas, "Vendas Concluídas");
+
                 const dateStr = new Date().toISOString().split('T')[0];
-                const filename = `Relatorio_Estoque_Morto_CONSOLIDADO_Estrela_Taboca_${deadStockSalePercent}pct_${dateStr}.xlsx`;
+                const filename = `Relatorio_Estoque_Morto_MULTI_ABAS_Estrela_Taboca_${deadStockSalePercent}pct_${dateStr}.xlsx`;
                 XLS.writeFile(wb, filename);
 
-                showToast(`📊 Planilha consolidada baixada! (${estrelaItems.length} Estrela + ${tabocaItems.length} Taboca)`);
+                showToast(`📊 Planilha executiva com 5 abas exportada com sucesso! (${allAvailable.length} disponíveis + ${allSales.length} baixas)`);
             } catch (error) {
                 console.error("Erro ao gerar planilha consolidada XLSX:", error);
                 showToast("Falha ao exportar planilha consolidada. Verifique a conexão.", true);
