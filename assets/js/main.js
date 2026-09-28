@@ -2705,6 +2705,13 @@
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;');
 
+        const escHtmlAttr = (s) => String(s ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
         const buildActivityLogDetail = (h) => {
             const parts = [];
             const actor = h.performedBy || h.receivedBy || h.withdrawnBy;
