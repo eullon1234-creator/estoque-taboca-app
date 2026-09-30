@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eullon-app-v3.1';
+const CACHE_NAME = 'eullon-app-v3.2';
 
 // Assets to pre-cache on install for immediate offline fallback
 const PRECACHE_ASSETS = [

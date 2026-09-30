@@ -9959,13 +9959,22 @@
                                 <div class="text-[10px] text-slate-400 mt-0.5">Por: ${escHtmlText(sale.soldBy || 'Sistema')}</div>
                             </td>
                             <td class="p-3.5 sm:p-4 text-center align-top whitespace-nowrap">
-                                <button type="button" 
-                                    onclick="window.openCancelDeadStockSaleModal('${sale.id}')" 
-                                    class="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 transition active:scale-95 cursor-pointer shadow-2xs"
-                                    title="Estornar / Cancelar esta venda">
-                                    <span class="material-symbols-outlined text-[15px]">undo</span>
-                                    <span>Estornar</span>
-                                </button>
+                                <div class="flex items-center justify-center gap-1.5">
+                                    <button type="button" 
+                                        onclick="window.openEditDeadStockSaleModal('${sale.id}')" 
+                                        class="inline-flex items-center gap-1 px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl border border-indigo-200 transition active:scale-95 cursor-pointer shadow-2xs"
+                                        title="Editar dados da venda (Comprador, NF, Observação, Valor)">
+                                        <span class="material-symbols-outlined text-[15px]">edit</span>
+                                        <span>Editar</span>
+                                    </button>
+                                    <button type="button" 
+                                        onclick="window.openCancelDeadStockSaleModal('${sale.id}')" 
+                                        class="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 transition active:scale-95 cursor-pointer shadow-2xs"
+                                        title="Estornar / Cancelar esta venda">
+                                        <span class="material-symbols-outlined text-[15px]">undo</span>
+                                        <span>Estornar</span>
+                                    </button>
+                                </div>
                             </td>
                         `;
                         salesListContainer.appendChild(tr);
@@ -10283,6 +10292,101 @@
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Confirmar Saída / Venda';
+            }
+        });
+
+        // 3.0 MODAL DE EDIÇÃO DE DADOS DA VENDA (COMPRADOR, NF, OBSERVAÇÃO, PREÇO)
+        const openEditDeadStockSaleModal = (saleId) => {
+            const sale = deadStockSales.find(s => s.id === saleId);
+            if (!sale) {
+                showToast("Registro de venda não encontrado.", true);
+                return;
+            }
+
+            const unit = sale.productUnit || 'UN';
+            const qty = parseInt(sale.quantity, 10) || 1;
+            const price = parseFloat(sale.price) || 0;
+            const total = parseFloat(sale.total) || (price * qty);
+            const dateStr = sale.soldAt?.seconds ? new Date(sale.soldAt.seconds * 1000).toLocaleString('pt-BR') : 'Recente';
+
+            document.getElementById('edit-ds-sale-id').value = sale.id;
+            document.getElementById('edit-ds-product-name').textContent = sale.productName || 'Produto';
+            document.getElementById('edit-ds-quantity-badge').textContent = `${qty} ${unit}`;
+            document.getElementById('edit-ds-date').textContent = `📅 ${dateStr} • Por: ${sale.soldBy || 'Sistema'}`;
+
+            document.getElementById('edit-ds-destination').value = sale.destination || '';
+            document.getElementById('edit-ds-nf').value = sale.nfNumber || '';
+            document.getElementById('edit-ds-obs').value = sale.observation || '';
+            
+            const priceInput = document.getElementById('edit-ds-price');
+            const totalInput = document.getElementById('edit-ds-total');
+            if (priceInput) priceInput.value = price;
+            if (totalInput) totalInput.value = total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+            const calcTotal = () => {
+                const p = parseFloat(priceInput.value) || 0;
+                const tot = p * qty;
+                if (totalInput) totalInput.value = tot.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            };
+            priceInput?.removeEventListener('input', calcTotal);
+            priceInput?.addEventListener('input', calcTotal);
+
+            openModal('edit-dead-stock-sale-modal');
+        };
+
+        window.openEditDeadStockSaleModal = openEditDeadStockSaleModal;
+
+        document.getElementById('edit-dead-stock-sale-form')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<div class="spinner-small"></div>';
+
+            try {
+                const saleId = document.getElementById('edit-ds-sale-id').value;
+                const sale = deadStockSales.find(s => s.id === saleId);
+                if (!sale) throw new Error("Registro de venda não encontrado.");
+
+                const destination = document.getElementById('edit-ds-destination').value.trim();
+                const nfNumber = document.getElementById('edit-ds-nf').value.trim();
+                const observation = document.getElementById('edit-ds-obs').value.trim();
+                const price = parseFloat(document.getElementById('edit-ds-price').value) || 0;
+                const qty = parseInt(sale.quantity, 10) || 1;
+                const total = price * qty;
+
+                const saleRef = doc(deadStockSalesCollectionRef, saleId);
+
+                await updateDoc(saleRef, {
+                    destination: destination,
+                    nfNumber: nfNumber,
+                    observation: observation,
+                    price: price,
+                    total: total,
+                    updatedAt: serverTimestamp(),
+                    updatedBy: currentUser?.displayName || currentUser?.email || 'Sistema'
+                });
+
+                if (historyCollectionRef) {
+                    const historyRef = doc(historyCollectionRef);
+                    await setDoc(historyRef, {
+                        productId: sale.originalProductId || sale.deadStockId || saleId,
+                        productName: sale.productName || 'Venda',
+                        type: 'Edição de Venda',
+                        quantity: 0,
+                        observation: `Venda atualizada: Comprador/Destino="${destination}", NF="${nfNumber || 'Sem NF'}", Obs="${observation || 'Sem obs'}", Valor=R$ ${price.toFixed(2)}`,
+                        user: currentUser?.displayName || currentUser?.email || 'Desconhecido',
+                        date: serverTimestamp()
+                    });
+                }
+
+                showToast("Dados da venda atualizados com sucesso!");
+                closeModal('edit-dead-stock-sale-modal');
+            } catch (error) {
+                console.error("Erro ao atualizar venda:", error);
+                showToast(error.message || "Erro ao atualizar venda.", true);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<span class="material-symbols-outlined text-base">save</span><span>Salvar Alterações</span>';
             }
         });
 
